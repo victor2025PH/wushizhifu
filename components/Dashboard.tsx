@@ -39,7 +39,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const displayName = user?.first_name || t.guest;
   const username = user?.username ? `@${user.username}` : '';
 
-  const handleAlipayClick = () => {
+  const handleAlipayClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('Alipay button clicked, showing guide modal');
     setShowAlipayGuide(true);
   };
 
