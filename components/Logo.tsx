@@ -11,11 +11,11 @@ interface LogoProps {
  */
 export const Logo: React.FC<LogoProps> = ({ className = '', size = 'md' }) => {
   const sizeClasses = {
-    xs: 'w-6 h-6',      // 24px
-    sm: 'w-8 h-8',      // 32px
-    md: 'w-9 h-9',      // 36px (default)
-    lg: 'w-12 h-12',    // 48px
-    xl: 'w-16 h-16',    // 64px
+    xs: 'w-[18px] h-[18px]',  // 18px
+    sm: 'w-8 h-8',            // 32px
+    md: 'w-9 h-9',            // 36px (default)
+    lg: 'w-12 h-12',          // 48px
+    xl: 'w-16 h-16',          // 64px
   };
 
   return (
