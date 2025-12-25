@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp, Wallet, ArrowRight, Zap, Shield, Calculator, Clock, User as UserIcon, BadgeCheck } from 'lucide-react';
 import { PaymentProvider, EXCHANGE_RATE_CNY_USDT, Language, TRANSLATIONS, TelegramUser } from '../types';
+import { Logo } from './Logo';
 
 interface DashboardProps {
   onSelectProvider: (provider: PaymentProvider) => void;
@@ -46,8 +47,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
       {/* Brand Logo Header */}
       <div className="flex justify-between items-center mb-8 px-1">
         <div className="flex items-center space-x-2.5">
-          <div className="w-9 h-9 bg-gradient-gold rounded-xl flex items-center justify-center shadow-gold transform rotate-3 hover:rotate-0 transition-transform duration-300">
-             <span className="text-white font-extrabold text-lg tracking-tighter">50</span>
+          <div className="flex items-center justify-center transform hover:scale-105 transition-transform duration-300">
+            <Logo size="md" className="drop-shadow-md" />
           </div>
           <div className="flex flex-col">
              <span className="font-extrabold text-lg text-tech-text leading-none tracking-tight">{t.appName}</span>

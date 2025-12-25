@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Settings, Globe, Shield, Headphones, Info, ChevronRight, LogOut, BadgeCheck, ArrowLeft, Zap, Lock, Award } from 'lucide-react';
 import { Language, TRANSLATIONS, TelegramUser } from '../types';
+import { Logo } from './Logo';
 
 interface ProfileViewProps {
   lang: Language;
@@ -49,7 +50,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ lang, user, onToggleLa
           {/* Brand Header */}
           <div className="flex flex-col items-center justify-center mb-8 mt-4">
             <div className="w-20 h-20 bg-gradient-gold rounded-2xl flex items-center justify-center shadow-gold mb-4 rotate-3">
-               <span className="text-white font-extrabold text-3xl tracking-tighter">50</span>
+               <Logo size="xl" className="drop-shadow-lg" />
             </div>
             <h1 className="text-2xl font-extrabold text-tech-text tracking-tight">{t.appName}</h1>
             <span className="px-3 py-1 bg-champagne-50 text-champagne-700 text-xs font-bold rounded-full border border-champagne-200 mt-2">

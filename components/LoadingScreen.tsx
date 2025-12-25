@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Cpu } from 'lucide-react';
 import { Language, TRANSLATIONS } from '../types';
+import { Logo } from './Logo';
 
 interface LoadingScreenProps {
   lang: Language;
@@ -32,14 +32,16 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({ lang }) => {
           transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut", delay: 0.2 }}
         />
         
-        {/* Icon Container */}
+        {/* Logo Container */}
         <div className="bg-white p-6 rounded-3xl shadow-soft relative z-10 flex items-center justify-center border border-champagne-100">
            <motion.div
              animate={{ rotate: 360 }}
              transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
              className="absolute inset-0 rounded-3xl bg-gradient-to-tr from-tech-primary/5 to-champagne-300/20"
            />
-          <Cpu className="w-12 h-12 text-champagne-600 relative z-10" strokeWidth={1.5} />
+          <div className="relative z-10">
+            <Logo size="lg" className="drop-shadow-lg" />
+          </div>
         </div>
       </div>
 

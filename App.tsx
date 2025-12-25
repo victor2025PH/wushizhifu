@@ -51,32 +51,45 @@ export default function App() {
   const [showWelcome, setShowWelcome] = useState(false);
 
   useEffect(() => {
-    // Initialize Telegram WebApp
-    if (window.Telegram?.WebApp) {
-      window.Telegram.WebApp.ready();
-      window.Telegram.WebApp.expand();
-      console.log("Telegram WebApp Initialized", window.Telegram.WebApp.initDataUnsafe);
-      
-      const tgUser = window.Telegram.WebApp.initDataUnsafe?.user;
-      if (tgUser) {
-        setUser(tgUser);
-        // Prioritize Chinese, but if user specifically has English set in TG, we can check here.
-        // For now, consistent with "Prioritize Chinese", we default to 'zh' in useState.
-        // If we wanted to respect 'en':
-        if (window.Telegram.WebApp.initDataUnsafe?.user?.language_code === 'en') {
-          setLang('en');
+    // Initialize Telegram WebApp and sync user data
+    const initializeApp = async () => {
+      if (window.Telegram?.WebApp) {
+        window.Telegram.WebApp.ready();
+        window.Telegram.WebApp.expand();
+        console.log("Telegram WebApp Initialized", window.Telegram.WebApp.initDataUnsafe);
+        
+        const tgUser = window.Telegram.WebApp.initDataUnsafe?.user;
+        if (tgUser) {
+          setUser(tgUser);
+          
+          // Set language based on user preference
+          if (window.Telegram.WebApp.initDataUnsafe?.user?.language_code === 'en') {
+            setLang('en');
+          }
+          
+          // Sync user data with backend
+          try {
+            const { apiClient } = await import('./api');
+            await apiClient.syncUser(tgUser);
+            console.log("User data synced with backend");
+          } catch (error) {
+            console.error("Failed to sync user data:", error);
+            // Continue even if sync fails
+          }
         }
       }
-    }
 
-    // Simulate connection security check
-    const timer = setTimeout(() => {
-      setView('dashboard');
-      // Show welcome modal after loading
-      setShowWelcome(true);
-    }, 2500);
+      // Simulate connection security check
+      const timer = setTimeout(() => {
+        setView('dashboard');
+        // Show welcome modal after loading
+        setShowWelcome(true);
+      }, 2500);
 
-    return () => clearTimeout(timer);
+      return () => clearTimeout(timer);
+    };
+
+    initializeApp();
   }, []);
 
   const handleProviderSelect = (selected: PaymentProvider) => {
