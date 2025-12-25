@@ -2,7 +2,7 @@ import React from 'react';
 
 interface LogoProps {
   className?: string;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 }
 
 /**
@@ -11,6 +11,7 @@ interface LogoProps {
  */
 export const Logo: React.FC<LogoProps> = ({ className = '', size = 'md' }) => {
   const sizeClasses = {
+    xs: 'w-6 h-6',      // 24px
     sm: 'w-8 h-8',      // 32px
     md: 'w-9 h-9',      // 36px (default)
     lg: 'w-12 h-12',    // 48px

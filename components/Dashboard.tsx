@@ -45,10 +45,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
       exit={{ opacity: 0, x: -20 }}
     >
       {/* Brand Logo Header */}
-      <div className="flex justify-between items-center mb-8 px-1">
-        <div className="flex items-center justify-center">
-          <Logo size="sm" className="drop-shadow-md" />
-        </div>
+      <div className="flex justify-center items-center mb-2 px-1">
+        <Logo size="xs" className="drop-shadow-md" />
       </div>
 
       {/* User Welcome and Total Assets Row */}
