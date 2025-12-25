@@ -74,7 +74,7 @@ export const TRANSLATIONS = {
     // Navigation
     navHome: "Home",
     navWallet: "Wallet",
-    navActivity: "Activity",
+    navActivity: "Records",
     navProfile: "Profile",
     // Wallet
     myAssets: "My Assets",
@@ -136,7 +136,7 @@ export const TRANSLATIONS = {
     // Navigation
     navHome: "首页",
     navWallet: "钱包",
-    navActivity: "活动",
+    navActivity: "记录",
     navProfile: "我的",
     // Wallet
     myAssets: "我的资产",

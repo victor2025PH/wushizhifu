@@ -17,10 +17,10 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({ user, lang, onClose 
 
   const handleStart = () => {
     setIsCelebrating(true);
-    // Delay actual close to show the fireworks
+    // Delay actual close to show the fireworks and allow interaction
     setTimeout(() => {
       onClose();
-    }, 2200);
+    }, 4500);
   };
 
   return (
