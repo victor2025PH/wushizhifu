@@ -64,7 +64,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ provider, onBack, onSu
               type="number"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              placeholder="100-50000"
+              placeholder={t.inputPlaceholder}
               className="w-full bg-tech-input border-2 border-transparent rounded-3xl py-6 pl-12 pr-6 text-3xl font-bold text-tech-text placeholder-gray-300 outline-none transition-all focus:bg-white focus:border-champagne-300 focus:shadow-soft"
               autoFocus
             />

@@ -63,7 +63,7 @@ export const CalculatorModal: React.FC<CalculatorModalProps> = ({ lang, onClose 
           <h3 className="text-lg font-bold text-tech-text flex items-center">
             {t.calculator}
             <span className="ml-2 text-xs bg-champagne-100 text-champagne-700 px-2 py-0.5 rounded-full">
-              Rate: {EXCHANGE_RATE_CNY_USDT}
+              {t.rate}: {EXCHANGE_RATE_CNY_USDT}
             </span>
           </h3>
           <button onClick={onClose} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200">
@@ -76,7 +76,7 @@ export const CalculatorModal: React.FC<CalculatorModalProps> = ({ lang, onClose 
           <div className="flex justify-between text-tech-sub text-xs uppercase font-bold mb-1">
             <span>{mode === 'CNY_TO_USDT' ? 'CNY' : 'USDT'}</span>
             <button onClick={toggleMode} className="flex items-center text-tech-primary hover:text-tech-secondary">
-              <ArrowRightLeft className="w-3 h-3 mr-1" /> Switch
+              <ArrowRightLeft className="w-3 h-3 mr-1" /> {t.switchMode}
             </button>
           </div>
           <div className="text-right text-3xl font-bold text-tech-text tracking-tight mb-2 truncate">

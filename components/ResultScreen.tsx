@@ -40,7 +40,8 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ provider, amount, on
   };
 
   const providerName = provider === 'alipay' ? t.alipay : t.wechat;
-  const appName = provider === 'alipay' ? 'Alipay' : 'WeChat';
+  // Use localized provider name for the button label as well
+  const appName = providerName; 
 
   return (
     <motion.div 

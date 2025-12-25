@@ -43,7 +43,7 @@ export default function App() {
   const [view, setView] = useState<AppState['view']>('loading');
   const [provider, setProvider] = useState<PaymentProvider | null>(null);
   const [amount, setAmount] = useState<number>(0);
-  const [lang, setLang] = useState<Language>('en');
+  const [lang, setLang] = useState<Language>('zh');
   const [user, setUser] = useState<TelegramUser | null>(null);
   
   // Modals state
@@ -60,8 +60,11 @@ export default function App() {
       const tgUser = window.Telegram.WebApp.initDataUnsafe?.user;
       if (tgUser) {
         setUser(tgUser);
-        if (window.Telegram.WebApp.initDataUnsafe?.user?.language_code === 'zh') {
-          setLang('zh');
+        // Prioritize Chinese, but if user specifically has English set in TG, we can check here.
+        // For now, consistent with "Prioritize Chinese", we default to 'zh' in useState.
+        // If we wanted to respect 'en':
+        if (window.Telegram.WebApp.initDataUnsafe?.user?.language_code === 'en') {
+          setLang('en');
         }
       }
     }
@@ -130,6 +133,7 @@ export default function App() {
               onSelectProvider={handleProviderSelect} 
               onOpenCalculator={() => setShowCalculator(true)}
               onOpenHistory={() => setView('history')}
+              onOpenProfile={() => setView('profile')}
               lang={lang} 
               user={user}
             />

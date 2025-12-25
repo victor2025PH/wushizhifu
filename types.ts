@@ -44,6 +44,7 @@ export const TRANSLATIONS = {
     verifiedMerchant: "Verified Merchant",
     secureGateway: "WuShiPay Secure Gateway",
     topUp: "Top Up",
+    withdraw: "Withdraw",
     via: "via",
     enterAmount: "Enter Amount (CNY)",
     estimatedReceipt: "Estimated Receipt",
@@ -71,6 +72,15 @@ export const TRANSLATIONS = {
     result: "Result",
     welcomeMessage: "Experience the premium payment gateway on Telegram.",
     getStarted: "Get Started",
+    // Branding & Common
+    appName: "WuShiPay",
+    appTicker: "WUSHIPAY",
+    premium: "Premium",
+    tetherUsd: "Tether USD",
+    techLtd: "WuShiPay Tech Ltd.",
+    rate: "Rate",
+    switchMode: "Switch",
+    inputPlaceholder: "100-50000",
     // Navigation
     navHome: "Home",
     navWallet: "Wallet",
@@ -92,7 +102,16 @@ export const TRANSLATIONS = {
     about: "About",
     verification: "Verification",
     verified: "Verified",
-    logout: "Disconnect"
+    logout: "Disconnect",
+    // About Page
+    aboutTitle: "About Us",
+    companyDesc: "WuShiPay is a leading digital asset payment solution provider in the Telegram ecosystem. We aggregate global top-tier payment channels to provide users with millisecond-level response and zero-loss payment experiences.",
+    feature1Title: "Industry Leading Success Rate",
+    feature1Desc: "Smart routing algorithm guarantees 99.9% transaction success.",
+    feature2Title: "Financial Grade Security",
+    feature2Desc: "Multi-signature cold storage and full compensation guarantee.",
+    feature3Title: "Premium Service",
+    feature3Desc: "24/7 Dedicated 1-on-1 customer support."
   },
   zh: {
     loading: "正在初始化安全核心",
@@ -106,6 +125,7 @@ export const TRANSLATIONS = {
     verifiedMerchant: "官方认证商户",
     secureGateway: "WuShiPay 安全支付网关",
     topUp: "账户充值",
+    withdraw: "提现",
     via: "通过",
     enterAmount: "输入金额 (CNY)",
     estimatedReceipt: "预计到账",
@@ -133,6 +153,15 @@ export const TRANSLATIONS = {
     result: "结果",
     welcomeMessage: "体验 Telegram 上最高端的支付网关。",
     getStarted: "开始使用",
+    // Branding & Common
+    appName: "伍拾支付",
+    appTicker: "WUSHIPAY",
+    premium: "尊享版",
+    tetherUsd: "泰达币 (USDT)",
+    techLtd: "伍拾支付科技有限公司",
+    rate: "汇率",
+    switchMode: "切换",
+    inputPlaceholder: "100-50000",
     // Navigation
     navHome: "首页",
     navWallet: "钱包",
@@ -151,9 +180,18 @@ export const TRANSLATIONS = {
     settings: "设置",
     language: "语言",
     support: "客服支持",
-    about: "关于",
+    about: "关于我们",
     verification: "实名认证",
     verified: "已认证",
-    logout: "断开连接"
+    logout: "断开连接",
+    // About Page
+    aboutTitle: "关于我们",
+    companyDesc: "伍拾支付 (WuShiPay) 是 Telegram 生态中领先的数字资产支付解决方案提供商。我们依托自研的“极速核心”撮合引擎，聚合全球顶尖支付通道，为用户提供毫秒级响应、零掉单的极致支付体验。您的每一笔交易，都有我们银行级的风控体系保驾护航。",
+    feature1Title: "99.9% 交易成功率",
+    feature1Desc: "独家智能路由算法，自动切换最优通道，确保极速到账。",
+    feature2Title: "金融级资金安全",
+    feature2Desc: "采用多重签名冷钱包存储技术，提供全额赔付保障，让您无后顾之忧。",
+    feature3Title: "尊享级客户服务",
+    feature3Desc: "7x24小时 1对1 专属客服在线，秒级响应您的任何需求。"
   }
 };

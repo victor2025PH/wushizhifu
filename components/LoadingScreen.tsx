@@ -49,7 +49,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({ lang }) => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
       >
-        WuShiPay
+        {t.appName}
       </motion.h1>
       
       <motion.div 

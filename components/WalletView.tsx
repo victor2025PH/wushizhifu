@@ -40,9 +40,9 @@ export const WalletView: React.FC<WalletViewProps> = ({ lang, user }) => {
                     <div className="w-8 h-8 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center">
                         <Layers className="w-4 h-4 text-champagne-400" />
                     </div>
-                    <span className="font-bold tracking-wider text-sm opacity-80">WuShiPay</span>
+                    <span className="font-bold tracking-wider text-sm opacity-80">{t.appName}</span>
                 </div>
-                <span className="font-mono text-xl italic font-bold text-champagne-400">Premium</span>
+                <span className="font-mono text-xl italic font-bold text-champagne-400">{t.premium}</span>
             </div>
 
             <div className="space-y-1">
@@ -91,7 +91,7 @@ export const WalletView: React.FC<WalletViewProps> = ({ lang, user }) => {
                 </div>
                 <div>
                     <div className="text-sm font-bold text-tech-text">USDT</div>
-                    <div className="text-xs text-tech-sub">Tether USD</div>
+                    <div className="text-xs text-tech-sub">{t.tetherUsd}</div>
                 </div>
             </div>
             <div className="text-right">

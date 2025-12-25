@@ -7,6 +7,7 @@ interface DashboardProps {
   onSelectProvider: (provider: PaymentProvider) => void;
   onOpenCalculator: () => void;
   onOpenHistory: () => void;
+  onOpenProfile: () => void;
   lang: Language;
   user: TelegramUser | null;
 }
@@ -27,6 +28,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onSelectProvider, 
   onOpenCalculator,
   onOpenHistory,
+  onOpenProfile,
   lang,
   user
 }) => {
@@ -48,37 +50,39 @@ export const Dashboard: React.FC<DashboardProps> = ({
              <span className="text-white font-extrabold text-lg tracking-tighter">50</span>
           </div>
           <div className="flex flex-col">
-             <span className="font-extrabold text-lg text-tech-text leading-none tracking-tight">伍拾支付</span>
-             <span className="text-[9px] text-tech-sub font-bold tracking-[0.2em] mt-0.5">WUSHIPAY</span>
+             <span className="font-extrabold text-lg text-tech-text leading-none tracking-tight">{t.appName}</span>
+             <span className="text-[9px] text-tech-sub font-bold tracking-[0.2em] mt-0.5">{t.appTicker}</span>
           </div>
         </div>
       </div>
 
       {/* User Welcome and Total Assets Row */}
       <div className="flex justify-between items-end mb-6 px-1">
-        {/* User Info */}
-        <div className="flex items-center space-x-3">
+        {/* User Info - Clickable */}
+        <button onClick={onOpenProfile} className="flex items-center space-x-3 text-left group">
           <div className="relative">
-            <div className="w-12 h-12 rounded-full bg-gradient-gold p-[2px] shadow-gold">
-              <div className="w-full h-full rounded-full bg-white overflow-hidden flex items-center justify-center">
+            {/* Premium Gold Gradient Border with Double Ring Effect */}
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-champagne-200 via-champagne-500 to-champagne-700 p-[2px] shadow-gold group-hover:shadow-lg transition-all duration-300">
+              <div className="w-full h-full rounded-full bg-white border-[2px] border-white overflow-hidden flex items-center justify-center">
                 {user?.photo_url ? (
-                  <img src={user.photo_url} alt="Profile" className="w-full h-full object-cover" />
+                  <img src={user.photo_url} alt="Profile" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                 ) : (
                   <UserIcon className="w-6 h-6 text-champagne-600" />
                 )}
               </div>
             </div>
-            <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full"></div>
+            {/* Online Status Dot */}
+            <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full shadow-sm"></div>
           </div>
           
           <div className="flex flex-col justify-end pb-0.5">
-            <div className="text-xs text-tech-sub font-medium mb-1">{t.welcome}</div>
+            <div className="text-xs text-tech-sub font-medium mb-1 group-hover:text-champagne-600 transition-colors">{t.welcome}</div>
             <div className="flex items-center space-x-1">
-              <span className="text-lg font-bold text-tech-text leading-none">{displayName}</span>
+              <span className="text-lg font-bold text-tech-text leading-none group-hover:text-tech-primary transition-colors">{displayName}</span>
               {user && <BadgeCheck className="w-4 h-4 text-blue-500 fill-blue-50" />}
             </div>
           </div>
-        </div>
+        </button>
         
         {/* Total Assets - Aligned Parallel */}
         <div className="flex flex-col items-end pb-0.5">
@@ -93,8 +97,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
       <div className="relative overflow-hidden bg-white/60 backdrop-blur-xl border border-white/50 rounded-3xl p-5 mb-4 shadow-soft group transition-all duration-300 hover:shadow-gold hover:border-champagne-200/60">
         <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-champagne-200/20 to-tech-primary/10 rounded-full blur-2xl -translate-y-10 translate-x-10" />
         
-        <div className="flex justify-between items-center relative z-10 h-full">
-          <div className="flex items-center space-x-4">
+        <div className="flex justify-between items-center relative z-10 h-full w-full">
+          <div className="flex items-center space-x-4 flex-shrink-0">
             <div className="bg-gradient-to-br from-champagne-400 to-champagne-600 p-3 rounded-2xl shadow-gold text-white flex-shrink-0">
               <TrendingUp className="w-5 h-5" strokeWidth={2.5} />
             </div>
@@ -103,13 +107,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <div className="text-sm font-bold text-tech-text whitespace-nowrap">{t.cnyToUsdt}</div>
             </div>
           </div>
-          <div className="text-right flex flex-col justify-center">
+          
+          <div className="text-right flex flex-col justify-center flex-shrink-0">
              <div className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-gold leading-tight">
                ¥{EXCHANGE_RATE_CNY_USDT.toFixed(2)}
              </div>
-             <div className="text-[10px] text-champagne-600 font-medium flex items-center justify-end whitespace-nowrap mt-1">
-               <Zap className="w-3 h-3 mr-0.5 fill-current" />
-               {t.liveUpdate}
+             <div className="flex items-center justify-end mt-1 space-x-1">
+               <Zap className="w-3 h-3 fill-current text-champagne-600" />
+               <span className="text-[10px] text-champagne-600 font-medium whitespace-nowrap">
+                 {t.liveUpdate}
+               </span>
              </div>
           </div>
         </div>
