@@ -111,7 +111,26 @@ export const TRANSLATIONS = {
     feature2Title: "Financial Grade Security",
     feature2Desc: "Multi-signature cold storage and full compensation guarantee.",
     feature3Title: "Premium Service",
-    feature3Desc: "24/7 Dedicated 1-on-1 customer support."
+    feature3Desc: "24/7 Dedicated 1-on-1 customer support.",
+    // Alipay Guide
+    alipayGuideTitle: "Payment Guide",
+    watchVideo: "Watch Video Tutorial",
+    alipayGuideStep1: "Step 1: Confirm Order & Payment Method",
+    alipayGuideStep1Desc: "Review the total amount (including product amount and system handling fee) on the payment page. The 'Alipay' (Alipay) icon is selected by default. Click the payment button at the bottom.",
+    alipayGuideStep2: "Step 2: Wait for System Redirect",
+    alipayGuideStep2Desc: "A prompt will appear: 'Redirecting to payment page, please wait...'. Do not close or refresh the page, wait patiently for 1-3 seconds.",
+    alipayGuideStep3: "Step 3: Confirm Opening Alipay",
+    alipayGuideStep3Desc: "Your phone system will show a dialog: 'Open this page in Alipay?'",
+    alipayGuideStep3Important: "Important: You must click the [Open] button. If you click Cancel, payment cannot be initiated.",
+    alipayGuideStep4: "Step 4: Complete Payment",
+    alipayGuideStep4Desc: "The system will automatically redirect to the Alipay APP payment interface. Review the amount again, select your payment method (e.g., Balance, Bank Card, or Huabei), and click [Confirm Payment], then verify with fingerprint/face or password.",
+    alipayGuideStep5: "Step 5: Payment Success",
+    alipayGuideStep5Desc: "After verification, Alipay will show 'Payment Successful' page. You can click 'Done' or return to the merchant website to check order status.",
+    alipayGuideTips: "Tips",
+    alipayGuideTip1: "Handling Fee: The final payment amount may include a small platform handling fee, please refer to the actual amount displayed.",
+    alipayGuideTip2: "Cannot Redirect: If clicking 'Open' has no response, please check if Alipay APP is installed, or try refreshing the page to initiate payment again.",
+    alipayGuideConfirm: "I Understand, Continue Payment",
+    cancel: "Cancel"
   },
   zh: {
     loading: "正在初始化安全核心",
@@ -192,6 +211,25 @@ export const TRANSLATIONS = {
     feature2Title: "金融级资金安全",
     feature2Desc: "采用多重签名冷钱包存储技术，提供全额赔付保障，让您无后顾之忧。",
     feature3Title: "尊享级客户服务",
-    feature3Desc: "7x24小时 1对1 专属客服在线，秒级响应您的任何需求。"
+    feature3Desc: "7x24小时 1对1 专属客服在线，秒级响应您的任何需求。",
+    // Alipay Guide
+    alipayGuideTitle: "支付操作指南",
+    watchVideo: "观看视频教程",
+    alipayGuideStep1: "第一步：确认订单与支付方式",
+    alipayGuideStep1Desc: "在收银台页面，核对合计金额（包含商品金额及系统手续费）。默认勾选"支付宝"(Alipay) 图标。点击底部的支付按钮。",
+    alipayGuideStep2: "第二步：等待系统跳转",
+    alipayGuideStep2Desc: "页面会出现提示弹窗："正在为您跳转到支付页面，请稍候..."。此时请勿关闭页面或刷新，耐心等待 1-3 秒。",
+    alipayGuideStep3: "第三步：确认唤起支付宝",
+    alipayGuideStep3Desc: "手机系统会弹出对话框提示："在'支付宝'中打开此页？"。",
+    alipayGuideStep3Important: "关键操作：请务必点击【打开】按钮。注意：如果点击取消，将无法拉起支付。",
+    alipayGuideStep4: "第四步：完成支付",
+    alipayGuideStep4Desc: "系统将自动跳转至支付宝 APP 的收银台界面。再次核对金额，选择您的付款方式（如：余额宝、银行卡或花呗），点击底部的【确认付款】按钮，并进行指纹/面容或密码验证。",
+    alipayGuideStep5: "第五步：支付成功",
+    alipayGuideStep5Desc: "验证通过后，支付宝显示"支付成功"页面。此时可点击"完成"或直接返回商户网页查看订单状态。",
+    alipayGuideTips: "温馨提示",
+    alipayGuideTip1: "手续费说明：最终支付金额可能包含少量平台手续费，请以实际显示为准。",
+    alipayGuideTip2: "无法跳转怎么办：如果点击"打开"后没有反应，请检查是否已安装支付宝 APP，或尝试刷新页面重新发起支付。",
+    alipayGuideConfirm: "我知道了，继续支付",
+    cancel: "取消"
   }
 };

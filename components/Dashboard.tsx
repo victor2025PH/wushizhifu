@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp, Wallet, ArrowRight, Zap, Shield, Calculator, Clock, User as UserIcon, BadgeCheck } from 'lucide-react';
 import { PaymentProvider, EXCHANGE_RATE_CNY_USDT, Language, TRANSLATIONS, TelegramUser } from '../types';
 import { Logo } from './Logo';
+import { AlipayGuideModal } from './AlipayGuideModal';
 
 interface DashboardProps {
   onSelectProvider: (provider: PaymentProvider) => void;
@@ -33,9 +34,18 @@ export const Dashboard: React.FC<DashboardProps> = ({
   lang,
   user
 }) => {
+  const [showAlipayGuide, setShowAlipayGuide] = useState(false);
   const t = TRANSLATIONS[lang];
   const displayName = user?.first_name || t.guest;
   const username = user?.username ? `@${user.username}` : '';
+
+  const handleAlipayClick = () => {
+    setShowAlipayGuide(true);
+  };
+
+  const handleAlipayConfirm = () => {
+    onSelectProvider('alipay');
+  };
 
   return (
     <motion.div 
@@ -148,7 +158,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       <div className="grid grid-cols-1 gap-4">
         {/* Alipay Card */}
         <button 
-          onClick={() => onSelectProvider('alipay')}
+          onClick={handleAlipayClick}
           className="group relative overflow-hidden rounded-3xl bg-white border border-transparent p-6 text-left transition-all duration-500 ease-[cubic-bezier(0.25,0.8,0.25,1)] active:scale-[0.98] shadow-soft hover:-translate-y-2 hover:shadow-[0_25px_50px_-12px_rgba(198,156,53,0.4)] hover:border-champagne-300"
         >
           <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity duration-300">
@@ -191,6 +201,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
       
       {/* Footer Text REMOVED */}
       <div className="mt-auto" />
+
+      {/* Alipay Guide Modal */}
+      <AlipayGuideModal
+        isOpen={showAlipayGuide}
+        onClose={() => setShowAlipayGuide(false)}
+        onConfirm={handleAlipayConfirm}
+        lang={lang}
+      />
     </motion.div>
   );
 };
