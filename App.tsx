@@ -51,6 +51,16 @@ export default function App() {
   const [showWelcome, setShowWelcome] = useState(false);
 
   useEffect(() => {
+    // Clear old cache on version change (for Telegram MiniApp cache busting)
+    const APP_VERSION = '1.0.1'; // Update this when deploying new features
+    const cachedVersion = localStorage.getItem('app_version');
+    if (cachedVersion && cachedVersion !== APP_VERSION) {
+      // Clear old cache
+      localStorage.clear();
+      sessionStorage.clear();
+    }
+    localStorage.setItem('app_version', APP_VERSION);
+    
     // Initialize Telegram WebApp and sync user data
     const initializeApp = async () => {
       if (window.Telegram?.WebApp) {
@@ -79,11 +89,35 @@ export default function App() {
         }
       }
 
+      // Parse URL parameters
+      const params = new URLSearchParams(window.location.search);
+      const viewParam = params.get('view') as AppState['view'] | null;
+      const providerParam = params.get('provider') as PaymentProvider | null;
+
       // Simulate connection security check
       const timer = setTimeout(() => {
-        setView('dashboard');
-        // Show welcome modal after loading
-        setShowWelcome(true);
+        // Handle URL parameters
+        if (viewParam) {
+          if (viewParam === 'dashboard' && providerParam) {
+            setProvider(providerParam);
+            setView('payment');
+          } else if (viewParam === 'calculator') {
+            // Calculator is a modal, so set view to dashboard and show modal
+            setView('dashboard');
+            setShowCalculator(true);
+          } else if (['wallet', 'history', 'profile'].includes(viewParam)) {
+            setView(viewParam as AppState['view']);
+          } else {
+            setView('dashboard');
+          }
+        } else {
+          setView('dashboard');
+        }
+        
+        // Show welcome modal after loading (only if no specific view requested)
+        if (!viewParam) {
+          setShowWelcome(true);
+        }
       }, 2500);
 
       return () => clearTimeout(timer);
