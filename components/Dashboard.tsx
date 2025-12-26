@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { TrendingUp, Wallet, ArrowRight, Zap, Shield, Calculator, Clock, User as UserIcon, BadgeCheck } from 'lucide-react';
 import { PaymentProvider, EXCHANGE_RATE_CNY_USDT, Language, TRANSLATIONS, TelegramUser } from '../types';
 import { Logo } from './Logo';
 import { AlipayGuideModal } from './AlipayGuideModal';
+import { WeChatGuideModal } from './WeChatGuideModal';
 
 interface DashboardProps {
   onSelectProvider: (provider: PaymentProvider) => void;
@@ -35,9 +36,33 @@ export const Dashboard: React.FC<DashboardProps> = ({
   user
 }) => {
   const [showAlipayGuide, setShowAlipayGuide] = useState(false);
+  const [showWeChatGuide, setShowWeChatGuide] = useState(false);
+  const [showScrollHint, setShowScrollHint] = useState(true);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const t = TRANSLATIONS[lang];
   const displayName = user?.first_name || t.guest;
   const username = user?.username ? `@${user.username}` : '';
+
+  // Hide scroll hint after 5 seconds or when user scrolls
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowScrollHint(false);
+    }, 5000);
+
+    const handleScroll = () => {
+      setShowScrollHint(false);
+    };
+
+    // Listen to window scroll events
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('touchmove', handleScroll, { passive: true });
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('touchmove', handleScroll);
+    };
+  }, []);
 
   const handleAlipayClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -50,8 +75,20 @@ export const Dashboard: React.FC<DashboardProps> = ({
     onSelectProvider('alipay');
   };
 
+  const handleWeChatClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('WeChat button clicked, showing guide modal');
+    setShowWeChatGuide(true);
+  };
+
+  const handleWeChatConfirm = () => {
+    onSelectProvider('wechat');
+  };
+
   return (
     <motion.div 
+      ref={scrollContainerRef}
       className="flex flex-col h-full pt-6 pb-24" 
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
@@ -162,7 +199,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         {/* Alipay Card */}
         <button 
           onClick={handleAlipayClick}
-          className="group relative overflow-hidden rounded-3xl bg-white border border-transparent p-6 text-left transition-all duration-500 ease-[cubic-bezier(0.25,0.8,0.25,1)] active:scale-[0.98] shadow-soft hover:-translate-y-2 hover:shadow-[0_25px_50px_-12px_rgba(198,156,53,0.4)] hover:border-champagne-300"
+          className="group relative overflow-hidden rounded-3xl bg-white border border-transparent p-6 text-left transition-all duration-500 ease-[cubic-bezier(0.25,0.8,0.25,1)] shadow-soft hover:-translate-y-2 hover:shadow-[0_25px_50px_-12px_rgba(198,156,53,0.4)] hover:border-champagne-300"
         >
           <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity duration-300">
             <svg viewBox="0 0 24 24" className="w-24 h-24 fill-blue-600"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
@@ -182,8 +219,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
         {/* WeChat Pay Card */}
         <button 
-          onClick={() => onSelectProvider('wechat')}
-          className="group relative overflow-hidden rounded-3xl bg-white border border-transparent p-6 text-left transition-all duration-500 ease-[cubic-bezier(0.25,0.8,0.25,1)] active:scale-[0.98] shadow-soft hover:-translate-y-2 hover:shadow-[0_25px_50px_-12px_rgba(198,156,53,0.4)] hover:border-champagne-300"
+          onClick={handleWeChatClick}
+          className="group relative overflow-hidden rounded-3xl bg-white border border-transparent p-6 text-left transition-all duration-500 ease-[cubic-bezier(0.25,0.8,0.25,1)] shadow-soft hover:-translate-y-2 hover:shadow-[0_25px_50px_-12px_rgba(198,156,53,0.4)] hover:border-champagne-300"
         >
           <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity duration-300">
             <svg viewBox="0 0 24 24" className="w-24 h-24 fill-green-600"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
@@ -205,11 +242,43 @@ export const Dashboard: React.FC<DashboardProps> = ({
       {/* Footer Text REMOVED */}
       <div className="mt-auto" />
 
+      {/* Scroll Down Hint */}
+      <AnimatePresence>
+        {showScrollHint && (
+          <div className="mt-4 flex flex-col items-center justify-center">
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ delay: 2, duration: 0.5 }}
+              className="text-tech-sub text-xs flex items-center space-x-2"
+            >
+              <motion.span
+                animate={{ y: [0, 5, 0] }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                className="inline-block text-lg"
+              >
+                ↓
+              </motion.span>
+              <span>向下滑动查看更多</span>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Alipay Guide Modal */}
       <AlipayGuideModal
         isOpen={showAlipayGuide}
         onClose={() => setShowAlipayGuide(false)}
         onConfirm={handleAlipayConfirm}
+        lang={lang}
+      />
+
+      {/* WeChat Guide Modal */}
+      <WeChatGuideModal
+        isOpen={showWeChatGuide}
+        onClose={() => setShowWeChatGuide(false)}
+        onConfirm={handleWeChatConfirm}
         lang={lang}
       />
     </motion.div>

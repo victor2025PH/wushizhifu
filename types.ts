@@ -130,7 +130,24 @@ export const TRANSLATIONS = {
     alipayGuideTip1: "Handling Fee: The final payment amount may include a small platform handling fee, please refer to the actual amount displayed.",
     alipayGuideTip2: "Cannot Redirect: If clicking 'Open' has no response, please check if Alipay APP is installed, or try refreshing the page to initiate payment again.",
     alipayGuideConfirm: "I Understand, Continue Payment",
-    cancel: "Cancel"
+    cancel: "Cancel",
+    // WeChat Guide
+    wechatGuideTitle: "WeChat Pay Guide",
+    wechatGuideStep1: "Step 1: Open WeChat App",
+    wechatGuideStep1Desc: "Ensure WeChat is installed on your phone. Open the WeChat app from your home screen or app drawer.",
+    wechatGuideStep2: "Step 2: Use Scan QR Code",
+    wechatGuideStep2Desc: "After clicking the payment button, a QR code will appear. Open WeChat and tap on the \"+\" icon at the top right, then select \"Scan QR Code\" or \"扫一扫\".",
+    wechatGuideStep3: "Step 3: Scan the Payment QR Code",
+    wechatGuideStep3Desc: "Point your phone camera at the QR code displayed on the payment page. WeChat will automatically recognize the code.",
+    wechatGuideStep3Important: "Important: Make sure the QR code is fully visible and well-lit for accurate scanning.",
+    wechatGuideStep4: "Step 4: Confirm Payment Amount",
+    wechatGuideStep4Desc: "After scanning, WeChat will display the payment details. Review the amount carefully, select your payment method (e.g., WeChat Pay Balance, Linked Bank Card), then tap \"Confirm Payment\" and verify with fingerprint/face or password.",
+    wechatGuideStep5: "Step 5: Payment Success",
+    wechatGuideStep5Desc: "After verification, WeChat will show a \"Payment Successful\" confirmation. You can return to the merchant page to check your order status.",
+    wechatGuideTips: "Tips",
+    wechatGuideTip1: "Handling Fee: The final payment amount may include a small platform handling fee, please refer to the actual amount displayed.",
+    wechatGuideTip2: "Cannot Scan: If the QR code cannot be scanned, ensure your phone camera has proper permissions, try adjusting the distance or lighting, or refresh the page to generate a new QR code.",
+    wechatGuideConfirm: "I Understand, Continue Payment"
   },
   zh: {
     loading: "正在初始化安全核心",
@@ -230,6 +247,23 @@ export const TRANSLATIONS = {
     alipayGuideTip1: "手续费说明：最终支付金额可能包含少量平台手续费，请以实际显示为准。",
     alipayGuideTip2: "无法跳转怎么办：如果点击\"打开\"后没有反应，请检查是否已安装支付宝 APP，或尝试刷新页面重新发起支付。",
     alipayGuideConfirm: "我知道了，继续支付",
-    cancel: "取消"
+    cancel: "取消",
+    // WeChat Guide
+    wechatGuideTitle: "微信支付操作指南",
+    wechatGuideStep1: "第一步：打开微信应用",
+    wechatGuideStep1Desc: "确保您的手机上已安装微信 APP。从主屏幕或应用抽屉中找到并打开微信应用。",
+    wechatGuideStep2: "第二步：使用扫一扫功能",
+    wechatGuideStep2Desc: "点击支付按钮后，页面会显示一个二维码。打开微信，点击右上角的 \"+\" 图标，然后选择 \"扫一扫\" 功能。",
+    wechatGuideStep3: "第三步：扫描支付二维码",
+    wechatGuideStep3Desc: "将手机摄像头对准支付页面上显示的二维码。微信会自动识别并读取二维码信息。",
+    wechatGuideStep3Important: "关键操作：请确保二维码完整清晰，光线充足，以便准确扫描。",
+    wechatGuideStep4: "第四步：确认支付金额",
+    wechatGuideStep4Desc: "扫描成功后，微信会显示支付详情页面。请仔细核对金额，选择您的付款方式（如：微信零钱、绑定的银行卡），然后点击 \"确认支付\" 按钮，并进行指纹/面容或密码验证。",
+    wechatGuideStep5: "第五步：支付成功",
+    wechatGuideStep5Desc: "验证通过后，微信会显示 \"支付成功\" 确认页面。此时可返回商户页面查看订单状态。",
+    wechatGuideTips: "温馨提示",
+    wechatGuideTip1: "手续费说明：最终支付金额可能包含少量平台手续费，请以实际显示为准。",
+    wechatGuideTip2: "无法扫描怎么办：如果二维码无法扫描，请检查手机摄像头权限是否开启，尝试调整距离或光线，或刷新页面重新生成二维码。",
+    wechatGuideConfirm: "我知道了，继续支付"
   }
 };

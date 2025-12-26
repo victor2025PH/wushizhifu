@@ -17,10 +17,10 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({ user, lang, onClose 
 
   const handleStart = () => {
     setIsCelebrating(true);
-    // Delay actual close to show the fireworks and allow interaction
+    // Delay actual close to show the fireworks briefly (1.5 seconds)
     setTimeout(() => {
       onClose();
-    }, 4500);
+    }, 1500);
   };
 
   return (
@@ -68,7 +68,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({ user, lang, onClose 
 
                 <button 
                   onClick={handleStart}
-                  className="w-full py-4 rounded-2xl bg-tech-text text-white font-bold text-lg shadow-lg hover:shadow-xl transition-all active:scale-[0.98] flex items-center justify-center space-x-2"
+                  className="w-full py-4 rounded-2xl bg-tech-text text-white font-bold text-lg shadow-lg hover:shadow-xl transition-all flex items-center justify-center space-x-2"
                 >
                   <Sparkles className="w-5 h-5 text-champagne-300" />
                   <span>{t.getStarted}</span>
