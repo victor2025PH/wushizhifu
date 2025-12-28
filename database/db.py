@@ -13,14 +13,31 @@ logger = logging.getLogger(__name__)
 class Database:
     """Database connection manager"""
     
-    def __init__(self, db_path: str = "wushipay.db"):
+    def __init__(self, db_path: str = None):
         """
         Initialize database connection.
         
         Args:
-            db_path: Path to SQLite database file
+            db_path: Path to SQLite database file. If None, uses botA's database.
         """
-        self.db_path = db_path
+        if db_path is None:
+            # Use botA's database to ensure consistency
+            # Default to botA/wushipay.db if it exists, otherwise root wushipay.db
+            botA_db = Path(__file__).parent.parent / "botA" / "wushipay.db"
+            root_db = Path(__file__).parent.parent / "wushipay.db"
+            
+            if botA_db.exists():
+                self.db_path = str(botA_db)
+                logger.info(f"Using Bot A database: {self.db_path}")
+            elif root_db.exists():
+                self.db_path = str(root_db)
+                logger.info(f"Using root database: {self.db_path}")
+            else:
+                # Default to botA path for new installations
+                self.db_path = str(botA_db)
+                logger.info(f"Creating new database at: {self.db_path}")
+        else:
+            self.db_path = db_path
         self.conn: Optional[sqlite3.Connection] = None
     
     def connect(self) -> sqlite3.Connection:
