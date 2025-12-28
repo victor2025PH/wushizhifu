@@ -80,6 +80,18 @@ class Database:
             ON group_settings(is_active)
         """)
         
+        # Create user_settings table for user preferences and onboarding
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_settings (
+                user_id BIGINT PRIMARY KEY,
+                onboarding_completed BOOLEAN DEFAULT 0,
+                last_active_at TIMESTAMP,
+                preferences TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
         # Create transactions table for settlement records
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS transactions (
@@ -1260,6 +1272,159 @@ class Database:
                 'last_active': row['last_active']
             }
         return {'count': 0, 'total_cny': 0.0, 'total_usdt': 0.0, 'avg_cny': 0.0, 'last_active': None}
+    
+    # ========== User Settings Methods ==========
+    
+    def get_user_setting(self, user_id: int, key: str = None) -> Optional[dict]:
+        """
+        Get user setting(s).
+        
+        Args:
+            user_id: Telegram user ID
+            key: Optional setting key (if None, returns all settings)
+            
+        Returns:
+            Dictionary with user settings or None
+        """
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT user_id, onboarding_completed, last_active_at, preferences
+            FROM user_settings
+            WHERE user_id = ?
+        """, (user_id,))
+        
+        row = cursor.fetchone()
+        if row:
+            import json
+            prefs = {}
+            if row['preferences']:
+                try:
+                    prefs = json.loads(row['preferences'])
+                except:
+                    pass
+            
+            return {
+                'user_id': row['user_id'],
+                'onboarding_completed': bool(row['onboarding_completed']),
+                'last_active_at': row['last_active_at'],
+                'preferences': prefs
+            }
+        
+        return None
+    
+    def is_onboarding_completed(self, user_id: int) -> bool:
+        """
+        Check if user has completed onboarding.
+        
+        Args:
+            user_id: Telegram user ID
+            
+        Returns:
+            True if onboarding completed
+        """
+        setting = self.get_user_setting(user_id)
+        return setting['onboarding_completed'] if setting else False
+    
+    def mark_onboarding_completed(self, user_id: int) -> bool:
+        """
+        Mark user onboarding as completed.
+        
+        Args:
+            user_id: Telegram user ID
+            
+        Returns:
+            True if successful
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT INTO user_settings (user_id, onboarding_completed, last_active_at)
+                VALUES (?, 1, CURRENT_TIMESTAMP)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    onboarding_completed = 1,
+                    last_active_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+            """, (user_id,))
+            
+            conn.commit()
+            logger.info(f"User {user_id} onboarding marked as completed")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error marking onboarding completed: {e}", exc_info=True)
+            return False
+    
+    def update_user_last_active(self, user_id: int) -> bool:
+        """
+        Update user last active timestamp.
+        
+        Args:
+            user_id: Telegram user ID
+            
+        Returns:
+            True if successful
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT INTO user_settings (user_id, last_active_at)
+                VALUES (?, CURRENT_TIMESTAMP)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    last_active_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+            """, (user_id,))
+            
+            conn.commit()
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error updating user last active: {e}", exc_info=True)
+            return False
+    
+    def set_user_preference(self, user_id: int, key: str, value: any) -> bool:
+        """
+        Set user preference.
+        
+        Args:
+            user_id: Telegram user ID
+            key: Preference key
+            value: Preference value
+            
+        Returns:
+            True if successful
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            # Get existing preferences
+            setting = self.get_user_setting(user_id)
+            prefs = setting['preferences'] if setting else {}
+            
+            # Update preference
+            import json
+            prefs[key] = value
+            
+            cursor.execute("""
+                INSERT INTO user_settings (user_id, preferences, updated_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    preferences = ?,
+                    updated_at = CURRENT_TIMESTAMP
+            """, (user_id, json.dumps(prefs), json.dumps(prefs)))
+            
+            conn.commit()
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error setting user preference: {e}", exc_info=True)
+            return False
 
 
 # Global database instance

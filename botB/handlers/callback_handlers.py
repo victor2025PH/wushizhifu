@@ -744,6 +744,23 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_history_bills(update, context, page=1, edit_message=True)
         return
     
+    # Onboarding handlers
+    if callback_data.startswith("onboarding_step"):
+        step = int(callback_data.split("_")[2])
+        from services.onboarding_service import show_onboarding_step
+        await show_onboarding_step(update, context, step)
+        return
+    
+    if callback_data == "onboarding_complete":
+        from services.onboarding_service import complete_onboarding
+        await complete_onboarding(update, context)
+        return
+    
+    if callback_data == "onboarding_skip":
+        from services.onboarding_service import complete_onboarding
+        await complete_onboarding(update, context)
+        return
+    
     # Main menu
     if callback_data == "main_menu":
         await query.answer("💡 使用底部按钮或 /start 查看主菜单")

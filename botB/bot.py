@@ -24,9 +24,22 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command - show welcome message with reply keyboard"""
     from keyboards.reply_keyboard import get_main_reply_keyboard
     from config import Config
+    from services.onboarding_service import handle_new_user_onboarding
+    from database import db
     
     user = update.effective_user
     is_admin_user = check_admin(user.id)
+    
+    # Check if new user and show onboarding
+    if not db.is_onboarding_completed(user.id):
+        onboarding_shown = await handle_new_user_onboarding(update, context)
+        if onboarding_shown:
+            # Update last active
+            db.update_user_last_active(user.id)
+            return  # Onboarding flow started
+    
+    # Update last active timestamp
+    db.update_user_last_active(user.id)
     
     # 构建欢迎消息
     welcome_message = (

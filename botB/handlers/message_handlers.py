@@ -371,6 +371,9 @@ async def handle_math_settlement(update: Update, context: ContextTypes.DEFAULT_T
             )
             
             logger.info(f"User {user.id} calculated batch settlement: {len(settlements)} bills, transaction_ids: {transaction_ids}")
+            
+            # Mark batch settlement feature as used
+            db.set_user_preference(user.id, 'feature_used_batch_settlement', True)
             return
         
         # Single settlement (existing logic)
@@ -491,6 +494,9 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     is_admin_user = is_admin(user_id)
     chat = update.effective_chat
+    
+    # Update user last active timestamp
+    db.update_user_last_active(user_id)
     
     # Handle filter input (after user clicks filter button)
     if 'awaiting_filter' in context.user_data:
