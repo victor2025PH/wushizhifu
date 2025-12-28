@@ -18,6 +18,22 @@ else:
     load_dotenv()
 
 
+def _parse_admin_ids() -> list[int]:
+    """Parse admin IDs from environment variable or return defaults"""
+    admin_ids_str = os.getenv("ADMIN_IDS", "")
+    if admin_ids_str:
+        # Parse from environment variable (comma-separated)
+        return [
+            int(uid.strip()) for uid in admin_ids_str.split(",") if uid.strip().isdigit()
+        ]
+    else:
+        # Fallback to default admins
+        return [
+            7974525763,
+            5433982810
+        ]
+
+
 class Config:
     """Configuration class for Bot B settings"""
     
@@ -28,18 +44,7 @@ class Config:
     # Can be set via ADMIN_IDS environment variable (comma-separated)
     # Format: ADMIN_IDS=123456789,987654321
     # This will be the same as Bot A if both use the same .env file
-    _admin_ids_str: str = os.getenv("ADMIN_IDS", "")
-    if _admin_ids_str:
-        # Parse from environment variable
-        INITIAL_ADMINS: list[int] = [
-            int(uid.strip()) for uid in _admin_ids_str.split(",") if uid.strip().isdigit()
-        ]
-    else:
-        # Fallback to default admins
-        INITIAL_ADMINS: list[int] = [
-            7974525763,
-            5433982810
-        ]
+    INITIAL_ADMINS: list[int] = _parse_admin_ids()
     
     # Database file path
     DB_PATH: str = "otc_bot.db"
