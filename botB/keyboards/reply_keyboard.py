@@ -27,6 +27,10 @@ def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = Fals
                 KeyboardButton("📊 今日")
             ],
             [
+                KeyboardButton("📜 历史"),
+                KeyboardButton("💰 结算")
+            ],
+            [
                 KeyboardButton("🔗 地址"),
                 KeyboardButton("📞 客服")
             ]

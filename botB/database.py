@@ -591,13 +591,16 @@ class Database:
         today = datetime.date.today().strftime('%Y-%m-%d')
         return self.get_transactions_by_group(group_id, date=today, limit=1000)
     
-    def get_transaction_stats_by_group(self, group_id: int, date: str = None) -> dict:
+    def get_transaction_stats_by_group(self, group_id: int, date: str = None, 
+                                       start_date: str = None, end_date: str = None) -> dict:
         """
         Get transaction statistics for a group.
         
         Args:
             group_id: Telegram group ID
             date: Date filter (YYYY-MM-DD format), None for all time
+            start_date: Start date filter (YYYY-MM-DD format)
+            end_date: End date filter (YYYY-MM-DD format)
             
         Returns:
             Dictionary with statistics
@@ -612,10 +615,23 @@ class Database:
                     SUM(cny_amount) as total_cny,
                     SUM(usdt_amount) as total_usdt,
                     AVG(cny_amount) as avg_cny,
-                    COUNT(DISTINCT user_id) as unique_users
+                    COUNT(DISTINCT user_id) as unique_users,
+                    MAX(created_at) as last_active
                 FROM transactions
                 WHERE group_id = ? AND DATE(created_at) = ?
             """, (group_id, date))
+        elif start_date and end_date:
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as count,
+                    SUM(cny_amount) as total_cny,
+                    SUM(usdt_amount) as total_usdt,
+                    AVG(cny_amount) as avg_cny,
+                    COUNT(DISTINCT user_id) as unique_users,
+                    MAX(created_at) as last_active
+                FROM transactions
+                WHERE group_id = ? AND DATE(created_at) >= ? AND DATE(created_at) <= ?
+            """, (group_id, start_date, end_date))
         else:
             cursor.execute("""
                 SELECT 
@@ -623,7 +639,8 @@ class Database:
                     SUM(cny_amount) as total_cny,
                     SUM(usdt_amount) as total_usdt,
                     AVG(cny_amount) as avg_cny,
-                    COUNT(DISTINCT user_id) as unique_users
+                    COUNT(DISTINCT user_id) as unique_users,
+                    MAX(created_at) as last_active
                 FROM transactions
                 WHERE group_id = ?
             """, (group_id,))
@@ -635,9 +652,129 @@ class Database:
                 'total_cny': float(row['total_cny']) if row['total_cny'] else 0.0,
                 'total_usdt': float(row['total_usdt']) if row['total_usdt'] else 0.0,
                 'avg_cny': float(row['avg_cny']) if row['avg_cny'] else 0.0,
+                'unique_users': int(row['unique_users']),
+                'last_active': row['last_active']
+            }
+        return {'count': 0, 'total_cny': 0.0, 'total_usdt': 0.0, 'avg_cny': 0.0, 'unique_users': 0, 'last_active': None}
+    
+    def count_transactions_by_group(self, group_id: int, start_date: str = None, end_date: str = None) -> int:
+        """
+        Count total transactions for a group (for pagination).
+        
+        Args:
+            group_id: Telegram group ID
+            start_date: Optional start date filter
+            end_date: Optional end date filter
+            
+        Returns:
+            Total count of transactions
+        """
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        if start_date and end_date:
+            cursor.execute("""
+                SELECT COUNT(*) as count
+                FROM transactions
+                WHERE group_id = ? AND DATE(created_at) >= ? AND DATE(created_at) <= ?
+            """, (group_id, start_date, end_date))
+        else:
+            cursor.execute("""
+                SELECT COUNT(*) as count
+                FROM transactions
+                WHERE group_id = ?
+            """, (group_id,))
+        
+        row = cursor.fetchone()
+        return int(row['count']) if row else 0
+    
+    def get_global_stats(self, start_date: str = None, end_date: str = None) -> dict:
+        """
+        Get global statistics across all groups.
+        
+        Args:
+            start_date: Optional start date filter
+            end_date: Optional end date filter
+            
+        Returns:
+            Dictionary with global statistics
+        """
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        if start_date and end_date:
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as count,
+                    SUM(cny_amount) as total_cny,
+                    SUM(usdt_amount) as total_usdt,
+                    COUNT(DISTINCT group_id) as active_groups,
+                    COUNT(DISTINCT user_id) as unique_users
+                FROM transactions
+                WHERE DATE(created_at) >= ? AND DATE(created_at) <= ?
+            """, (start_date, end_date))
+        else:
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as count,
+                    SUM(cny_amount) as total_cny,
+                    SUM(usdt_amount) as total_usdt,
+                    COUNT(DISTINCT group_id) as active_groups,
+                    COUNT(DISTINCT user_id) as unique_users
+                FROM transactions
+            """)
+        
+        row = cursor.fetchone()
+        if row and row['count']:
+            return {
+                'count': int(row['count']),
+                'total_cny': float(row['total_cny']) if row['total_cny'] else 0.0,
+                'total_usdt': float(row['total_usdt']) if row['total_usdt'] else 0.0,
+                'active_groups': int(row['active_groups']),
                 'unique_users': int(row['unique_users'])
             }
-        return {'count': 0, 'total_cny': 0.0, 'total_usdt': 0.0, 'avg_cny': 0.0, 'unique_users': 0}
+        return {'count': 0, 'total_cny': 0.0, 'total_usdt': 0.0, 'active_groups': 0, 'unique_users': 0}
+    
+    def get_transaction_by_id(self, transaction_id: str) -> Optional[dict]:
+        """
+        Get a specific transaction by ID.
+        
+        Args:
+            transaction_id: Transaction ID
+            
+        Returns:
+            Transaction dictionary or None
+        """
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT transaction_id, group_id, user_id, username, first_name,
+                   cny_amount, usdt_amount, exchange_rate, markup,
+                   usdt_address, status, payment_hash, confirmed_at, created_at
+            FROM transactions
+            WHERE transaction_id = ?
+        """, (transaction_id,))
+        
+        row = cursor.fetchone()
+        if row:
+            return {
+                'transaction_id': row['transaction_id'],
+                'group_id': row['group_id'],
+                'user_id': row['user_id'],
+                'username': row['username'],
+                'first_name': row['first_name'],
+                'cny_amount': float(row['cny_amount']),
+                'usdt_amount': float(row['usdt_amount']),
+                'exchange_rate': float(row['exchange_rate']),
+                'markup': float(row['markup']) if row['markup'] else 0.0,
+                'usdt_address': row['usdt_address'],
+                'status': row['status'],
+                'payment_hash': row['payment_hash'],
+                'confirmed_at': row['confirmed_at'],
+                'created_at': row['created_at']
+            }
+        return None
     
     def update_transaction_status(self, transaction_id: str, status: str, payment_hash: str = None) -> bool:
         """

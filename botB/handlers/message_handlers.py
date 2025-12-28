@@ -434,6 +434,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     user_id = update.effective_user.id
     is_admin_user = is_admin(user_id)
+    chat = update.effective_chat
     
     # Handle reply keyboard buttons (optimized text)
     if text in ["💱 汇率", "💱 查看汇率", "📊 查看汇率"]:
@@ -442,6 +443,50 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if text == "📊 今日":
         await handle_today_bills_button(update, context)
+        return
+    
+    if text == "📜 历史":
+        # Show history bills (first page)
+        from handlers.bills_handlers import handle_history_bills
+        await handle_history_bills(update, context, page=1)
+        return
+    
+    if text in ["⚙️ 设置", "⚙️ 管理"]:
+        # Show group settings menu (admin only)
+        if not is_admin_user:
+            await update.message.reply_text("❌ 此功能仅限管理员使用")
+            return
+        
+        if is_group := chat.type in ['group', 'supergroup']:
+            from keyboards.inline_keyboard import get_group_settings_menu
+            reply_markup = get_group_settings_menu()
+            message = (
+                "⚙️ <b>群组设置菜单</b>\n\n"
+                "请选择要执行的操作："
+            )
+        else:
+            from keyboards.inline_keyboard import get_global_management_menu
+            reply_markup = get_global_management_menu()
+            message = (
+                "🌐 <b>全局管理菜单</b>\n\n"
+                "请选择要执行的操作："
+            )
+        
+        await update.message.reply_text(message, parse_mode="HTML", reply_markup=reply_markup)
+        return
+    
+    if text in ["📈 统计", "📊 数据"]:
+        # Show statistics (admin only)
+        if not is_admin_user:
+            await update.message.reply_text("❌ 此功能仅限管理员使用")
+            return
+        
+        if chat.type in ['group', 'supergroup']:
+            from handlers.stats_handlers import handle_group_stats
+            await handle_group_stats(update, context)
+        else:
+            from handlers.stats_handlers import handle_global_stats
+            await handle_global_stats(update, context)
         return
     
     if text in ["🔗 收款地址", "🔗 地址"]:
