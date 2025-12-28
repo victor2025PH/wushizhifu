@@ -584,6 +584,12 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_alert_threshold_input(update, context, text)
         return
     
+    # Handle template input (after user selects template creation type)
+    if 'awaiting_template_input' in context.user_data:
+        from handlers.template_handlers import handle_template_input
+        await handle_template_input(update, context, text)
+        return
+    
     # Handle filter input (after user clicks filter button)
     if 'awaiting_filter' in context.user_data:
         filter_type = context.user_data['awaiting_filter']
@@ -835,6 +841,12 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• 响应时间：通常在5分钟内"
         )
         await update.message.reply_text(contact_message, parse_mode="HTML")
+        return
+    
+    # Handle template button
+    if text == "📝 模板" or text == "💰 结算":
+        from handlers.template_handlers import handle_template_menu
+        await handle_template_menu(update, context)
         return
     
     # Personal bills and stats (private chat only)

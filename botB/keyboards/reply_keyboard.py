@@ -50,8 +50,8 @@ def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = Fals
                 KeyboardButton("💰 结算")
             ],
             [
-                KeyboardButton("📜 我的账单"),
-                KeyboardButton("📊 我的统计")
+                KeyboardButton("📝 模板"),
+                KeyboardButton("📜 我的账单")
             ],
             [
                 KeyboardButton("🔔 预警"),

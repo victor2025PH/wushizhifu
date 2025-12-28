@@ -875,6 +875,35 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_price_history(update, context, hours)
         return
     
+    # Template handlers
+    if callback_data == "template_menu":
+        from handlers.template_handlers import handle_template_menu
+        await handle_template_menu(update, context)
+        return
+    
+    if callback_data.startswith("template_list_"):
+        template_type = callback_data.split("_")[2]  # 'amount' or 'formula'
+        from handlers.template_handlers import handle_template_list
+        await handle_template_list(update, context, template_type)
+        return
+    
+    if callback_data.startswith("template_use_"):
+        template_id = int(callback_data.split("_")[2])
+        from handlers.template_handlers import handle_template_use
+        await handle_template_use(update, context, template_id)
+        return
+    
+    if callback_data == "template_create":
+        from handlers.template_handlers import handle_template_create_menu
+        await handle_template_create_menu(update, context)
+        return
+    
+    if callback_data.startswith("template_create_"):
+        template_type = callback_data.split("_")[2]  # 'amount' or 'formula'
+        from handlers.template_handlers import handle_template_create_type
+        await handle_template_create_type(update, context, template_type)
+        return
+    
     # Main menu
     if callback_data == "main_menu":
         await query.answer("💡 使用底部按钮或 /start 查看主菜单")

@@ -135,6 +135,46 @@ class Database:
             ON price_alerts(is_active)
         """)
         
+        # Create settlement_templates table for quick settlement templates
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS settlement_templates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id BIGINT,
+                template_name TEXT NOT NULL,
+                template_value TEXT NOT NULL,
+                template_type TEXT NOT NULL,
+                is_preset BOOLEAN DEFAULT 0,
+                usage_count INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, template_name)
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_settlement_templates_user_id 
+            ON settlement_templates(user_id)
+        """)
+        
+        # Insert default preset templates if not exists
+        default_templates = [
+            ('1000', 'amount', '常用金额模板'),
+            ('5000', 'amount', '常用金额模板'),
+            ('10000', 'amount', '常用金额模板'),
+            ('20000', 'amount', '常用金额模板'),
+            ('50000', 'amount', '常用金额模板'),
+            ('20000-200', 'formula', '常用算式模板'),
+            ('50000-500', 'formula', '常用算式模板'),
+            ('100000-1000', 'formula', '常用算式模板')
+        ]
+        
+        for value, t_type, name in default_templates:
+            cursor.execute("""
+                INSERT OR IGNORE INTO settlement_templates 
+                (user_id, template_name, template_value, template_type, is_preset)
+                VALUES (NULL, ?, ?, ?, 1)
+            """, (name, value, t_type))
+        
         # Create operation_logs table for audit trail
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS operation_logs (
