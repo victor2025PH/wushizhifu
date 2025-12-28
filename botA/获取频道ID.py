@@ -17,76 +17,38 @@ logger = logging.getLogger(__name__)
 
 
 async def get_channel_updates():
-    """获取频道更新以获取频道 ID"""
+    """获取频道更新以获取频道 ID（不轮询，避免冲突）"""
     bot = Bot(token=Config.BOT_TOKEN)
     
     print("=" * 50)
     print("🔍 获取频道 ID 工具")
     print("=" * 50)
-    print("\n📋 使用说明：")
-    print("1. 确保 Bot A 已添加到频道作为管理员")
-    print("2. 在频道中发送任意消息（视频、文本等）")
-    print("3. 脚本会显示频道信息\n")
-    print("正在监听频道更新...")
-    print("（按 Ctrl+C 停止）\n")
+    print("\n📋 注意：")
+    print("由于 Bot A 服务正在运行，无法直接轮询更新")
+    print("将使用其他方法获取频道信息\n")
     print("=" * 50)
     
     try:
-        updates = await bot.get_updates(limit=10, timeout=30)
+        # 不轮询，直接测试已知频道 ID
+        # 或者让用户手动提供频道用户名
+        print("\n方法 1: 测试当前配置的频道 ID")
+        print("-" * 50)
         
-        channel_updates = []
-        for update in updates:
-            if update.channel_post:
-                channel_id = update.channel_post.chat.id
-                channel_title = update.channel_post.chat.title or "未知频道"
-                channel_username = getattr(update.channel_post.chat, 'username', None)
-                
-                channel_info = {
-                    'id': channel_id,
-                    'title': channel_title,
-                    'username': channel_username,
-                    'type': update.channel_post.chat.type
-                }
-                
-                # 避免重复
-                if not any(c['id'] == channel_id for c in channel_updates):
-                    channel_updates.append(channel_info)
-        
-        if channel_updates:
-            print("\n✅ 找到以下频道：\n")
-            for i, ch in enumerate(channel_updates, 1):
-                print(f"{i}. 频道名称: {ch['title']}")
-                print(f"   频道 ID: {ch['id']}")
-                if ch['username']:
-                    print(f"   用户名: @{ch['username']}")
-                print(f"   类型: {ch['type']}")
-                print()
-            
-            # 查找包含"素材"或"视频"的频道
-            target = None
-            for ch in channel_updates:
-                if '素材' in ch['title'] or '视频' in ch['title'] or '伍拾' in ch['title']:
-                    target = ch
-                    break
-            
-            if target:
-                print(f"\n🎯 推荐的频道 ID: {target['id']}")
-                print(f"   频道名称: {target['title']}")
-                print(f"\n请在 botA/handlers/channel_video_handler.py 中更新：")
-                print(f"VIDEO_CHANNEL_ID = {target['id']}")
-            else:
-                print(f"\n💡 请从上面的列表中选择正确的频道 ID")
-        else:
-            print("\n⚠️  未检测到频道更新")
-            print("\n可能的原因：")
-            print("1. Bot 未添加到频道")
-            print("2. Bot 不是管理员")
-            print("3. 频道中还没有消息")
-            print("4. 频道 ID 已被清理（需要新消息）")
-            print("\n解决方法：")
-            print("1. 确保 Bot A 已添加到频道作为管理员")
-            print("2. 在频道中发送一条新消息")
-            print("3. 重新运行此脚本")
+        # 方法 2: 通过频道用户名获取（如果知道用户名）
+        print("\n方法 2: 通过频道用户名获取（可选）")
+        print("-" * 50)
+        print("如果知道频道用户名（如 @wszfsc），可以运行：")
+        print("  python3 -c \"")
+        print("import asyncio")
+        print("from aiogram import Bot")
+        print("from config import Config")
+        print("async def get():")
+        print("    bot = Bot(token=Config.BOT_TOKEN)")
+        print("    chat = await bot.get_chat('@wszfsc')")
+        print("    print(f'频道ID: {chat.id}')")
+        print("    print(f'频道名称: {chat.title}')")
+        print("    await bot.session.close()")
+        print("asyncio.run(get())\"")
     
     except Exception as e:
         logger.error(f"错误: {e}", exc_info=True)
