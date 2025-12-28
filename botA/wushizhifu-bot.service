@@ -7,9 +7,9 @@ Wants=network-online.target
 Type=simple
 User=ubuntu
 Group=ubuntu
-WorkingDirectory=/home/ubuntu/wushizhifu/bot
-Environment="PATH=/home/ubuntu/wushizhifu/bot/venv/bin:/usr/local/bin:/usr/bin:/bin"
-ExecStart=/home/ubuntu/wushizhifu/bot/venv/bin/python /home/ubuntu/wushizhifu/bot/bot.py
+WorkingDirectory=/home/ubuntu/wushizhifu/botA
+Environment="PATH=/home/ubuntu/wushizhifu/botA/venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/home/ubuntu/wushizhifu/botA/venv/bin/python /home/ubuntu/wushizhifu/botA/bot.py
 ExecReload=/bin/kill -HUP $MAINPID
 
 # 重启策略
