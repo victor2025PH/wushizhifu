@@ -97,6 +97,7 @@ async def main():
     dp.message.middleware(GroupMiddleware())
     
     # Include routers (order matters - AI router should be last to catch all non-command messages)
+    from handlers.channel_video_handler import router as channel_video_router
     dp.include_router(user_router)
     dp.include_router(payment_router)
     dp.include_router(calculator_router)
@@ -106,6 +107,7 @@ async def main():
     dp.include_router(referral_router)
     dp.include_router(admin_router)
     dp.include_router(group_router)
+    dp.include_router(channel_video_router)  # Channel video handler
     dp.include_router(ai_router)  # AI router should be last
     
     # Register startup/shutdown handlers
