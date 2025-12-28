@@ -46,6 +46,20 @@ async def on_startup(bot: Bot):
         logger.error(f"❌ Database initialization error: {e}")
         raise
     
+    # Clear any existing webhook to avoid conflicts with polling
+    try:
+        from aiogram import Bot
+        webhook_info = await bot.get_webhook_info()
+        if webhook_info.url:
+            logger.warning(f"⚠️ 检测到 Webhook: {webhook_info.url}，正在清除以避免冲突...")
+            await bot.delete_webhook(drop_pending_updates=True)
+            logger.info("✅ Webhook 已清除")
+            # Wait a moment for Telegram API to process
+            import asyncio
+            await asyncio.sleep(2)
+    except Exception as e:
+        logger.warning(f"⚠️ 清除 Webhook 时出错（可能不需要）: {e}")
+    
     # Set up bot commands, menu button, and description
     try:
         await setup_bot_commands(bot)
