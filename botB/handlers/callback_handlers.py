@@ -684,6 +684,14 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_export_transactions(update, context, group_id, export_format)
         return
     
+    # Export statistics
+    if callback_data == "export_stats":
+        chat = query.message.chat
+        group_id = chat.id if chat.type in ['group', 'supergroup'] else None
+        from handlers.stats_handlers import handle_export_stats
+        await handle_export_stats(update, context, group_id)
+        return
+    
     # Main menu
     if callback_data == "main_menu":
         await query.answer("💡 使用底部按钮或 /start 查看主菜单")

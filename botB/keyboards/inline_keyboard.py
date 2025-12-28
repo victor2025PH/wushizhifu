@@ -150,6 +150,9 @@ def get_group_settings_menu() -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton("📊 群组统计", callback_data="group_stats"),
+            InlineKeyboardButton("📥 导出报表", callback_data="export_stats")
+        ],
+        [
             InlineKeyboardButton("🔙 返回主菜单", callback_data="main_menu")
         ]
     ]

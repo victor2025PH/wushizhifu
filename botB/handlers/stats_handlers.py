@@ -9,6 +9,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from database import db
 from admin_checker import is_admin
+from services.export_service import export_stats_to_excel, generate_export_filename
 
 logger = logging.getLogger(__name__)
 
@@ -261,5 +262,110 @@ async def handle_paid_transactions(update: Update, context: ContextTypes.DEFAULT
         
     except Exception as e:
         logger.error(f"Error in handle_paid_transactions: {e}", exc_info=True)
+        await (update.callback_query or update.message).reply_text(f"❌ 错误: {str(e)}")
+
+
+async def handle_export_stats(update: Update, context: ContextTypes.DEFAULT_TYPE, group_id: Optional[int] = None):
+    """
+    Handle export statistics to Excel.
+    
+    Args:
+        update: Telegram update object
+        context: Context object
+        group_id: Optional group ID (None for global stats)
+    """
+    try:
+        user_id = update.effective_user.id
+        
+        if not is_admin(user_id):
+            await (update.callback_query or update.message).reply_text("❌ 此功能仅限管理员使用")
+            return
+        
+        # Show processing message
+        if update.callback_query:
+            await update.callback_query.answer("📥 正在生成统计报表...", show_alert=False)
+            await update.callback_query.message.reply_text("⏳ 正在准备统计报表，请稍候...")
+        else:
+            processing_msg = await update.message.reply_text("⏳ 正在准备统计报表，请稍候...")
+        
+        today = datetime.date.today()
+        
+        # Collect statistics
+        stats_data = {}
+        
+        if group_id:
+            # Group statistics
+            today_str = today.strftime('%Y-%m-%d')
+            week_start = today - datetime.timedelta(days=today.weekday())
+            week_start_str = week_start.strftime('%Y-%m-%d')
+            week_end_str = today.strftime('%Y-%m-%d')
+            month_start = today.replace(day=1)
+            month_start_str = month_start.strftime('%Y-%m-%d')
+            month_end_str = today.strftime('%Y-%m-%d')
+            
+            stats_data['today'] = db.get_transaction_stats_by_group(group_id, date=today_str)
+            stats_data['week'] = db.get_transaction_stats_by_group(group_id, start_date=week_start_str, end_date=week_end_str)
+            stats_data['month'] = db.get_transaction_stats_by_group(group_id, start_date=month_start_str, end_date=month_end_str)
+            
+            chat = update.effective_chat if hasattr(update, 'effective_chat') else None
+            group_name = chat.title if chat else f"群组{group_id}"
+        else:
+            # Global statistics
+            today_str = today.strftime('%Y-%m-%d')
+            month_start = today.replace(day=1)
+            month_start_str = month_start.strftime('%Y-%m-%d')
+            month_end_str = today.strftime('%Y-%m-%d')
+            
+            stats_data['today'] = db.get_global_stats(start_date=today_str, end_date=today_str)
+            stats_data['month'] = db.get_global_stats(start_date=month_start_str, end_date=month_end_str)
+            group_name = "全局统计"
+        
+        # Export to Excel
+        try:
+            file_data = export_stats_to_excel(stats_data, group_name)
+            filename = generate_export_filename('stats', 'excel')
+            
+            # Send file
+            file_data.seek(0)
+            if update.callback_query:
+                await update.callback_query.message.reply_document(
+                    document=file_data,
+                    filename=filename,
+                    caption=(
+                        f"📥 <b>统计报表导出完成</b>\n\n"
+                        f"统计范围: {group_name}\n"
+                        f"生成时间: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                    ),
+                    parse_mode="HTML"
+                )
+            else:
+                if 'processing_msg' in locals():
+                    await processing_msg.delete()
+                await update.message.reply_document(
+                    document=file_data,
+                    filename=filename,
+                    caption=(
+                        f"📥 <b>统计报表导出完成</b>\n\n"
+                        f"统计范围: {group_name}\n"
+                        f"生成时间: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                    ),
+                    parse_mode="HTML"
+                )
+            
+            logger.info(f"Admin {user_id} exported statistics (group_id: {group_id})")
+            
+        except Exception as e:
+            logger.error(f"Error during stats export: {e}", exc_info=True)
+            error_msg = f"❌ 导出失败: {str(e)}"
+            if update.callback_query:
+                await update.callback_query.message.reply_text(error_msg)
+            else:
+                if 'processing_msg' in locals():
+                    await processing_msg.edit_text(error_msg)
+                else:
+                    await update.message.reply_text(error_msg)
+        
+    except Exception as e:
+        logger.error(f"Error in handle_export_stats: {e}", exc_info=True)
         await (update.callback_query or update.message).reply_text(f"❌ 错误: {str(e)}")
 
