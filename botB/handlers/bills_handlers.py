@@ -7,8 +7,15 @@ import datetime
 from typing import Optional
 from telegram import Update
 from telegram.ext import ContextTypes
+from telegram import Document
 from database import db
+from admin_checker import is_admin
 from keyboards.inline_keyboard import get_bills_history_keyboard, get_transaction_detail_keyboard
+from services.export_service import (
+    export_transactions_to_csv,
+    export_transactions_to_excel,
+    generate_export_filename
+)
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +88,129 @@ async def handle_history_bills(update: Update, context: ContextTypes.DEFAULT_TYP
     except Exception as e:
         logger.error(f"Error in handle_history_bills: {e}", exc_info=True)
         await update.message.reply_text(f"❌ 错误: {str(e)}")
+
+
+async def handle_export_transactions(update: Update, context: ContextTypes.DEFAULT_TYPE,
+                                    group_id: Optional[int] = None,
+                                    export_format: str = 'csv',
+                                    start_date: Optional[str] = None,
+                                    end_date: Optional[str] = None,
+                                    status_filter: Optional[str] = None):
+    """
+    Handle export transactions to CSV or Excel.
+    
+    Args:
+        update: Telegram update object
+        context: Context object
+        group_id: Optional group ID to filter by
+        export_format: Export format ('csv' or 'excel')
+        start_date: Optional start date filter (YYYY-MM-DD)
+        end_date: Optional end date filter (YYYY-MM-DD)
+        status_filter: Optional status filter (pending, paid, confirmed, cancelled)
+    """
+    try:
+        user_id = update.effective_user.id
+        
+        # Check admin permission
+        if not is_admin(user_id):
+            await (update.callback_query or update.message).reply_text("❌ 此功能仅限管理员使用")
+            return
+        
+        # Show processing message
+        if update.callback_query:
+            await update.callback_query.answer("📥 正在生成导出文件...", show_alert=False)
+            await update.callback_query.message.reply_text("⏳ 正在准备导出文件，请稍候...")
+        else:
+            processing_msg = await update.message.reply_text("⏳ 正在准备导出文件，请稍候...")
+        
+        # Get all transactions matching filters
+        if status_filter:
+            transactions = db.get_transactions_by_status(status_filter, group_id=group_id, limit=10000)
+        elif group_id:
+            transactions = db.get_transactions_by_group(group_id, limit=10000)
+        else:
+            # Get all transactions (may be slow for large datasets)
+            transactions = []
+            # We need a method to get all transactions, for now we'll get by status and combine
+            all_statuses = ['pending', 'paid', 'confirmed', 'cancelled']
+            for status in all_statuses:
+                txs = db.get_transactions_by_status(status, group_id=group_id, limit=10000)
+                transactions.extend(txs)
+        
+        # Filter by date range if provided
+        if start_date and end_date:
+            transactions = [
+                tx for tx in transactions
+                if start_date <= tx['created_at'][:10] <= end_date
+            ]
+        
+        if not transactions:
+            error_msg = "❌ 没有找到符合条件的交易记录"
+            if update.callback_query:
+                await update.callback_query.message.reply_text(error_msg)
+            else:
+                if 'processing_msg' in locals():
+                    await processing_msg.edit_text(error_msg)
+                else:
+                    await update.message.reply_text(error_msg)
+            return
+        
+        # Export to requested format
+        try:
+            if export_format == 'excel':
+                file_data = export_transactions_to_excel(transactions)
+                filename = generate_export_filename('transactions', 'excel')
+                mime_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            else:  # csv
+                file_data = export_transactions_to_csv(transactions)
+                filename = generate_export_filename('transactions', 'csv')
+                mime_type = 'text/csv'
+            
+            # Send file
+            file_data.seek(0)
+            if update.callback_query:
+                await update.callback_query.message.reply_document(
+                    document=file_data,
+                    filename=filename,
+                    caption=(
+                        f"📥 <b>导出完成</b>\n\n"
+                        f"共导出 {len(transactions)} 笔交易记录\n"
+                        f"格式: {export_format.upper()}\n"
+                        f"生成时间: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                    ),
+                    parse_mode="HTML"
+                )
+            else:
+                if 'processing_msg' in locals():
+                    await processing_msg.delete()
+                await update.message.reply_document(
+                    document=file_data,
+                    filename=filename,
+                    caption=(
+                        f"📥 <b>导出完成</b>\n\n"
+                        f"共导出 {len(transactions)} 笔交易记录\n"
+                        f"格式: {export_format.upper()}\n"
+                        f"生成时间: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                    ),
+                    parse_mode="HTML"
+                )
+            
+            logger.info(f"Admin {user_id} exported {len(transactions)} transactions ({export_format})")
+            
+        except Exception as e:
+            logger.error(f"Error during export: {e}", exc_info=True)
+            error_msg = f"❌ 导出失败: {str(e)}"
+            if update.callback_query:
+                await update.callback_query.message.reply_text(error_msg)
+            else:
+                if 'processing_msg' in locals():
+                    await processing_msg.edit_text(error_msg)
+                else:
+                    await update.message.reply_text(error_msg)
+        
+    except Exception as e:
+        logger.error(f"Error in handle_export_transactions: {e}", exc_info=True)
+        await (update.callback_query or update.message).reply_text(f"❌ 错误: {str(e)}")
 
 
 async def handle_transaction_detail(update: Update, context: ContextTypes.DEFAULT_TYPE, 

@@ -212,9 +212,14 @@ def get_bills_history_keyboard(group_id: int, page: int = 1, start_date: str = N
     nav_row.append(InlineKeyboardButton("下一页 ➡️", callback_data=f"bills_page_{group_id}_{page+1}"))
     keyboard.append(nav_row)
     
+    # Export buttons
+    keyboard.append([
+        InlineKeyboardButton("📥 导出 CSV", callback_data=f"export_csv_{group_id}"),
+        InlineKeyboardButton("📥 导出 Excel", callback_data=f"export_excel_{group_id}")
+    ])
+    
     # Action buttons
     keyboard.append([
-        InlineKeyboardButton("📥 导出", callback_data=f"bills_export_{group_id}"),
         InlineKeyboardButton("🔙 返回", callback_data="main_menu")
     ])
     

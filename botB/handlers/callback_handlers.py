@@ -675,6 +675,15 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_batch_confirm(update, context, group_id)
         return
     
+    # Export transactions
+    if callback_data.startswith("export_csv") or callback_data.startswith("export_excel"):
+        parts = callback_data.split("_")
+        export_format = parts[1]  # 'csv' or 'excel'
+        group_id = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else None
+        from handlers.bills_handlers import handle_export_transactions
+        await handle_export_transactions(update, context, group_id, export_format)
+        return
+    
     # Main menu
     if callback_data == "main_menu":
         await query.answer("💡 使用底部按钮或 /start 查看主菜单")
