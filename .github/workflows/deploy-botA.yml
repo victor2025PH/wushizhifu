@@ -19,21 +19,26 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
       
-      - name: Stop Bot and Pull Code
+      - name: Stop Bot
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          timeout: 180s
+          script: sudo systemctl stop wushizhifu-bot.service || true
+      
+      - name: Pull Code
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          timeout: 300s
           script: |
             cd /home/ubuntu/wushizhifu
-            sudo systemctl stop wushizhifu-bot.service || true
-            pkill -9 -f "botA/bot.py" || true
-            sleep 1
-            git fetch origin main
-            git reset --hard origin/main || git pull origin main || true
+            git pull origin main
       
       - name: Install Dependencies and Restart
         uses: appleboy/ssh-action@v1.0.0
