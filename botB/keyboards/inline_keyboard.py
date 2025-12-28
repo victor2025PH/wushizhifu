@@ -153,6 +153,9 @@ def get_group_settings_menu() -> InlineKeyboardMarkup:
             InlineKeyboardButton("📥 导出报表", callback_data="export_stats")
         ],
         [
+            InlineKeyboardButton("📋 操作日志", callback_data="view_logs"),
+        ],
+        [
             InlineKeyboardButton("🔙 返回主菜单", callback_data="main_menu")
         ]
     ]
