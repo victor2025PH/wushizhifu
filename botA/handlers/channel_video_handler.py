@@ -13,7 +13,11 @@ router = Router()
 logger = logging.getLogger(__name__)
 
 # 频道 ID
-VIDEO_CHANNEL_ID = -1003390475622
+# 如果频道 ID 不正确，请：
+# 1. 运行 botA/获取频道ID.py 获取正确的频道 ID
+# 2. 更新下面的值
+# 3. 重启 Bot A 服务
+VIDEO_CHANNEL_ID = -1003390475622  # TODO: 请确认这是正确的频道 ID
 
 # 临时存储待确认的视频信息 (message_id -> video_info)
 pending_videos: dict[int, dict] = {}
