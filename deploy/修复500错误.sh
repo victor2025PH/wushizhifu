@@ -26,11 +26,33 @@ elif [ -d "/opt/wushizhifu/frontend" ]; then
     FRONTEND_DIR="/opt/wushizhifu/frontend"
     echo -e "${GREEN}✅ 找到项目在: ${PROJECT_DIR}${NC}"
 else
-    echo -e "${RED}❌ 错误: 找不到前端项目目录${NC}"
-    echo "请在以下位置之一创建前端项目:"
-    echo "  - /home/ubuntu/wushizhifu/frontend"
-    echo "  - /opt/wushizhifu/frontend"
-    exit 1
+    echo -e "${YELLOW}⚠️  前端项目目录不存在，尝试自动部署...${NC}"
+    
+    # 尝试自动部署
+    PROJECT_DIR="$HOME/wushizhifu"
+    FRONTEND_DIR="$PROJECT_DIR/frontend"
+    REPO_URL="https://github.com/victor2025PH/wushizhifu.git"
+    
+    echo "创建项目目录..."
+    mkdir -p ${PROJECT_DIR}
+    cd ${PROJECT_DIR}
+    
+    echo "克隆仓库..."
+    if [ ! -d "repo" ]; then
+        git clone ${REPO_URL} repo
+    else
+        cd repo && git pull && cd ..
+    fi
+    
+    if [ -d "repo/wushizhifu-full" ]; then
+        echo "复制前端代码..."
+        cp -r repo/wushizhifu-full ${FRONTEND_DIR}
+        echo -e "${GREEN}✅ 前端代码已部署到: ${FRONTEND_DIR}${NC}"
+    else
+        echo -e "${RED}❌ 错误: 仓库中找不到 wushizhifu-full 目录${NC}"
+        echo "请手动运行部署脚本: sudo ./部署前端项目.sh"
+        exit 1
+    fi
 fi
 
 # 2. 检查前端源代码是否存在
