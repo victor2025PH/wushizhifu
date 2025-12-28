@@ -281,11 +281,19 @@ def generate_user_distribution_chart(
     """
     try:
         # Get user transaction counts
+        conn = db.connect()
+        cursor = conn.cursor()
+        
         if group_id:
-            transactions = db.get_transactions_by_group(group_id)
+            cursor.execute("""
+                SELECT user_id, first_name, username, COUNT(*) as count
+                FROM transactions
+                WHERE group_id = ?
+                GROUP BY user_id
+                ORDER BY count DESC
+                LIMIT ?
+            """, (group_id, top_n))
         else:
-            conn = db.connect()
-            cursor = conn.cursor()
             cursor.execute("""
                 SELECT user_id, first_name, username, COUNT(*) as count
                 FROM transactions
@@ -293,56 +301,56 @@ def generate_user_distribution_chart(
                 ORDER BY count DESC
                 LIMIT ?
             """, (top_n,))
-            user_data = [{'user_id': row[0], 'first_name': row[1], 'username': row[2], 'count': row[3]} 
-                        for row in cursor.fetchall()]
-            
-            if not user_data:
-                return None
-            
-            # Prepare data for pie chart
-            labels = []
-            sizes = []
-            
-            for user in user_data:
-                name = user['first_name'] or user['username'] or f"User {user['user_id']}"
-                if len(name) > 10:
-                    name = name[:10] + '...'
-                labels.append(name)
-                sizes.append(user['count'])
-            
-            # Create pie chart
-            fig, ax = plt.subplots(figsize=CHART_STYLE['figure_size'], dpi=CHART_STYLE['dpi'])
-            ax.set_facecolor(CHART_STYLE['facecolor'])
-            
-            # Color palette
-            colors = plt.cm.Set3(np.linspace(0, 1, len(labels)))
-            
-            # Create pie chart
-            wedges, texts, autotexts = ax.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%',
-                                             startangle=90, textprops={'fontsize': 9})
-            
-            # Title
-            scope = f"Group {group_id}" if group_id else "Global"
-            title = f"Top {top_n} Users by Transaction Count ({scope})"
-            ax.set_title(title, fontsize=CHART_STYLE['title_fontsize'], fontweight='bold', pad=20)
-            
-            # Adjust layout
-            plt.tight_layout()
-            
-            # Save to bytes
-            buf = io.BytesIO()
-            plt.savefig(buf, format='png', dpi=CHART_STYLE['dpi'], bbox_inches='tight')
-            buf.seek(0)
-            image_bytes = buf.read()
-            buf.close()
-            plt.close(fig)
-            
-            logger.info(f"Generated user distribution chart (top {top_n} users)")
-            return image_bytes
         
-        # Group-specific logic (similar to above)
-        # ... (implement similar logic for group_id case)
-        return None
+        rows = cursor.fetchall()
+        if not rows:
+            return None
+        
+        # Prepare data for pie chart
+        labels = []
+        sizes = []
+        
+        for row in rows:
+            user_id = row[0]
+            first_name = row[1]
+            username = row[2]
+            count = row[3]
+            
+            name = first_name or username or f"User {user_id}"
+            if len(name) > 10:
+                name = name[:10] + '...'
+            labels.append(name)
+            sizes.append(count)
+        
+        # Create pie chart
+        fig, ax = plt.subplots(figsize=CHART_STYLE['figure_size'], dpi=CHART_STYLE['dpi'])
+        ax.set_facecolor(CHART_STYLE['facecolor'])
+        
+        # Color palette
+        colors = plt.cm.Set3(np.linspace(0, 1, len(labels)))
+        
+        # Create pie chart
+        wedges, texts, autotexts = ax.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%',
+                                         startangle=90, textprops={'fontsize': 9})
+        
+        # Title
+        scope = f"Group {group_id}" if group_id else "Global"
+        title = f"Top {top_n} Users by Transaction Count ({scope})"
+        ax.set_title(title, fontsize=CHART_STYLE['title_fontsize'], fontweight='bold', pad=20)
+        
+        # Adjust layout
+        plt.tight_layout()
+        
+        # Save to bytes
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', dpi=CHART_STYLE['dpi'], bbox_inches='tight')
+        buf.seek(0)
+        image_bytes = buf.read()
+        buf.close()
+        plt.close(fig)
+        
+        logger.info(f"Generated user distribution chart (top {top_n} users)")
+        return image_bytes
         
     except Exception as e:
         logger.error(f"Error generating user distribution chart: {e}", exc_info=True)
