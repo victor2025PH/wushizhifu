@@ -2,24 +2,60 @@
 Reply keyboard layouts for Bot B
 """
 from telegram import ReplyKeyboardMarkup, KeyboardButton
+from typing import Optional
+from admin_checker import is_admin
 
 
-def get_main_reply_keyboard() -> ReplyKeyboardMarkup:
+def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = False) -> ReplyKeyboardMarkup:
     """
-    Get main reply keyboard with persistent menu buttons.
+    Get main reply keyboard with optimized button text.
+    
+    Args:
+        user_id: Optional user ID to check admin status
+        is_group: Whether this is a group chat
     
     Returns:
         ReplyKeyboardMarkup with main menu buttons
     """
-    keyboard = [
-        [
-            KeyboardButton("📊 查看汇率"),
-            KeyboardButton("🔗 收款地址")
-        ],
-        [
-            KeyboardButton("📞 联系人工")
+    keyboard = []
+    
+    if is_group:
+        # Group layout
+        keyboard = [
+            [
+                KeyboardButton("💱 汇率"),
+                KeyboardButton("📊 今日")
+            ],
+            [
+                KeyboardButton("🔗 地址"),
+                KeyboardButton("📞 客服")
+            ]
         ]
-    ]
+        
+        # Add admin buttons if admin
+        if user_id and is_admin(user_id):
+            keyboard.insert(-1, [
+                KeyboardButton("⚙️ 设置"),
+                KeyboardButton("📈 统计")
+            ])
+    else:
+        # Private chat layout
+        keyboard = [
+            [
+                KeyboardButton("💱 汇率"),
+                KeyboardButton("💰 结算")
+            ],
+            [
+                KeyboardButton("📞 客服")
+            ]
+        ]
+        
+        # Add admin buttons if admin
+        if user_id and is_admin(user_id):
+            keyboard.insert(-1, [
+                KeyboardButton("⚙️ 管理"),
+                KeyboardButton("📊 数据")
+            ])
     
     return ReplyKeyboardMarkup(
         keyboard=keyboard,

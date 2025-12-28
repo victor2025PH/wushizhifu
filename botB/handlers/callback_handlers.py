@@ -13,15 +13,26 @@ async def handle_confirm_bill(update: Update, context: ContextTypes.DEFAULT_TYPE
     """Handle confirmation button click on settlement bill"""
     query = update.callback_query
     
-    # Acknowledge the callback
-    await query.answer("✅ 已确认")
-    
     try:
+        # Extract transaction_id from callback_data (format: confirm_bill_{transaction_id})
+        callback_data = query.data
+        transaction_id = None
+        if callback_data.startswith("confirm_bill_"):
+            parts = callback_data.split("_", 2)
+            if len(parts) > 2:
+                transaction_id = parts[2]
+        
+        # Update transaction status to 'confirmed' if transaction_id exists
+        if transaction_id:
+            from database import db
+            db.update_transaction_status(transaction_id, 'confirmed')
+        
         # Get current message text
         current_text = query.message.text
         
         # Check if already confirmed
-        if "(已确认)" in current_text:
+        if "(已确认)" in current_text or "✅ 已核对" in current_text:
+            await query.answer("✅ 账单已确认")
             return
         
         # Append confirmation text
@@ -33,7 +44,10 @@ async def handle_confirm_bill(update: Update, context: ContextTypes.DEFAULT_TYPE
             parse_mode="HTML"
         )
         
-        logger.info(f"User {query.from_user.id} confirmed settlement bill")
+        # Acknowledge the callback
+        await query.answer("✅ 已确认")
+        
+        logger.info(f"User {query.from_user.id} confirmed settlement bill, transaction_id: {transaction_id}")
         
     except Exception as e:
         logger.error(f"Error in handle_confirm_bill: {e}", exc_info=True)

@@ -77,7 +77,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"祝您使用愉快！✨"
     )
     
-    reply_markup = get_main_reply_keyboard()
+    is_group = update.effective_chat.type in ['group', 'supergroup']
+    reply_markup = get_main_reply_keyboard(user.id, is_group)
     await update.message.reply_text(
         welcome_message,
         parse_mode="HTML",
@@ -165,16 +166,19 @@ async def price_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text("⏳ 正在获取价格...")
     
-    final_price, error_msg, base_price = get_price_with_markup()
+    chat = update.effective_chat
+    group_id = chat.id if chat.type in ['group', 'supergroup'] else None
+    
+    final_price, error_msg, base_price, markup = get_price_with_markup(group_id)
     
     if final_price is None:
         message = f"❌ 获取价格失败\n\n{error_msg or '未知错误'}"
     else:
-        markup = db.get_admin_markup()
+        markup_source = "群组" if group_id and db.get_group_setting(group_id) else "全局"
         message = (
             f"💱 USDT/CNY 价格信息\n\n"
             f"📊 基础价格：{base_price:.4f} CNY\n"
-            f"➕ 管理员加价：{markup:.4f} CNY\n"
+            f"➕ 加价（{markup_source}）：{markup:.4f} CNY\n"
             f"💰 最终价格：{final_price:.4f} CNY\n"
         )
         if error_msg:

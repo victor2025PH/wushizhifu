@@ -55,6 +55,77 @@ class Database:
             VALUES ('usdt_address', '')
         """)
         
+        # Create group_settings table for group-level markup and address
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS group_settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                group_id BIGINT NOT NULL UNIQUE,
+                group_title TEXT,
+                markup REAL DEFAULT 0.0,
+                usdt_address TEXT,
+                is_active INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_by BIGINT
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_group_settings_group_id 
+            ON group_settings(group_id)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_group_settings_active 
+            ON group_settings(is_active)
+        """)
+        
+        # Create transactions table for settlement records
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                transaction_id TEXT UNIQUE,
+                group_id BIGINT,
+                user_id BIGINT NOT NULL,
+                username TEXT,
+                first_name TEXT,
+                cny_amount REAL NOT NULL,
+                usdt_amount REAL NOT NULL,
+                exchange_rate REAL NOT NULL,
+                markup REAL,
+                usdt_address TEXT,
+                status TEXT DEFAULT 'pending',
+                payment_hash TEXT,
+                confirmed_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_transactions_group_id 
+            ON transactions(group_id)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_transactions_user_id 
+            ON transactions(user_id)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_transactions_created_at 
+            ON transactions(created_at)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_transactions_group_date 
+            ON transactions(group_id, DATE(created_at))
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_transactions_status 
+            ON transactions(status)
+        """)
+        
         conn.commit()
         logger.info("Database initialized successfully")
     
@@ -215,6 +286,395 @@ class Database:
             settings[row['key']] = row['value']
         
         return settings
+    
+    # ========== Group Settings Methods ==========
+    
+    def get_group_setting(self, group_id: int) -> Optional[dict]:
+        """
+        Get group-specific settings.
+        
+        Args:
+            group_id: Telegram group ID
+            
+        Returns:
+            Dictionary with group settings or None if not configured
+        """
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT group_id, group_title, markup, usdt_address, is_active, 
+                   updated_at, updated_by
+            FROM group_settings 
+            WHERE group_id = ? AND is_active = 1
+        """, (group_id,))
+        
+        row = cursor.fetchone()
+        if row:
+            return {
+                'group_id': row['group_id'],
+                'group_title': row['group_title'],
+                'markup': float(row['markup']) if row['markup'] else 0.0,
+                'usdt_address': row['usdt_address'] or '',
+                'is_active': bool(row['is_active']),
+                'updated_at': row['updated_at'],
+                'updated_by': row['updated_by']
+            }
+        return None
+    
+    def set_group_markup(self, group_id: int, markup: float, group_title: str = None, updated_by: int = None) -> bool:
+        """
+        Set group-specific markup.
+        
+        Args:
+            group_id: Telegram group ID
+            markup: Markup value
+            group_title: Optional group title
+            updated_by: Optional user ID who made the update
+            
+        Returns:
+            True if successful
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT INTO group_settings (group_id, group_title, markup, updated_by, updated_at)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(group_id) DO UPDATE SET
+                    markup = ?,
+                    group_title = COALESCE(?, group_title),
+                    updated_by = ?,
+                    updated_at = CURRENT_TIMESTAMP,
+                    is_active = 1
+            """, (group_id, group_title, markup, updated_by, markup, group_title, updated_by))
+            
+            conn.commit()
+            logger.info(f"Group {group_id} markup set to {markup}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error setting group markup: {e}", exc_info=True)
+            return False
+    
+    def set_group_address(self, group_id: int, address: str, group_title: str = None, updated_by: int = None) -> bool:
+        """
+        Set group-specific USDT address.
+        
+        Args:
+            group_id: Telegram group ID
+            address: USDT address
+            group_title: Optional group title
+            updated_by: Optional user ID who made the update
+            
+        Returns:
+            True if successful
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT INTO group_settings (group_id, group_title, usdt_address, updated_by, updated_at)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(group_id) DO UPDATE SET
+                    usdt_address = ?,
+                    group_title = COALESCE(?, group_title),
+                    updated_by = ?,
+                    updated_at = CURRENT_TIMESTAMP,
+                    is_active = 1
+            """, (group_id, group_title, address, updated_by, address, group_title, updated_by))
+            
+            conn.commit()
+            logger.info(f"Group {group_id} address updated")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error setting group address: {e}", exc_info=True)
+            return False
+    
+    def reset_group_settings(self, group_id: int) -> bool:
+        """
+        Reset group settings to use global defaults (deactivate group-specific settings).
+        
+        Args:
+            group_id: Telegram group ID
+            
+        Returns:
+            True if successful
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                UPDATE group_settings 
+                SET is_active = 0, updated_at = CURRENT_TIMESTAMP
+                WHERE group_id = ?
+            """, (group_id,))
+            
+            conn.commit()
+            logger.info(f"Group {group_id} settings reset")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error resetting group settings: {e}", exc_info=True)
+            return False
+    
+    def delete_group_settings(self, group_id: int) -> bool:
+        """
+        Delete group settings completely.
+        
+        Args:
+            group_id: Telegram group ID
+            
+        Returns:
+            True if successful
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            cursor.execute("DELETE FROM group_settings WHERE group_id = ?", (group_id,))
+            conn.commit()
+            logger.info(f"Group {group_id} settings deleted")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error deleting group settings: {e}", exc_info=True)
+            return False
+    
+    def get_all_groups(self) -> list:
+        """
+        Get all configured groups.
+        
+        Returns:
+            List of group dictionaries
+        """
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT group_id, group_title, markup, usdt_address, is_active, updated_at
+            FROM group_settings
+            WHERE is_active = 1
+            ORDER BY updated_at DESC
+        """)
+        
+        rows = cursor.fetchall()
+        groups = []
+        for row in rows:
+            groups.append({
+                'group_id': row['group_id'],
+                'group_title': row['group_title'],
+                'markup': float(row['markup']) if row['markup'] else 0.0,
+                'usdt_address': row['usdt_address'] or '',
+                'is_active': bool(row['is_active']),
+                'updated_at': row['updated_at']
+            })
+        return groups
+    
+    # ========== Transaction Methods ==========
+    
+    def create_transaction(self, group_id: Optional[int], user_id: int, username: str, 
+                          first_name: str, cny_amount: float, usdt_amount: float,
+                          exchange_rate: float, markup: float, usdt_address: str) -> Optional[str]:
+        """
+        Create a new transaction record.
+        
+        Args:
+            group_id: Telegram group ID (None for private chat)
+            user_id: Telegram user ID
+            username: Telegram username
+            first_name: User first name
+            cny_amount: CNY amount
+            usdt_amount: USDT amount
+            exchange_rate: Exchange rate used
+            markup: Markup applied
+            usdt_address: USDT address used
+            
+        Returns:
+            Transaction ID if successful, None otherwise
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            # Generate transaction ID
+            import datetime
+            timestamp = datetime.datetime.now()
+            transaction_id = f"T{timestamp.strftime('%Y%m%d%H%M%S')}{user_id % 10000:04d}"
+            
+            cursor.execute("""
+                INSERT INTO transactions (
+                    transaction_id, group_id, user_id, username, first_name,
+                    cny_amount, usdt_amount, exchange_rate, markup, usdt_address, status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+            """, (transaction_id, group_id, user_id, username or '', first_name or '',
+                  cny_amount, usdt_amount, exchange_rate, markup, usdt_address or ''))
+            
+            conn.commit()
+            logger.info(f"Transaction created: {transaction_id}")
+            return transaction_id
+            
+        except Exception as e:
+            logger.error(f"Error creating transaction: {e}", exc_info=True)
+            return None
+    
+    def get_transactions_by_group(self, group_id: int, date: str = None, limit: int = 20, offset: int = 0) -> list:
+        """
+        Get transactions for a specific group.
+        
+        Args:
+            group_id: Telegram group ID
+            date: Date filter (YYYY-MM-DD format), None for all
+            limit: Maximum number of records
+            offset: Offset for pagination
+            
+        Returns:
+            List of transaction dictionaries
+        """
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        if date:
+            cursor.execute("""
+                SELECT transaction_id, user_id, username, first_name,
+                       cny_amount, usdt_amount, exchange_rate, markup,
+                       usdt_address, status, created_at
+                FROM transactions
+                WHERE group_id = ? AND DATE(created_at) = ?
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?
+            """, (group_id, date, limit, offset))
+        else:
+            cursor.execute("""
+                SELECT transaction_id, user_id, username, first_name,
+                       cny_amount, usdt_amount, exchange_rate, markup,
+                       usdt_address, status, created_at
+                FROM transactions
+                WHERE group_id = ?
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?
+            """, (group_id, limit, offset))
+        
+        rows = cursor.fetchall()
+        transactions = []
+        for row in rows:
+            transactions.append({
+                'transaction_id': row['transaction_id'],
+                'user_id': row['user_id'],
+                'username': row['username'],
+                'first_name': row['first_name'],
+                'cny_amount': float(row['cny_amount']),
+                'usdt_amount': float(row['usdt_amount']),
+                'exchange_rate': float(row['exchange_rate']),
+                'markup': float(row['markup']) if row['markup'] else 0.0,
+                'usdt_address': row['usdt_address'],
+                'status': row['status'],
+                'created_at': row['created_at']
+            })
+        return transactions
+    
+    def get_today_transactions_by_group(self, group_id: int) -> list:
+        """
+        Get today's transactions for a specific group.
+        
+        Args:
+            group_id: Telegram group ID
+            
+        Returns:
+            List of today's transaction dictionaries
+        """
+        import datetime
+        today = datetime.date.today().strftime('%Y-%m-%d')
+        return self.get_transactions_by_group(group_id, date=today, limit=1000)
+    
+    def get_transaction_stats_by_group(self, group_id: int, date: str = None) -> dict:
+        """
+        Get transaction statistics for a group.
+        
+        Args:
+            group_id: Telegram group ID
+            date: Date filter (YYYY-MM-DD format), None for all time
+            
+        Returns:
+            Dictionary with statistics
+        """
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        if date:
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as count,
+                    SUM(cny_amount) as total_cny,
+                    SUM(usdt_amount) as total_usdt,
+                    AVG(cny_amount) as avg_cny,
+                    COUNT(DISTINCT user_id) as unique_users
+                FROM transactions
+                WHERE group_id = ? AND DATE(created_at) = ?
+            """, (group_id, date))
+        else:
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as count,
+                    SUM(cny_amount) as total_cny,
+                    SUM(usdt_amount) as total_usdt,
+                    AVG(cny_amount) as avg_cny,
+                    COUNT(DISTINCT user_id) as unique_users
+                FROM transactions
+                WHERE group_id = ?
+            """, (group_id,))
+        
+        row = cursor.fetchone()
+        if row and row['count']:
+            return {
+                'count': int(row['count']),
+                'total_cny': float(row['total_cny']) if row['total_cny'] else 0.0,
+                'total_usdt': float(row['total_usdt']) if row['total_usdt'] else 0.0,
+                'avg_cny': float(row['avg_cny']) if row['avg_cny'] else 0.0,
+                'unique_users': int(row['unique_users'])
+            }
+        return {'count': 0, 'total_cny': 0.0, 'total_usdt': 0.0, 'avg_cny': 0.0, 'unique_users': 0}
+    
+    def update_transaction_status(self, transaction_id: str, status: str, payment_hash: str = None) -> bool:
+        """
+        Update transaction status.
+        
+        Args:
+            transaction_id: Transaction ID
+            status: New status (pending, paid, confirmed, cancelled)
+            payment_hash: Optional payment hash
+            
+        Returns:
+            True if successful
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            if status == 'confirmed':
+                cursor.execute("""
+                    UPDATE transactions
+                    SET status = ?, payment_hash = ?, confirmed_at = CURRENT_TIMESTAMP
+                    WHERE transaction_id = ?
+                """, (status, payment_hash, transaction_id))
+            else:
+                cursor.execute("""
+                    UPDATE transactions
+                    SET status = ?, payment_hash = ?
+                    WHERE transaction_id = ?
+                """, (status, payment_hash, transaction_id))
+            
+            conn.commit()
+            logger.info(f"Transaction {transaction_id} status updated to {status}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error updating transaction status: {e}", exc_info=True)
+            return False
 
 
 # Global database instance

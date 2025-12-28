@@ -10,7 +10,7 @@ from services.math_service import parse_amount, is_number, is_simple_math
 logger = logging.getLogger(__name__)
 
 
-def calculate_settlement(amount_text: str) -> Tuple[Optional[dict], Optional[str]]:
+def calculate_settlement(amount_text: str, group_id: Optional[int] = None) -> Tuple[Optional[dict], Optional[str]]:
     """
     Calculate settlement bill for given CNY amount.
     
@@ -19,6 +19,7 @@ def calculate_settlement(amount_text: str) -> Tuple[Optional[dict], Optional[str
     
     Args:
         amount_text: CNY amount as text (number or math expression, e.g., "20000-200")
+        group_id: Optional Telegram group ID for group-specific markup
         
     Returns:
         Tuple of (settlement_data: dict or None, error_message: str or None)
@@ -27,15 +28,16 @@ def calculate_settlement(amount_text: str) -> Tuple[Optional[dict], Optional[str
         {
             'cny_amount': float,      # Input CNY amount (after calculation)
             'base_price': float,       # Base USDT/CNY price from Binance P2P
-            'admin_markup': float,     # Admin markup added to price
+            'markup': float,          # Markup applied (group-specific or global)
             'final_price': float,      # Final USDT/CNY price (base + markup)
             'usdt_amount': float,      # Calculated USDT amount to settle
-            'price_error': str or None
+            'price_error': str or None,
+            'group_id': int or None    # Group ID if group-specific
         }
         
     Calculation formula:
         usdt_amount = cny_amount / final_price
-        where final_price = base_price + admin_markup
+        where final_price = base_price + markup
     """
     try:
         # Parse CNY amount (input is in CNY)
@@ -44,18 +46,14 @@ def calculate_settlement(amount_text: str) -> Tuple[Optional[dict], Optional[str
         if cny_amount <= 0:
             return None, "金额必须大于 0"
         
-        # Get price with markup (USDT/CNY rate)
-        final_price, price_error, base_price = get_price_with_markup()
+        # Get price with markup (USDT/CNY rate) - supports group-specific markup
+        final_price, price_error, base_price, markup = get_price_with_markup(group_id)
         
         if final_price is None:
             return None, f"无法获取价格: {price_error or '未知错误'}"
         
         if final_price <= 0:
             return None, "汇率无效，无法计算"
-        
-        # Import here to avoid circular import
-        from database import db
-        admin_markup = db.get_admin_markup()
         
         # Calculate USDT amount: CNY / (USDT/CNY rate)
         # Example: 19800 CNY / 7.25 (USDT/CNY) = 2731.03 USDT
@@ -64,10 +62,11 @@ def calculate_settlement(amount_text: str) -> Tuple[Optional[dict], Optional[str
         settlement_data = {
             'cny_amount': cny_amount,      # Input CNY amount
             'base_price': base_price,      # Base USDT/CNY price
-            'admin_markup': admin_markup,  # Admin markup
+            'markup': markup,              # Markup applied (group or global)
             'final_price': final_price,    # Final USDT/CNY price (base + markup)
             'usdt_amount': usdt_amount,    # Calculated USDT amount
-            'price_error': price_error
+            'price_error': price_error,
+            'group_id': group_id           # Group ID if applicable
         }
         
         return settlement_data, None
@@ -81,7 +80,7 @@ def calculate_settlement(amount_text: str) -> Tuple[Optional[dict], Optional[str
         return None, f"计算错误: {str(e)}"
 
 
-def format_settlement_bill(settlement_data: dict, usdt_address: str = None) -> str:
+def format_settlement_bill(settlement_data: dict, usdt_address: str = None, transaction_id: str = None) -> str:
     """
     Format settlement bill as HTML message (receipt style).
     
@@ -90,28 +89,31 @@ def format_settlement_bill(settlement_data: dict, usdt_address: str = None) -> s
     Args:
         settlement_data: Settlement data dictionary
         usdt_address: Optional USDT address to display
+        transaction_id: Optional transaction ID to display
         
     Returns:
         Formatted HTML message
     """
     cny_amount = settlement_data['cny_amount']       # Input: CNY amount
     base_price = settlement_data['base_price']       # Base USDT/CNY price
-    admin_markup = settlement_data['admin_markup']   # Admin markup
+    markup = settlement_data.get('markup', settlement_data.get('admin_markup', 0.0))  # Support both keys
     final_price = settlement_data['final_price']     # Final USDT/CNY price
     usdt_amount = settlement_data['usdt_amount']     # Output: USDT amount
     price_error = settlement_data.get('price_error')
     
     # Build receipt-style HTML message
     message = "🧾 <b>交易结算单</b>\n"
+    if transaction_id:
+        message += f"<code>#{transaction_id}</code>\n"
     message += "────────────────────────\n\n"
     
     # Input: CNY amount
     message += f"💰 应收人民币: <b><code>{cny_amount:,.2f} CNY</code></b>\n\n"
     
     # Exchange rate breakdown
-    if admin_markup != 0:
-        markup_sign = "+" if admin_markup > 0 else ""
-        rate_breakdown = f"{final_price:.4f} (Binance P2P: {base_price:.4f} {markup_sign}{admin_markup:.4f})"
+    if markup != 0:
+        markup_sign = "+" if markup > 0 else ""
+        rate_breakdown = f"{final_price:.4f} (Binance P2P: {base_price:.4f} {markup_sign}{markup:.4f})"
     else:
         rate_breakdown = f"{final_price:.4f} (Binance P2P: {base_price:.4f})"
     

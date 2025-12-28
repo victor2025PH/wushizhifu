@@ -241,12 +241,15 @@ def get_usdt_cny_price() -> Tuple[Optional[float], Optional[str]]:
     return Config.DEFAULT_FALLBACK_PRICE, f"Both APIs failed (Binance P2P: {error_msg}, CoinGecko: {fallback_error}), using fallback price"
 
 
-def get_price_with_markup() -> Tuple[Optional[float], Optional[str], float]:
+def get_price_with_markup(group_id: Optional[int] = None) -> Tuple[Optional[float], Optional[str], float, float]:
     """
-    Get USDT/CNY price from Binance P2P (with CoinGecko fallback) with admin markup applied.
+    Get USDT/CNY price from Binance P2P (with CoinGecko fallback) with markup applied (group-specific or global).
     
+    Args:
+        group_id: Optional Telegram group ID for group-specific markup
+        
     Returns:
-        Tuple of (final_price: float or None, error_message: str or None, base_price: float)
+        Tuple of (final_price: float or None, error_message: str or None, base_price: float, markup: float)
     """
     from database import db
     
@@ -254,15 +257,25 @@ def get_price_with_markup() -> Tuple[Optional[float], Optional[str], float]:
     base_price, error_msg = get_usdt_cny_price()
     
     if base_price is None:
-        return None, error_msg or "Failed to fetch price", 0.0
+        return None, error_msg or "Failed to fetch price", 0.0, 0.0
     
-    # Get admin markup
-    markup = db.get_admin_markup()
+    # Check for group-specific markup first
+    markup = 0.0
+    if group_id:
+        group_setting = db.get_group_setting(group_id)
+        if group_setting:
+            markup = group_setting.get('markup', 0.0)
+            logger.info(f"Using group {group_id} markup: {markup}")
+    
+    # Fallback to global markup if no group-specific markup
+    if markup == 0.0 or not group_id:
+        markup = db.get_admin_markup()
+        logger.info(f"Using global markup: {markup}")
     
     # Calculate final price
     final_price = base_price + markup
     
     logger.info(f"Price calculation: {base_price} (base) + {markup} (markup) = {final_price} (final)")
     
-    return final_price, error_msg, base_price
+    return final_price, error_msg, base_price, markup
 
