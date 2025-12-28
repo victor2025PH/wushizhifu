@@ -169,6 +169,7 @@ async def handle_list_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 InlineKeyboardButton("🔄 刷新", callback_data="alerts_list")
             ],
             [
+                InlineKeyboardButton("📊 价格历史", callback_data="price_history_24"),
                 InlineKeyboardButton("🔙 返回", callback_data="main_menu")
             ]
         ]
@@ -230,6 +231,9 @@ async def handle_price_history(update: Update, context: ContextTypes.DEFAULT_TYP
             ],
             [
                 InlineKeyboardButton("📅 30天", callback_data="price_history_720"),
+                InlineKeyboardButton("🔔 预警管理", callback_data="alerts_list")
+            ],
+            [
                 InlineKeyboardButton("🔙 返回", callback_data="main_menu")
             ]
         ]

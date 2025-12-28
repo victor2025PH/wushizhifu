@@ -125,6 +125,27 @@ def get_paid_transactions_keyboard(group_id: int = None, page: int = 1) -> Inlin
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
+def get_alerts_menu_keyboard() -> InlineKeyboardMarkup:
+    """
+    Get inline keyboard for price alerts menu.
+    
+    Returns:
+        InlineKeyboardMarkup with alert menu options
+    """
+    keyboard = [
+        [
+            InlineKeyboardButton("➕ 创建预警", callback_data="alert_create"),
+            InlineKeyboardButton("📋 我的预警", callback_data="alerts_list")
+        ],
+        [
+            InlineKeyboardButton("📊 价格历史", callback_data="price_history_24"),
+            InlineKeyboardButton("🔙 返回", callback_data="main_menu")
+        ]
+    ]
+    
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
 def get_group_settings_menu() -> InlineKeyboardMarkup:
     """
     Get inline keyboard for group settings menu.

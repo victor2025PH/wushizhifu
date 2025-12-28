@@ -54,6 +54,7 @@ def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = Fals
                 KeyboardButton("📊 我的统计")
             ],
             [
+                KeyboardButton("🔔 预警"),
                 KeyboardButton("📞 客服")
             ]
         ]

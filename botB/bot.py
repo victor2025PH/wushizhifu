@@ -236,6 +236,8 @@ def main():
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("price", price_command))
     application.add_handler(CommandHandler("settings", settings_command))
+    application.add_handler(CommandHandler("alerts", alerts_command))
+    application.add_handler(CommandHandler("price_history", price_history_command))
     
     # Register message handler (for admin shortcuts and math/settlement)
     application.add_handler(get_message_handler())

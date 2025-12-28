@@ -866,6 +866,12 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if callback_data.startswith("price_history_"):
         hours = int(callback_data.split("_")[2])
         from handlers.price_alert_handlers import handle_price_history
+        # Check if this is callback query or message
+        if update.callback_query:
+            # For callback query, edit message
+            await update.callback_query.answer("📊 正在加载价格历史...")
+            # Convert callback query to message for handler
+            update.message = update.callback_query.message
         await handle_price_history(update, context, hours)
         return
     
