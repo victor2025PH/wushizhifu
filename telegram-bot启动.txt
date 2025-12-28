@@ -1,1 +1,40 @@
 python bot.py
+
+
+# 查看狀態
+sudo systemctl status wushipay-bot
+
+# 查看實時日誌
+sudo journalctl -u wushizhifu-bot.service -f
+
+
+# 重啟服務
+sudo systemctl restart wushipay-bot
+
+# 停止服務
+sudo systemctl stop wushipay-bot
+
+# 啟動服務
+sudo systemctl start wushipay-bot
+
+# 更新前端代碼
+cd ~/wushizhifu/frontend
+git pull
+npm run build
+sudo systemctl reload nginx
+
+# 更新 Bot 代碼
+cd ~/wushizhifu/bot
+git pull
+# 如果需要安裝新依賴
+source venv/bin/activate
+pip install -r requirements.txt
+sudo systemctl restart wushipay-bot
+# Bot 日誌
+sudo journalctl -u wushipay-bot -f
+
+# Nginx 錯誤日誌
+sudo tail -f /var/log/nginx/error.log
+
+# Nginx 訪問日誌
+sudo tail -f /var/log/nginx/access.log

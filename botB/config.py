@@ -1,0 +1,45 @@
+"""
+Configuration loader for OTC Group Management Bot (Bot B)
+Loads environment variables from .env file in root directory
+"""
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Find .env file in root directory (parent of botB/)
+root_dir = Path(__file__).parent.parent
+env_path = root_dir / '.env'
+
+# Load environment variables from .env file
+if env_path.exists():
+    load_dotenv(dotenv_path=env_path)
+else:
+    # Fallback to current directory or environment variables
+    load_dotenv()
+
+
+class Config:
+    """Configuration class for Bot B settings"""
+    
+    # Bot Token from BOT_TOKEN_B environment variable (Bot B)
+    BOT_TOKEN: str = os.getenv("BOT_TOKEN_B", "")
+    
+    # Database file path
+    DB_PATH: str = "otc_bot.db"
+    
+    # OKX API endpoint for USDT/CNY
+    OKX_API_URL: str = "https://www.okx.com/api/v5/market/ticker"
+    
+    # Default fallback price (USDT/CNY) if OKX API fails
+    DEFAULT_FALLBACK_PRICE: float = 7.20
+    
+    @classmethod
+    def validate(cls) -> bool:
+        """Validate that required configuration is present"""
+        if not cls.BOT_TOKEN:
+            raise ValueError(
+                "BOT_TOKEN_B is not set. Please ensure the second line of .env "
+                "contains the Bot B token, or set BOT_TOKEN_B environment variable."
+            )
+        return True
+
