@@ -535,13 +535,22 @@ class Database:
             logger.error(f"Error creating transaction: {e}", exc_info=True)
             return None
     
-    def get_transactions_by_group(self, group_id: int, date: str = None, limit: int = 20, offset: int = 0) -> list:
+    def get_transactions_by_group(self, group_id: int, date: str = None, 
+                                 start_date: str = None, end_date: str = None,
+                                 status: str = None, min_amount: float = None, max_amount: float = None,
+                                 user_id: int = None, limit: int = 20, offset: int = 0) -> list:
         """
-        Get transactions for a specific group.
+        Get transactions for a specific group with advanced filtering.
         
         Args:
             group_id: Telegram group ID
             date: Date filter (YYYY-MM-DD format), None for all
+            start_date: Start date filter (YYYY-MM-DD format)
+            end_date: End date filter (YYYY-MM-DD format)
+            status: Status filter (pending, paid, confirmed, cancelled)
+            min_amount: Minimum CNY amount filter
+            max_amount: Maximum CNY amount filter
+            user_id: Optional user ID filter
             limit: Maximum number of records
             offset: Offset for pagination
             
@@ -551,32 +560,53 @@ class Database:
         conn = self.connect()
         cursor = conn.cursor()
         
-        if date:
-            cursor.execute("""
-                SELECT transaction_id, user_id, username, first_name,
-                       cny_amount, usdt_amount, exchange_rate, markup,
-                       usdt_address, status, created_at
-                FROM transactions
-                WHERE group_id = ? AND DATE(created_at) = ?
-                ORDER BY created_at DESC
-                LIMIT ? OFFSET ?
-            """, (group_id, date, limit, offset))
-        else:
-            cursor.execute("""
-                SELECT transaction_id, user_id, username, first_name,
-                       cny_amount, usdt_amount, exchange_rate, markup,
-                       usdt_address, status, created_at
-                FROM transactions
-                WHERE group_id = ?
-                ORDER BY created_at DESC
-                LIMIT ? OFFSET ?
-            """, (group_id, limit, offset))
+        # Build query dynamically based on filters
+        query = """
+            SELECT transaction_id, group_id, user_id, username, first_name,
+                   cny_amount, usdt_amount, exchange_rate, markup,
+                   usdt_address, status, payment_hash, paid_at, confirmed_at,
+                   cancelled_at, created_at
+            FROM transactions
+            WHERE group_id = ?
+        """
+        params = [group_id]
         
+        # Date filters
+        if date:
+            query += " AND DATE(created_at) = ?"
+            params.append(date)
+        elif start_date and end_date:
+            query += " AND DATE(created_at) >= ? AND DATE(created_at) <= ?"
+            params.extend([start_date, end_date])
+        
+        # Status filter
+        if status:
+            query += " AND status = ?"
+            params.append(status)
+        
+        # Amount filters
+        if min_amount is not None:
+            query += " AND cny_amount >= ?"
+            params.append(min_amount)
+        if max_amount is not None:
+            query += " AND cny_amount <= ?"
+            params.append(max_amount)
+        
+        # User filter
+        if user_id:
+            query += " AND user_id = ?"
+            params.append(user_id)
+        
+        query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+        
+        cursor.execute(query, tuple(params))
         rows = cursor.fetchall()
         transactions = []
         for row in rows:
             transactions.append({
                 'transaction_id': row['transaction_id'],
+                'group_id': row['group_id'],
                 'user_id': row['user_id'],
                 'username': row['username'],
                 'first_name': row['first_name'],
@@ -586,6 +616,10 @@ class Database:
                 'markup': float(row['markup']) if row['markup'] else 0.0,
                 'usdt_address': row['usdt_address'],
                 'status': row['status'],
+                'payment_hash': row['payment_hash'],
+                'paid_at': row['paid_at'],
+                'confirmed_at': row['confirmed_at'],
+                'cancelled_at': row['cancelled_at'],
                 'created_at': row['created_at']
             })
         return transactions
@@ -670,14 +704,20 @@ class Database:
             }
         return {'count': 0, 'total_cny': 0.0, 'total_usdt': 0.0, 'avg_cny': 0.0, 'unique_users': 0, 'last_active': None}
     
-    def count_transactions_by_group(self, group_id: int, start_date: str = None, end_date: str = None) -> int:
+    def count_transactions_by_group(self, group_id: int, start_date: str = None, end_date: str = None,
+                                    status: str = None, min_amount: float = None, max_amount: float = None,
+                                    user_id: int = None) -> int:
         """
-        Count total transactions for a group (for pagination).
+        Count total transactions for a group with filters (for pagination).
         
         Args:
             group_id: Telegram group ID
             start_date: Optional start date filter
             end_date: Optional end date filter
+            status: Optional status filter
+            min_amount: Optional minimum CNY amount filter
+            max_amount: Optional maximum CNY amount filter
+            user_id: Optional user ID filter
             
         Returns:
             Total count of transactions
@@ -685,19 +725,30 @@ class Database:
         conn = self.connect()
         cursor = conn.cursor()
         
-        if start_date and end_date:
-            cursor.execute("""
-                SELECT COUNT(*) as count
-                FROM transactions
-                WHERE group_id = ? AND DATE(created_at) >= ? AND DATE(created_at) <= ?
-            """, (group_id, start_date, end_date))
-        else:
-            cursor.execute("""
-                SELECT COUNT(*) as count
-                FROM transactions
-                WHERE group_id = ?
-            """, (group_id,))
+        query = "SELECT COUNT(*) as count FROM transactions WHERE group_id = ?"
+        params = [group_id]
         
+        if start_date and end_date:
+            query += " AND DATE(created_at) >= ? AND DATE(created_at) <= ?"
+            params.extend([start_date, end_date])
+        
+        if status:
+            query += " AND status = ?"
+            params.append(status)
+        
+        if min_amount is not None:
+            query += " AND cny_amount >= ?"
+            params.append(min_amount)
+        
+        if max_amount is not None:
+            query += " AND cny_amount <= ?"
+            params.append(max_amount)
+        
+        if user_id:
+            query += " AND user_id = ?"
+            params.append(user_id)
+        
+        cursor.execute(query, tuple(params))
         row = cursor.fetchone()
         return int(row['count']) if row else 0
     

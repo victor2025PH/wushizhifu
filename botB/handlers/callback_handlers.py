@@ -692,6 +692,58 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_export_stats(update, context, group_id)
         return
     
+    # Search and filter handlers
+    if callback_data.startswith("filter_menu"):
+        group_id = int(callback_data.split("_")[2]) if len(callback_data.split("_")) > 2 else None
+        from handlers.search_handlers import handle_search_filter_menu
+        await handle_search_filter_menu(update, context)
+        return
+    
+    if callback_data.startswith("filter_amount"):
+        group_id = int(callback_data.split("_")[2])
+        from handlers.search_handlers import handle_amount_filter
+        await handle_amount_filter(update, context, group_id)
+        return
+    
+    if callback_data.startswith("filter_date"):
+        group_id = int(callback_data.split("_")[2])
+        from handlers.search_handlers import handle_date_filter
+        await handle_date_filter(update, context, group_id)
+        return
+    
+    if callback_data.startswith("filter_status"):
+        group_id = int(callback_data.split("_")[2])
+        from handlers.search_handlers import handle_status_filter
+        await handle_status_filter(update, context, group_id)
+        return
+    
+    if callback_data.startswith("status_filter"):
+        parts = callback_data.split("_")
+        group_id = int(parts[2])
+        status = parts[3]
+        from handlers.search_handlers import apply_filters_and_show_results
+        filters = {'status': status}
+        await apply_filters_and_show_results(update, context, group_id, filters)
+        return
+    
+    if callback_data.startswith("filter_user"):
+        group_id = int(callback_data.split("_")[2])
+        from handlers.search_handlers import handle_user_filter
+        await handle_user_filter(update, context, group_id)
+        return
+    
+    if callback_data.startswith("filter_search"):
+        group_id = int(callback_data.split("_")[2])
+        from handlers.search_handlers import handle_comprehensive_search
+        await handle_comprehensive_search(update, context, group_id)
+        return
+    
+    if callback_data.startswith("filter_clear"):
+        group_id = int(callback_data.split("_")[2])
+        from handlers.bills_handlers import handle_history_bills
+        await handle_history_bills(update, context, page=1, edit_message=True)
+        return
+    
     # Main menu
     if callback_data == "main_menu":
         await query.answer("💡 使用底部按钮或 /start 查看主菜单")

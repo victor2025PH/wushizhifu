@@ -202,10 +202,9 @@ def get_bills_history_keyboard(group_id: int, page: int = 1, start_date: str = N
     """
     keyboard = []
     
-    # Date filter buttons
+    # Filter buttons
     keyboard.append([
-        InlineKeyboardButton("📅 按日期筛选", callback_data=f"bills_filter_date_{group_id}_{page}"),
-        InlineKeyboardButton("🔍 搜索", callback_data=f"bills_search_{group_id}_{page}")
+        InlineKeyboardButton("🔍 高级筛选", callback_data=f"filter_menu_{group_id}")
     ])
     
     # Pagination buttons

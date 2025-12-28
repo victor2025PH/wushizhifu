@@ -491,6 +491,78 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_admin_user = is_admin(user_id)
     chat = update.effective_chat
     
+    # Handle filter input (after user clicks filter button)
+    if 'awaiting_filter' in context.user_data:
+        filter_type = context.user_data['awaiting_filter']
+        group_id = context.user_data.get('filter_group_id')
+        del context.user_data['awaiting_filter']
+        del context.user_data['filter_group_id']
+        
+        if filter_type == 'amount':
+            min_amount, max_amount = parse_amount_range(text)
+            if min_amount is None and max_amount is None:
+                await update.message.reply_text("❌ 金额格式错误，请重新输入")
+                return
+            
+            # Apply filter and show results
+            from handlers.search_handlers import apply_filters_and_show_results
+            filters = {'min_amount': min_amount, 'max_amount': max_amount}
+            await apply_filters_and_show_results(update, context, group_id, filters)
+            return
+        
+        elif filter_type == 'date':
+            start_date, end_date = parse_date_range(text)
+            if not start_date and not end_date:
+                await update.message.reply_text("❌ 日期格式错误，请重新输入")
+                return
+            
+            # Apply filter and show results
+            from handlers.search_handlers import apply_filters_and_show_results
+            filters = {'start_date': start_date, 'end_date': end_date}
+            await apply_filters_and_show_results(update, context, group_id, filters)
+            return
+        
+        elif filter_type == 'user':
+            try:
+                user_id = int(text.strip())
+            except ValueError:
+                await update.message.reply_text("❌ 用户ID格式错误，请输入数字")
+                return
+            
+            # Apply filter and show results
+            from handlers.search_handlers import apply_filters_and_show_results
+            filters = {'user_id': user_id}
+            await apply_filters_and_show_results(update, context, group_id, filters)
+            return
+        
+        elif filter_type == 'search':
+            # Parse comprehensive search query
+            from services.search_service import parse_search_query
+            filters = parse_search_query(text)
+            
+            # Check if transaction ID was found
+            if filters.get('transaction_id'):
+                transaction = db.get_transaction_by_id(filters['transaction_id'])
+                if transaction:
+                    from handlers.bills_handlers import handle_transaction_detail
+                    await handle_transaction_detail(
+                        update, context,
+                        filters['transaction_id'],
+                        transaction['group_id'],
+                        return_page=1
+                    )
+                    return
+                else:
+                    await update.message.reply_text("❌ 未找到该交易记录")
+                    return
+            
+            # Apply filters and show results
+            from handlers.search_handlers import apply_filters_and_show_results
+            await apply_filters_and_show_results(update, context, group_id, filters)
+            return
+        
+        return
+    
     # Handle payment hash input (after user clicks "已支付")
     if 'awaiting_payment_hash' in context.user_data:
         transaction_id = context.user_data['awaiting_payment_hash']
