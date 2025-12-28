@@ -208,6 +208,29 @@ def init_database():
             ON sensitive_words(word)
         """)
         
+        # Video configs table (视频配置表)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS video_configs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                video_type VARCHAR(20) NOT NULL UNIQUE,
+                channel_id BIGINT NOT NULL,
+                message_id INTEGER NOT NULL,
+                file_id TEXT NOT NULL,
+                file_unique_id VARCHAR(255),
+                file_size INTEGER,
+                duration INTEGER,
+                thumbnail_file_id TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_by BIGINT,
+                UNIQUE(video_type)
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_video_configs_type 
+            ON video_configs(video_type)
+        """)
+        
         # Initialize default rate configs
         cursor.execute("SELECT COUNT(*) FROM rate_configs")
         if cursor.fetchone()[0] == 0:

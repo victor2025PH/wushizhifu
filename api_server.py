@@ -18,6 +18,8 @@ from config import Config
 from database.user_repository import UserRepository
 from database.transaction_repository import TransactionRepository
 from database.rate_repository import RateRepository
+from database.video_repository import VideoRepository
+import httpx
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -405,6 +407,104 @@ async def get_rates(user_data: dict = Depends(verify_auth)):
         
     except Exception as e:
         logger.error(f"Error getting rates: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@app.get("/api/videos/wechat")
+async def get_wechat_video_url():
+    """
+    Get WeChat video URL from Telegram channel.
+    Returns the download URL for the latest WeChat video.
+    """
+    try:
+        # Get video config from database
+        video_config = VideoRepository.get_video_config_by_type("wechat")
+        
+        if not video_config:
+            raise HTTPException(status_code=404, detail="WeChat video not configured")
+        
+        file_id = video_config['file_id']
+        
+        # Get file info from Telegram Bot API
+        async with httpx.AsyncClient() as client:
+            bot_token = Config.BOT_TOKEN
+            response = await client.get(
+                f"https://api.telegram.org/bot{bot_token}/getFile",
+                params={"file_id": file_id}
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"Failed to get file info: {response.text}")
+                raise HTTPException(status_code=500, detail="Failed to get video file info")
+            
+            file_info = response.json()
+            if not file_info.get('ok'):
+                logger.error(f"Telegram API error: {file_info}")
+                raise HTTPException(status_code=500, detail="Telegram API error")
+            
+            file_path = file_info['result']['file_path']
+            video_url = f"https://api.telegram.org/file/bot{bot_token}/{file_path}"
+            
+            return {
+                "url": video_url,
+                "file_id": file_id,
+                "file_path": file_path,
+                "updated_at": video_config.get('updated_at')
+            }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting WeChat video URL: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@app.get("/api/videos/alipay")
+async def get_alipay_video_url():
+    """
+    Get Alipay video URL from Telegram channel.
+    Returns the download URL for the latest Alipay video.
+    """
+    try:
+        # Get video config from database
+        video_config = VideoRepository.get_video_config_by_type("alipay")
+        
+        if not video_config:
+            raise HTTPException(status_code=404, detail="Alipay video not configured")
+        
+        file_id = video_config['file_id']
+        
+        # Get file info from Telegram Bot API
+        async with httpx.AsyncClient() as client:
+            bot_token = Config.BOT_TOKEN
+            response = await client.get(
+                f"https://api.telegram.org/bot{bot_token}/getFile",
+                params={"file_id": file_id}
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"Failed to get file info: {response.text}")
+                raise HTTPException(status_code=500, detail="Failed to get video file info")
+            
+            file_info = response.json()
+            if not file_info.get('ok'):
+                logger.error(f"Telegram API error: {file_info}")
+                raise HTTPException(status_code=500, detail="Telegram API error")
+            
+            file_path = file_info['result']['file_path']
+            video_url = f"https://api.telegram.org/file/bot{bot_token}/{file_path}"
+            
+            return {
+                "url": video_url,
+                "file_id": file_id,
+                "file_path": file_path,
+                "updated_at": video_config.get('updated_at')
+            }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting Alipay video URL: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
