@@ -1,5 +1,6 @@
 """
-Price service for fetching USDT/CNY exchange rate from CoinGecko API
+Price service for fetching USDT/CNY exchange rate from Binance P2P API
+Falls back to CoinGecko API if Binance P2P fails
 """
 import requests
 import logging
@@ -14,6 +15,24 @@ _price_cache = {
     'price': None,
     'timestamp': 0,
     'cache_duration': 60  # Cache valid for 60 seconds
+}
+
+# Binance P2P API configuration
+BINANCE_P2P_URL = "https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search"
+BINANCE_P2P_HEADERS = {
+    "Content-Type": "application/json",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+}
+BINANCE_P2P_PAYLOAD = {
+    "fiat": "CNY",
+    "page": 1,
+    "rows": 1,
+    "tradeType": "BUY",  # BUY means merchants are selling USDT (Ask price)
+    "asset": "USDT",
+    "countries": [],
+    "proMerchantAds": False,
+    "shieldMerchantAds": False,
+    "publisherType": None
 }
 
 
@@ -44,31 +63,94 @@ def _update_cache(price: float):
     _price_cache['timestamp'] = time.time()
 
 
-def get_usdt_cny_price() -> Tuple[Optional[float], Optional[str]]:
+def _fetch_binance_p2p_price() -> Tuple[Optional[float], Optional[str]]:
     """
-    Fetch USDT/CNY price from CoinGecko API.
-    Uses in-memory cache (60 seconds) to prevent API rate limiting.
-    This function is called only when requested (no background polling).
+    Fetch USDT/CNY price from Binance P2P API.
     
     Returns:
         Tuple of (price: float or None, error_message: str or None)
-        - If successful: (price, None)
-        - If failed: (fallback_price, "Using fallback price")
     """
-    # Check cache first
-    if _is_cache_valid():
-        logger.info(f"Returning cached price: {_price_cache['price']}")
-        return _price_cache['price'], None
-    
     try:
+        logger.info("Fetching USDT/CNY price from Binance P2P API...")
+        
+        # Make POST request to Binance P2P API
+        response = requests.post(
+            BINANCE_P2P_URL,
+            json=BINANCE_P2P_PAYLOAD,
+            headers=BINANCE_P2P_HEADERS,
+            timeout=10  # 10 second timeout
+        )
+        
+        # Check HTTP status
+        response.raise_for_status()
+        
+        # Parse JSON response
+        data = response.json()
+        
+        # Binance P2P API response structure:
+        # {
+        #   "code": "000000",
+        #   "message": null,
+        #   "messageDetail": null,
+        #   "data": [
+        #     {
+        #       "adv": {
+        #         "price": "7.2345",  // String price
+        #         ...
+        #       },
+        #       ...
+        #     }
+        #   ],
+        #   "total": 1,
+        #   "success": true
+        # }
+        
+        if data.get('success') and data.get('code') == '000000':
+            if 'data' in data and len(data['data']) > 0:
+                price_str = data['data'][0].get('adv', {}).get('price')
+                if price_str:
+                    price = float(price_str)
+                    logger.info(f"Binance P2P price fetched successfully: {price}")
+                    return price, None
+        
+        # If data structure is unexpected
+        error_msg = "Unexpected response structure from Binance P2P API"
+        logger.warning(error_msg)
+        return None, error_msg
+        
+    except requests.exceptions.Timeout:
+        logger.error("Binance P2P API request timeout")
+        return None, "Request timeout"
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Binance P2P API request failed: {e}")
+        return None, f"Request failed: {str(e)}"
+        
+    except (KeyError, ValueError, TypeError) as e:
+        logger.error(f"Error parsing Binance P2P response: {e}")
+        return None, f"Failed to parse response: {str(e)}"
+        
+    except Exception as e:
+        logger.error(f"Unexpected error fetching Binance P2P price: {e}", exc_info=True)
+        return None, f"Unexpected error: {str(e)}"
+
+
+def _fetch_coingecko_price() -> Tuple[Optional[float], Optional[str]]:
+    """
+    Fetch USDT/CNY price from CoinGecko API (fallback).
+    
+    Returns:
+        Tuple of (price: float or None, error_message: str or None)
+    """
+    try:
+        logger.info("Fetching USDT/CNY price from CoinGecko API (fallback)...")
+        
         # CoinGecko API endpoint for USDT/CNY
         url = "https://api.coingecko.com/api/v3/simple/price"
         params = {
             'ids': 'tether',
             'vs_currencies': 'cny'
         }
-        
-        logger.info("Fetching USDT/CNY price from CoinGecko API...")
         
         # Make request with timeout
         response = requests.get(
@@ -93,44 +175,82 @@ def get_usdt_cny_price() -> Tuple[Optional[float], Optional[str]]:
         if 'tether' in data and 'cny' in data['tether']:
             price = float(data['tether']['cny'])
             logger.info(f"CoinGecko price fetched successfully: {price}")
-            
-            # Update cache
-            _update_cache(price)
-            
             return price, None
         
         # If data structure is unexpected
         error_msg = "Unexpected response structure from CoinGecko API"
         logger.warning(error_msg)
-        return Config.DEFAULT_FALLBACK_PRICE, f"{error_msg}, using fallback price"
+        return None, error_msg
         
     except requests.exceptions.Timeout:
         logger.error("CoinGecko API request timeout")
-        return Config.DEFAULT_FALLBACK_PRICE, "Request timeout, using fallback price"
+        return None, "Request timeout"
         
     except requests.exceptions.RequestException as e:
         logger.error(f"CoinGecko API request failed: {e}")
-        return Config.DEFAULT_FALLBACK_PRICE, f"Request failed: {str(e)}, using fallback price"
+        return None, f"Request failed: {str(e)}"
         
     except (KeyError, ValueError, TypeError) as e:
         logger.error(f"Error parsing CoinGecko response: {e}")
-        return Config.DEFAULT_FALLBACK_PRICE, f"Failed to parse response: {str(e)}, using fallback price"
+        return None, f"Failed to parse response: {str(e)}"
         
     except Exception as e:
         logger.error(f"Unexpected error fetching CoinGecko price: {e}", exc_info=True)
-        return Config.DEFAULT_FALLBACK_PRICE, f"Unexpected error: {str(e)}, using fallback price"
+        return None, f"Unexpected error: {str(e)}"
+
+
+def get_usdt_cny_price() -> Tuple[Optional[float], Optional[str]]:
+    """
+    Fetch USDT/CNY price from Binance P2P API.
+    Falls back to CoinGecko API if Binance P2P fails.
+    Uses in-memory cache (60 seconds) to prevent API rate limiting.
+    This function is called only when requested (no background polling).
+    
+    Returns:
+        Tuple of (price: float or None, error_message: str or None)
+        - If successful: (price, None)
+        - If failed: (fallback_price, "Using fallback price")
+    """
+    # Check cache first
+    if _is_cache_valid():
+        logger.info(f"Returning cached price: {_price_cache['price']}")
+        return _price_cache['price'], None
+    
+    # Try Binance P2P first (primary source)
+    price, error_msg = _fetch_binance_p2p_price()
+    
+    if price is not None:
+        # Update cache with successful price
+        _update_cache(price)
+        return price, None
+    
+    # If Binance P2P failed, try CoinGecko as fallback
+    logger.warning(f"Binance P2P failed ({error_msg}), trying CoinGecko fallback...")
+    price, fallback_error = _fetch_coingecko_price()
+    
+    if price is not None:
+        # Update cache with fallback price
+        _update_cache(price)
+        return price, f"Using CoinGecko fallback (Binance P2P failed: {error_msg})"
+    
+    # Both APIs failed, use hardcoded fallback
+    logger.error(f"Both Binance P2P and CoinGecko failed. Using hardcoded fallback price: {Config.DEFAULT_FALLBACK_PRICE}")
+    logger.error(f"Binance P2P error: {error_msg}")
+    logger.error(f"CoinGecko error: {fallback_error}")
+    
+    return Config.DEFAULT_FALLBACK_PRICE, f"Both APIs failed (Binance P2P: {error_msg}, CoinGecko: {fallback_error}), using fallback price"
 
 
 def get_price_with_markup() -> Tuple[Optional[float], Optional[str], float]:
     """
-    Get USDT/CNY price from CoinGecko with admin markup applied.
+    Get USDT/CNY price from Binance P2P (with CoinGecko fallback) with admin markup applied.
     
     Returns:
         Tuple of (final_price: float or None, error_message: str or None, base_price: float)
     """
     from database import db
     
-    # Get base price from CoinGecko
+    # Get base price from Binance P2P (with CoinGecko fallback)
     base_price, error_msg = get_usdt_cny_price()
     
     if base_price is None:
