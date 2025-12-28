@@ -578,6 +578,12 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Update user last active timestamp
     db.update_user_last_active(user_id)
     
+    # Handle alert threshold input (after user selects alert type)
+    if 'awaiting_alert_threshold' in context.user_data:
+        from handlers.price_alert_handlers import handle_alert_threshold_input
+        await handle_alert_threshold_input(update, context, text)
+        return
+    
     # Handle filter input (after user clicks filter button)
     if 'awaiting_filter' in context.user_data:
         filter_type = context.user_data['awaiting_filter']

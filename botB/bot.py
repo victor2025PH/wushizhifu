@@ -243,6 +243,23 @@ def main():
     # Register callback handler (for inline keyboard buttons)
     application.add_handler(get_callback_handler())
     
+    # Register job queue for price alert monitoring
+    from telegram.ext import JobQueue
+    job_queue = application.job_queue
+    
+    # Schedule price alert monitoring (every 5 minutes)
+    async def monitor_alerts_callback(context: ContextTypes.DEFAULT_TYPE):
+        from services.price_alert_service import monitor_price_alerts
+        await monitor_price_alerts(context)
+    
+    if job_queue:
+        job_queue.run_repeating(
+            monitor_alerts_callback,
+            interval=300,  # 5 minutes
+            first=60  # Start after 1 minute
+        )
+        logger.info("Price alert monitoring scheduled (every 5 minutes)")
+    
     logger.info("Bot B (OTC Group Management) starting...")
     logger.info(f"Database initialized at: {db.db_path}")
     logger.info(f"Admin markup: {db.get_admin_markup()}")

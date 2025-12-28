@@ -241,12 +241,13 @@ def get_usdt_cny_price() -> Tuple[Optional[float], Optional[str]]:
     return Config.DEFAULT_FALLBACK_PRICE, f"Both APIs failed (Binance P2P: {error_msg}, CoinGecko: {fallback_error}), using fallback price"
 
 
-def get_price_with_markup(group_id: Optional[int] = None) -> Tuple[Optional[float], Optional[str], float, float]:
+def get_price_with_markup(group_id: Optional[int] = None, save_history: bool = True) -> Tuple[Optional[float], Optional[str], float, float]:
     """
     Get USDT/CNY price from Binance P2P (with CoinGecko fallback) with markup applied (group-specific or global).
     
     Args:
         group_id: Optional Telegram group ID for group-specific markup
+        save_history: Whether to save price to history (default: True)
         
     Returns:
         Tuple of (final_price: float or None, error_message: str or None, base_price: float, markup: float)
@@ -274,6 +275,11 @@ def get_price_with_markup(group_id: Optional[int] = None) -> Tuple[Optional[floa
     
     # Calculate final price
     final_price = base_price + markup
+    
+    # Save price history if requested
+    if save_history:
+        source = 'binance_p2p' if 'binance' in (error_msg or '').lower() or error_msg is None else 'coingecko'
+        db.save_price_history(base_price, final_price, markup, source)
     
     logger.info(f"Price calculation: {base_price} (base) + {markup} (markup) = {final_price} (final)")
     

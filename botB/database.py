@@ -92,6 +92,49 @@ class Database:
             )
         """)
         
+        # Create price_history table for price tracking
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS price_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                base_price REAL NOT NULL,
+                final_price REAL NOT NULL,
+                markup REAL DEFAULT 0.0,
+                source TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_price_history_created_at 
+            ON price_history(created_at)
+        """)
+        
+        # Create price_alerts table for user price alerts
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS price_alerts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id BIGINT NOT NULL,
+                alert_type TEXT NOT NULL,
+                threshold_value REAL NOT NULL,
+                comparison_operator TEXT NOT NULL,
+                is_active BOOLEAN DEFAULT 1,
+                notification_count INTEGER DEFAULT 0,
+                last_notified_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_price_alerts_user_id 
+            ON price_alerts(user_id)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_price_alerts_active 
+            ON price_alerts(is_active)
+        """)
+        
         # Create operation_logs table for audit trail
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS operation_logs (

@@ -846,6 +846,29 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_logs_filter_menu(update, context)
         return
     
+    # Price alert handlers
+    if callback_data == "alerts_menu" or callback_data == "alerts_list":
+        from handlers.price_alert_handlers import handle_list_alerts
+        await handle_list_alerts(update, context)
+        return
+    
+    if callback_data == "alert_create":
+        from handlers.price_alert_handlers import handle_create_alert
+        await handle_create_alert(update, context)
+        return
+    
+    if callback_data.startswith("alert_type_"):
+        alert_type = callback_data.split("_")[2]  # 'above' or 'below'
+        from handlers.price_alert_handlers import handle_alert_type_selected
+        await handle_alert_type_selected(update, context, alert_type)
+        return
+    
+    if callback_data.startswith("price_history_"):
+        hours = int(callback_data.split("_")[2])
+        from handlers.price_alert_handlers import handle_price_history
+        await handle_price_history(update, context, hours)
+        return
+    
     # Main menu
     if callback_data == "main_menu":
         await query.answer("💡 使用底部按钮或 /start 查看主菜单")
