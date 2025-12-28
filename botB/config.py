@@ -25,10 +25,21 @@ class Config:
     BOT_TOKEN: str = os.getenv("BOT_TOKEN_B", "")
     
     # Initial admin user IDs (can be extended later)
-    INITIAL_ADMINS: list[int] = [
-        7974525763,
-        5433982810
-    ]
+    # Can be set via ADMIN_IDS environment variable (comma-separated)
+    # Format: ADMIN_IDS=123456789,987654321
+    # This will be the same as Bot A if both use the same .env file
+    _admin_ids_str: str = os.getenv("ADMIN_IDS", "")
+    if _admin_ids_str:
+        # Parse from environment variable
+        INITIAL_ADMINS: list[int] = [
+            int(uid.strip()) for uid in _admin_ids_str.split(",") if uid.strip().isdigit()
+        ]
+    else:
+        # Fallback to default admins
+        INITIAL_ADMINS: list[int] = [
+            7974525763,
+            5433982810
+        ]
     
     # Database file path
     DB_PATH: str = "otc_bot.db"
