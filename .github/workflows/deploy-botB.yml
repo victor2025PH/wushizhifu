@@ -17,41 +17,69 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
       
-      - name: Deploy to server
+      - name: Stop Bot B
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
+          script: sudo systemctl stop otc-bot.service || true
+      
+      - name: Pull Code
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          timeout: 300s
           script: |
             cd /home/ubuntu/wushizhifu
-            
-            # Pull latest code
-            git pull origin main || true
-            
-            # Check if botB directory exists
-            if [ ! -d "botB" ]; then
-              echo "Error: botB directory not found"
-              exit 1
-            fi
-            
-            # Go to botB directory
-            cd botB
-            
-            # Create venv if not exists
+            git stash || true
+            git pull origin main
+      
+      - name: Install Dependencies and Restart
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          timeout: 180s
+          script: |
+            cd /home/ubuntu/wushizhifu/botB
             if [ ! -d "venv" ]; then
               python3 -m venv venv
             fi
-            
-            # Activate venv and install dependencies
             source venv/bin/activate
             pip install --upgrade pip -q
             pip install -r requirements.txt -q
-            
-            # Restart systemd service
-            sudo systemctl restart botB.service || echo "Service not found, skipping restart"
-            
-            # Show status
-            sudo systemctl status botB.service --no-pager -l || echo "Service not running"
+            sleep 3
+            sudo systemctl daemon-reload
+            if [ ! -f "/etc/systemd/system/otc-bot.service" ]; then
+              sudo tee /etc/systemd/system/otc-bot.service > /dev/null << 'EOFSERVICE'
+[Unit]
+Description=OTC Telegram Bot (Bot B)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/wushizhifu/botB
+Environment="PATH=/home/ubuntu/wushizhifu/botB/venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/home/ubuntu/wushizhifu/botB/venv/bin/python /home/ubuntu/wushizhifu/botB/bot.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOFSERVICE
+              sudo systemctl daemon-reload
+            fi
+            sudo systemctl restart otc-bot.service
+            sudo systemctl enable otc-bot.service || true
+            sleep 2
+            sudo systemctl is-active otc-bot.service && echo "✅ Bot B 服务正在运行" || echo "⚠️  Bot B 服务未运行"
 
