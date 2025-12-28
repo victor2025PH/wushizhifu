@@ -24,6 +24,12 @@ class Config:
     # Bot Token from BOT_TOKEN_B environment variable (Bot B)
     BOT_TOKEN: str = os.getenv("BOT_TOKEN_B", "")
     
+    # Initial admin user IDs (can be extended later)
+    INITIAL_ADMINS: list[int] = [
+        7974525763,
+        5433982810
+    ]
+    
     # Database file path
     DB_PATH: str = "otc_bot.db"
     

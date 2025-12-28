@@ -8,6 +8,8 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 from config import Config
 from database import db
+from handlers.message_handlers import get_message_handler
+from handlers.callback_handlers import get_callback_handler
 
 # Configure logging
 logging.basicConfig(
@@ -18,15 +20,26 @@ logger = logging.getLogger(__name__)
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /start command"""
+    """Handle /start command - show welcome message with reply keyboard"""
+    from keyboards.reply_keyboard import get_main_reply_keyboard
+    
     user = update.effective_user
     welcome_message = (
         f"👋 欢迎使用 OTC 群组管理 Bot！\n\n"
         f"你好，{user.first_name}！\n\n"
         f"这是一个用于管理 OTC 交易群组的机器人。\n\n"
-        f"使用 /help 查看可用命令。"
+        f"💡 <b>使用说明：</b>\n"
+        f"• 发送数字或算式自动计算结算账单\n"
+        f"• 使用下方快捷按钮快速操作\n"
+        f"• 使用 /help 查看所有命令"
     )
-    await update.message.reply_text(welcome_message)
+    
+    reply_markup = get_main_reply_keyboard()
+    await update.message.reply_text(
+        welcome_message,
+        parse_mode="HTML",
+        reply_markup=reply_markup
+    )
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -102,6 +115,12 @@ def main():
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("price", price_command))
     application.add_handler(CommandHandler("settings", settings_command))
+    
+    # Register message handler (for admin shortcuts and math/settlement)
+    application.add_handler(get_message_handler())
+    
+    # Register callback handler (for inline keyboard buttons)
+    application.add_handler(get_callback_handler())
     
     logger.info("Bot B (OTC Group Management) starting...")
     logger.info(f"Database initialized at: {db.db_path}")
