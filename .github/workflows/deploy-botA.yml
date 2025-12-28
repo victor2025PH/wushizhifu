@@ -50,8 +50,11 @@ jobs:
             pip install -r requirements.txt -q
             
             # Restart systemd service
-            sudo systemctl restart botA.service || echo "Service not found, skipping restart"
+            sudo systemctl restart wushizhifu-bot.service || echo "Service not found, skipping restart"
+            
+            # Wait for service to start
+            sleep 3
             
             # Show status
-            sudo systemctl status botA.service --no-pager -l || echo "Service not running"
+            sudo systemctl status wushizhifu-bot.service --no-pager -l || echo "Service not running"
 
