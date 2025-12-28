@@ -30,8 +30,13 @@ async def handle_group_message(message: Message):
         group_id = message.chat.id
         user_id = message.from_user.id
         
-        # Check if user is pending verification
-        if not GroupRepository.is_member_verified(group_id, user_id):
+        # ✅ FIX: Check if group has verification enabled before checking user status
+        # Only perform verification check if group is configured and verification is enabled
+        group = GroupRepository.get_group(group_id)
+        verification_enabled = group and group.get('verification_enabled', False)
+        
+        # Check if user is pending verification (only if verification is enabled)
+        if verification_enabled and not GroupRepository.is_member_verified(group_id, user_id):
             # Check if user has a pending verification record
             record = VerificationRepository.get_verification_record(group_id, user_id)
             if record and record.get('result') == 'pending':
