@@ -1,10 +1,10 @@
 #!/bin/bash
-# 部署前端项目到服务器
+# 快速部署前端 - 不使用 sudo（避免路径问题）
 
 set -e
 
 echo "=========================================="
-echo "🚀 部署前端项目"
+echo "🚀 快速部署前端项目"
 echo "=========================================="
 echo ""
 
@@ -15,17 +15,8 @@ RED='\033[0;31m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-# 配置变量 - 如果使用 sudo，HOME 会是 /root，所以使用显式路径
-if [ "$EUID" -eq 0 ]; then
-    # 如果以 root 运行，使用 ubuntu 用户目录
-    if [ -d "/home/ubuntu" ]; then
-        PROJECT_DIR="/home/ubuntu/wushizhifu"
-    else
-        PROJECT_DIR="/root/wushizhifu"
-    fi
-else
-    PROJECT_DIR="$HOME/wushizhifu"
-fi
+# 配置变量 - 使用当前用户目录
+PROJECT_DIR="$HOME/wushizhifu"
 FRONTEND_DIR="$PROJECT_DIR/frontend"
 REPO_URL="https://github.com/victor2025PH/wushizhifu.git"
 
@@ -63,6 +54,7 @@ if [ ! -d "repo/wushizhifu-full" ]; then
     ls -la repo/ | head -20
     exit 1
 fi
+echo -e "${GREEN}✅ 找到前端代码目录${NC}"
 
 # 4. 复制前端代码到 frontend 目录
 echo ""
@@ -73,24 +65,16 @@ if [ -d "${FRONTEND_DIR}" ]; then
 fi
 
 echo "复制前端代码..."
-if [ -d "repo/wushizhifu-full" ]; then
-    cp -r repo/wushizhifu-full ${FRONTEND_DIR}
-    echo -e "${GREEN}✅ 前端代码已复制${NC}"
-    echo "检查复制结果..."
-    if [ -f "${FRONTEND_DIR}/package.json" ]; then
-        echo -e "${GREEN}✅ package.json 已找到${NC}"
-    else
-        echo -e "${RED}❌ 错误: package.json 未找到${NC}"
-        echo "目录内容:"
-        ls -la ${FRONTEND_DIR}/ | head -10
-        exit 1
-    fi
-else
-    echo -e "${RED}❌ 错误: repo/wushizhifu-full 目录不存在${NC}"
-    echo "仓库内容:"
-    ls -la repo/ | head -20
+cp -r repo/wushizhifu-full ${FRONTEND_DIR}
+
+# 验证复制结果
+if [ ! -f "${FRONTEND_DIR}/package.json" ]; then
+    echo -e "${RED}❌ 错误: package.json 未找到${NC}"
+    echo "前端目录内容:"
+    ls -la ${FRONTEND_DIR}/ | head -10
     exit 1
 fi
+echo -e "${GREEN}✅ 前端代码已复制（package.json 验证通过）${NC}"
 
 # 5. 检查 Node.js
 echo ""
@@ -123,7 +107,7 @@ echo -e "${GREEN}✅ 依赖安装完成${NC}"
 echo ""
 echo -e "${YELLOW}🔐 步骤 7: 设置权限...${NC}"
 if [ -d "dist" ]; then
-    sudo chown -R $USER:$USER dist 2>/dev/null || chown -R $USER:$USER dist
+    chown -R $USER:$USER dist 2>/dev/null || true
 fi
 echo -e "${GREEN}✅ 权限设置完成${NC}"
 
@@ -135,13 +119,15 @@ npm run build
 # 检查构建结果
 if [ ! -f "dist/index.html" ]; then
     echo -e "${RED}❌ 构建失败: dist/index.html 不存在${NC}"
+    echo "dist 目录内容:"
+    ls -la dist/ 2>/dev/null || echo "dist 目录不存在"
     exit 1
 fi
 echo -e "${GREEN}✅ 前端构建完成${NC}"
 
-# 9. 设置构建文件权限
+# 9. 设置构建文件权限（需要 sudo）
 echo ""
-echo -e "${YELLOW}🔐 步骤 9: 设置构建文件权限...${NC}"
+echo -e "${YELLOW}🔐 步骤 9: 设置构建文件权限（需要 sudo）...${NC}"
 sudo chown -R www-data:www-data dist
 sudo chmod -R 755 dist
 echo -e "${GREEN}✅ 权限设置完成${NC}"
@@ -160,10 +146,8 @@ echo -e "${BLUE}📁 前端目录: ${FRONTEND_DIR}${NC}"
 echo -e "${BLUE}📁 构建输出: ${FRONTEND_DIR}/dist${NC}"
 echo ""
 echo -e "${YELLOW}下一步:${NC}"
-echo "1. 更新 Nginx 配置: sudo nano /etc/nginx/sites-available/wushizhifu"
-echo "2. 设置 root 路径为: ${FRONTEND_DIR}/dist"
-echo "3. 测试配置: sudo nginx -t"
-echo "4. 重载 Nginx: sudo systemctl reload nginx"
-echo ""
-echo "或运行修复脚本: sudo ./修复500错误.sh"
+echo "运行修复脚本更新 Nginx 配置:"
+echo "  wget https://raw.githubusercontent.com/victor2025PH/wushizhifu/main/deploy/修复500错误.sh"
+echo "  chmod +x 修复500错误.sh"
+echo "  sudo ./修复500错误.sh"
 
