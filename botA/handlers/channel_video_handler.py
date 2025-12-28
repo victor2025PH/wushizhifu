@@ -84,7 +84,8 @@ async def handle_channel_video(message: Message, bot: Bot):
                 await bot.send_message(
                     chat_id=admin_id,
                     text=question_text,
-                    reply_markup=keyboard
+                    reply_markup=keyboard,
+                    parse_mode=None  # 使用纯文本，避免 Markdown 转义问题
                 )
                 logger.info(f"已向管理员 {admin_id} 发送视频类型询问")
             except Exception as e:
@@ -157,7 +158,8 @@ async def handle_video_type_selection(callback: CallbackQuery, bot: Bot):
                 f"✅ {video_type_name}视频配置已更新！\n\n"
                 f"消息 ID: {message_id}\n"
                 f"文件 ID: {video_info['file_id'][:20]}...\n"
-                f"更新时间: {callback.message.date.strftime('%Y-%m-%d %H:%M:%S')}"
+                f"更新时间: {callback.message.date.strftime('%Y-%m-%d %H:%M:%S')}",
+                parse_mode=None  # 使用纯文本，避免 Markdown 转义问题
             )
             await callback.answer(f"{video_type_name}视频已保存")
             logger.info(f"视频配置已更新: {video_type}, message_id={message_id}, updated_by={user_id}")
