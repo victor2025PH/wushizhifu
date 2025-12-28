@@ -1,0 +1,5 @@
+{
+  "name": "WuShiPay",
+  "description": "High-end payment gateway for Alipay and WeChat Pay on Telegram.",
+  "requestFramePermissions": []
+}

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <!-- Cache control for Telegram MiniApp -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <title>WuShiPay</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              tech: {
+                bg: '#F8FAFC',      // Slate 50
+                card: '#FFFFFF',    // White
+                primary: '#2563EB', // Blue 600
+                secondary: '#7C3AED', // Violet 600
+                text: '#0F172A',    // Slate 900
+                sub: '#64748B',     // Slate 500
+                border: '#E2E8F0',  // Slate 200
+                input: '#F1F5F9',   // Slate 100
+              },
+              champagne: {
+                50: '#FBF9F3',
+                100: '#F4ECD8',
+                200: '#EBD8A6',
+                300: '#E2C478',
+                400: '#D9B352',
+                500: '#C69C35', // Main Gold
+                600: '#A67E28',
+                700: '#856120',
+                800: '#6E4E20',
+                900: '#422F13',
+              }
+            },
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+            },
+            boxShadow: {
+              'soft': '0 10px 40px -10px rgba(0, 0, 0, 0.05)',
+              'glow': '0 0 20px rgba(37, 99, 235, 0.2)',
+              'gold': '0 10px 30px -5px rgba(198, 156, 53, 0.3)',
+            },
+            backgroundImage: {
+              'gradient-tech': 'linear-gradient(135deg, #2563EB 0%, #7C3AED 100%)',
+              'gradient-gold': 'linear-gradient(135deg, #E2C478 0%, #C69C35 50%, #A67E28 100%)',
+              'gradient-luxury': 'linear-gradient(to right, #0F172A, #334155)',
+            }
+          }
+        }
+      }
+    </script>
+    <!-- Telegram Web App SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+      body {
+        background-color: #F8FAFC;
+        color: #0F172A;
+        font-family: 'Inter', sans-serif;
+        overscroll-behavior: none;
+      }
+      /* Hide scrollbar */
+      ::-webkit-scrollbar {
+        width: 0px;
+        background: transparent;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "framer-motion": "https://esm.sh/framer-motion@^12.23.26",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
