@@ -689,7 +689,12 @@ async def cmd_add_admin(message: Message):
         try:
             user_id = int(args[1])
             if AdminRepository.add_admin(user_id, added_by=message.from_user.id):
-                await message.answer(f"✅ 已添加管理員：{user_id}")
+                # Notify that admin is now available for both bots
+                await message.answer(
+                    f"✅ 已添加管理員：{user_id}\n\n"
+                    f"📝 此管理員已同步到 Bot A 和 Bot B，"
+                    f"無需重啟服務即可生效。"
+                )
             else:
                 await message.answer(f"❌ 添加失敗（可能已是管理員）")
         except ValueError:

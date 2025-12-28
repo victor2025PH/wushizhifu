@@ -10,6 +10,7 @@ from config import Config
 from database import db
 from handlers.message_handlers import get_message_handler
 from handlers.callback_handlers import get_callback_handler
+from admin_checker import is_admin as check_admin
 
 # Configure logging
 logging.basicConfig(
@@ -25,7 +26,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     from config import Config
     
     user = update.effective_user
-    is_admin_user = user.id in Config.INITIAL_ADMINS
+    is_admin_user = check_admin(user.id)
     
     # 构建欢迎消息
     welcome_message = (
@@ -89,7 +90,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     from keyboards.reply_keyboard import get_main_reply_keyboard
     
     user = update.effective_user
-    is_admin_user = user.id in Config.INITIAL_ADMINS
+    is_admin_user = check_admin(user.id)
     
     help_text = (
         "📚 <b>Bot B 完整帮助指南</b>\n\n"

@@ -11,22 +11,9 @@ from database import db
 from services.price_service import get_price_with_markup
 from services.settlement_service import calculate_settlement, format_settlement_bill
 from services.math_service import is_number, is_simple_math
+from admin_checker import is_admin
 
 logger = logging.getLogger(__name__)
-
-
-def is_admin(user_id: int) -> bool:
-    """
-    Check if user is admin.
-    
-    Args:
-        user_id: Telegram user ID
-        
-    Returns:
-        True if user is admin
-    """
-    # Check if user ID is in initial admins list
-    return user_id in Config.INITIAL_ADMINS
 
 
 async def handle_admin_w01(update: Update, context: ContextTypes.DEFAULT_TYPE):
