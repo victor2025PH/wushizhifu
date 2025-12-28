@@ -92,6 +92,39 @@ class Database:
             )
         """)
         
+        # Create operation_logs table for audit trail
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS operation_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                operation_type TEXT NOT NULL,
+                user_id BIGINT NOT NULL,
+                username TEXT,
+                first_name TEXT,
+                target_type TEXT,
+                target_id TEXT,
+                description TEXT,
+                old_value TEXT,
+                new_value TEXT,
+                ip_address TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_operation_logs_user_id 
+            ON operation_logs(user_id)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_operation_logs_type 
+            ON operation_logs(operation_type)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_operation_logs_created_at 
+            ON operation_logs(created_at)
+        """)
+        
         # Create transactions table for settlement records
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS transactions (
@@ -1425,6 +1458,165 @@ class Database:
         except Exception as e:
             logger.error(f"Error setting user preference: {e}", exc_info=True)
             return False
+    
+    # ========== Operation Logs Methods ==========
+    
+    def log_operation(self, operation_type: str, user_id: int, username: str = None,
+                     first_name: str = None, target_type: str = None, target_id: str = None,
+                     description: str = None, old_value: str = None, new_value: str = None,
+                     ip_address: str = None) -> bool:
+        """
+        Log an operation for audit trail.
+        
+        Args:
+            operation_type: Type of operation (e.g., 'set_markup', 'set_address', 'confirm_transaction')
+            user_id: User ID who performed the operation
+            username: Username
+            first_name: First name
+            target_type: Type of target (e.g., 'group', 'transaction', 'global')
+            target_id: ID of target (e.g., group_id, transaction_id)
+            description: Operation description
+            old_value: Old value (for updates)
+            new_value: New value (for updates)
+            ip_address: Optional IP address
+            
+        Returns:
+            True if successful
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT INTO operation_logs (
+                    operation_type, user_id, username, first_name,
+                    target_type, target_id, description,
+                    old_value, new_value, ip_address
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                operation_type, user_id, username or '', first_name or '',
+                target_type or '', target_id or '', description or '',
+                old_value or '', new_value or '', ip_address or ''
+            ))
+            
+            conn.commit()
+            logger.debug(f"Operation logged: {operation_type} by user {user_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error logging operation: {e}", exc_info=True)
+            return False
+    
+    def get_operation_logs(self, operation_type: str = None, user_id: int = None,
+                          target_type: str = None, target_id: str = None,
+                          start_date: str = None, end_date: str = None,
+                          limit: int = 100, offset: int = 0) -> list:
+        """
+        Get operation logs with filters.
+        
+        Args:
+            operation_type: Optional operation type filter
+            user_id: Optional user ID filter
+            target_type: Optional target type filter
+            target_id: Optional target ID filter
+            start_date: Optional start date filter (YYYY-MM-DD)
+            end_date: Optional end date filter (YYYY-MM-DD)
+            limit: Maximum number of records
+            offset: Offset for pagination
+            
+        Returns:
+            List of operation log dictionaries
+        """
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        query = "SELECT * FROM operation_logs WHERE 1=1"
+        params = []
+        
+        if operation_type:
+            query += " AND operation_type = ?"
+            params.append(operation_type)
+        
+        if user_id:
+            query += " AND user_id = ?"
+            params.append(user_id)
+        
+        if target_type:
+            query += " AND target_type = ?"
+            params.append(target_type)
+        
+        if target_id:
+            query += " AND target_id = ?"
+            params.append(target_id)
+        
+        if start_date and end_date:
+            query += " AND DATE(created_at) >= ? AND DATE(created_at) <= ?"
+            params.extend([start_date, end_date])
+        
+        query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+        
+        cursor.execute(query, tuple(params))
+        rows = cursor.fetchall()
+        logs = []
+        for row in rows:
+            logs.append({
+                'id': row['id'],
+                'operation_type': row['operation_type'],
+                'user_id': row['user_id'],
+                'username': row['username'],
+                'first_name': row['first_name'],
+                'target_type': row['target_type'],
+                'target_id': row['target_id'],
+                'description': row['description'],
+                'old_value': row['old_value'],
+                'new_value': row['new_value'],
+                'ip_address': row['ip_address'],
+                'created_at': row['created_at']
+            })
+        return logs
+    
+    def count_operation_logs(self, operation_type: str = None, user_id: int = None,
+                            target_type: str = None, start_date: str = None,
+                            end_date: str = None) -> int:
+        """
+        Count operation logs with filters.
+        
+        Args:
+            operation_type: Optional operation type filter
+            user_id: Optional user ID filter
+            target_type: Optional target type filter
+            start_date: Optional start date filter
+            end_date: Optional end date filter
+            
+        Returns:
+            Total count of logs
+        """
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        query = "SELECT COUNT(*) as count FROM operation_logs WHERE 1=1"
+        params = []
+        
+        if operation_type:
+            query += " AND operation_type = ?"
+            params.append(operation_type)
+        
+        if user_id:
+            query += " AND user_id = ?"
+            params.append(user_id)
+        
+        if target_type:
+            query += " AND target_type = ?"
+            params.append(target_type)
+        
+        if start_date and end_date:
+            query += " AND DATE(created_at) >= ? AND DATE(created_at) <= ?"
+            params.extend([start_date, end_date])
+        
+        cursor.execute(query, tuple(params))
+        row = cursor.fetchone()
+        return int(row['count']) if row else 0
 
 
 # Global database instance

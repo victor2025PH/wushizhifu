@@ -354,6 +354,16 @@ async def handle_export_stats(update: Update, context: ContextTypes.DEFAULT_TYPE
             
             logger.info(f"Admin {user_id} exported statistics (group_id: {group_id})")
             
+            # Log export operation
+            from services.audit_service import log_admin_operation, OperationType
+            log_admin_operation(
+                OperationType.EXPORT_STATS,
+                update,
+                target_type='group' if group_id else 'global',
+                target_id=str(group_id) if group_id else None,
+                description=f"导出统计报表: {group_name}"
+            )
+            
         except Exception as e:
             logger.error(f"Error during stats export: {e}", exc_info=True)
             error_msg = f"❌ 导出失败: {str(e)}"

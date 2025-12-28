@@ -91,7 +91,21 @@ async def handle_skip_payment_hash(update: Update, context: ContextTypes.DEFAULT
             return
         
         # Mark as paid without payment hash
+        transaction = db.get_transaction_by_id(transaction_id)
+        old_status = transaction['status'] if transaction else None
+        
         if db.mark_transaction_paid(transaction_id):
+            # Log operation
+            from services.audit_service import log_transaction_operation, OperationType
+            log_transaction_operation(
+                OperationType.MARK_PAID,
+                update,
+                transaction_id,
+                description=f"用户标记为已支付（未提供支付哈希）",
+                old_status=old_status,
+                new_status='paid'
+            )
+            
             # Refresh transaction and update message
             transaction = db.get_transaction_by_id(transaction_id)
             await refresh_transaction_message(query, transaction)
@@ -139,7 +153,22 @@ async def handle_cancel_transaction(update: Update, context: ContextTypes.DEFAUL
             return
         
         # Cancel transaction
+        old_status = transaction['status']
+        
         if db.cancel_transaction(transaction_id, query.from_user.id):
+            # Log operation
+            from services.audit_service import log_transaction_operation, OperationType
+            is_admin_user = is_admin(query.from_user.id)
+            desc = "管理员取消交易" if is_admin_user else "用户取消交易"
+            log_transaction_operation(
+                OperationType.CANCEL_TRANSACTION,
+                update,
+                transaction_id,
+                description=desc,
+                old_status=old_status,
+                new_status='cancelled'
+            )
+            
             # Refresh transaction and update message
             transaction = db.get_transaction_by_id(transaction_id)
             await refresh_transaction_message(query, transaction)
@@ -187,6 +216,17 @@ async def handle_confirm_transaction(update: Update, context: ContextTypes.DEFAU
         
         # Confirm transaction
         if db.confirm_transaction(transaction_id):
+            # Log operation
+            from services.audit_service import log_transaction_operation, OperationType
+            log_transaction_operation(
+                OperationType.CONFIRM_TRANSACTION,
+                update,
+                transaction_id,
+                description=f"管理员确认交易",
+                old_status=transaction['status'],
+                new_status='confirmed'
+            )
+            
             # Refresh transaction and update message
             transaction = db.get_transaction_by_id(transaction_id)
             await refresh_transaction_message(query, transaction)
@@ -218,11 +258,30 @@ async def handle_batch_confirm(update: Update, context: ContextTypes.DEFAULT_TYP
         
         # Confirm all transactions
         confirmed_count = 0
+        from services.audit_service import log_transaction_operation, log_admin_operation, OperationType
+        
         for tx in paid_txs:
             if db.confirm_transaction(tx['transaction_id']):
+                log_transaction_operation(
+                    OperationType.CONFIRM_TRANSACTION,
+                    update,
+                    tx['transaction_id'],
+                    description=f"批量确认交易",
+                    old_status='paid',
+                    new_status='confirmed'
+                )
                 confirmed_count += 1
         
         if confirmed_count > 0:
+            # Log batch operation
+            log_admin_operation(
+                OperationType.BATCH_CONFIRM,
+                update,
+                target_type='group' if group_id else 'global',
+                target_id=str(group_id) if group_id else None,
+                description=f"批量确认 {confirmed_count} 笔交易"
+            )
+            
             await query.answer(f"✅ 已批量确认 {confirmed_count} 笔交易", show_alert=True)
             # Refresh the paid transactions list
             from handlers.stats_handlers import handle_paid_transactions
@@ -759,6 +818,32 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if callback_data == "onboarding_skip":
         from services.onboarding_service import complete_onboarding
         await complete_onboarding(update, context)
+        return
+    
+    # Audit log handlers
+    if callback_data == "view_logs" or callback_data.startswith("logs_view"):
+        page = 1
+        if callback_data.startswith("logs_view_"):
+            if callback_data.endswith("_all"):
+                page = 1
+            else:
+                try:
+                    page = int(callback_data.split("_")[2])
+                except:
+                    page = 1
+        from handlers.audit_handlers import handle_view_logs
+        await handle_view_logs(update, context, page=page)
+        return
+    
+    if callback_data.startswith("logs_page"):
+        page = int(callback_data.split("_")[2])
+        from handlers.audit_handlers import handle_logs_pagination
+        await handle_logs_pagination(update, context, page)
+        return
+    
+    if callback_data == "logs_filter":
+        from handlers.audit_handlers import handle_logs_filter_menu
+        await handle_logs_filter_menu(update, context)
         return
     
     # Main menu

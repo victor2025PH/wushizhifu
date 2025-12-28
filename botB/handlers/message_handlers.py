@@ -128,7 +128,23 @@ async def handle_admin_w2(update: Update, context: ContextTypes.DEFAULT_TYPE, ma
         group_id = chat.id
         group_title = chat.title
         
+        # Get old value for logging
+        old_setting = db.get_group_setting(group_id)
+        old_markup = old_setting['markup'] if old_setting else None
+        
         if db.set_group_markup(group_id, markup_value, group_title, update.effective_user.id):
+            # Log operation
+            from services.audit_service import log_admin_operation, OperationType
+            log_admin_operation(
+                OperationType.SET_GROUP_MARKUP,
+                update,
+                target_type='group',
+                target_id=str(group_id),
+                description=f"设置群组加价: {markup_value:.4f} CNY",
+                old_value=str(old_markup) if old_markup is not None else None,
+                new_value=str(markup_value)
+            )
+            
             message = f"✅ 群组加价已设置为: {markup_value:.4f} CNY\n\n"
             message += f"群组: {group_title}\n"
             message += f"加价: {markup_value:+.4f} CNY"
@@ -154,7 +170,23 @@ async def handle_admin_w3(update: Update, context: ContextTypes.DEFAULT_TYPE, ad
         group_id = chat.id
         group_title = chat.title
         
+        # Get old value for logging
+        old_setting = db.get_group_setting(group_id)
+        old_address = old_setting['usdt_address'] if old_setting else None
+        
         if db.set_group_address(group_id, address, group_title, update.effective_user.id):
+            # Log operation
+            from services.audit_service import log_admin_operation, OperationType
+            log_admin_operation(
+                OperationType.SET_GROUP_ADDRESS,
+                update,
+                target_type='group',
+                target_id=str(group_id),
+                description=f"设置群组 USDT 地址",
+                old_value=old_address,
+                new_value=address[:20] + "..." if len(address) > 20 else address  # Truncate for privacy
+            )
+            
             address_display = address[:15] + "..." + address[-15:] if len(address) > 30 else address
             message = f"✅ 群组 USDT 地址已设置\n\n"
             message += f"群组: {group_title}\n"
@@ -200,7 +232,21 @@ async def handle_admin_w4(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_admin_w5(update: Update, context: ContextTypes.DEFAULT_TYPE, markup_value: float):
     """Handle w5/SQJJ [number]: Set global markup"""
     try:
+        # Get old value for logging
+        old_markup = db.get_admin_markup()
+        
         if db.set_admin_markup(markup_value):
+            # Log operation
+            from services.audit_service import log_admin_operation, OperationType
+            log_admin_operation(
+                OperationType.SET_GLOBAL_MARKUP,
+                update,
+                target_type='global',
+                description=f"设置全局默认加价: {markup_value:.4f} CNY",
+                old_value=str(old_markup),
+                new_value=str(markup_value)
+            )
+            
             message = f"✅ 全局默认加价已设置为: {markup_value:.4f} CNY\n\n"
             message += "ℹ️ 此设置将应用于所有未配置独立加价的群组"
         else:
@@ -217,7 +263,21 @@ async def handle_admin_w5(update: Update, context: ContextTypes.DEFAULT_TYPE, ma
 async def handle_admin_w6(update: Update, context: ContextTypes.DEFAULT_TYPE, address: str):
     """Handle w6/SQJDZ [address]: Set global address"""
     try:
+        # Get old value for logging
+        old_address = db.get_usdt_address()
+        
         if db.set_usdt_address(address):
+            # Log operation
+            from services.audit_service import log_admin_operation, OperationType
+            log_admin_operation(
+                OperationType.SET_GLOBAL_ADDRESS,
+                update,
+                target_type='global',
+                description=f"设置全局默认 USDT 地址",
+                old_value=old_address[:20] + "..." if old_address and len(old_address) > 20 else old_address,
+                new_value=address[:20] + "..." if len(address) > 20 else address
+            )
+            
             address_display = address[:15] + "..." + address[-15:] if len(address) > 30 else address
             message = f"✅ 全局默认 USDT 地址已设置\n\n"
             message += f"地址: <code>{address_display}</code>\n\n"
@@ -279,6 +339,16 @@ async def handle_admin_w8(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         group_id = chat.id
         if db.reset_group_settings(group_id):
+            # Log operation
+            from services.audit_service import log_admin_operation, OperationType
+            log_admin_operation(
+                OperationType.RESET_GROUP_SETTINGS,
+                update,
+                target_type='group',
+                target_id=str(group_id),
+                description=f"重置群组设置，恢复全局默认值"
+            )
+            
             message = f"✅ 群组设置已重置\n\n"
             message += f"群组: {chat.title}\n"
             message += "已恢复使用全局默认设置"
@@ -303,6 +373,16 @@ async def handle_admin_w9(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         group_id = chat.id
         if db.delete_group_settings(group_id):
+            # Log operation
+            from services.audit_service import log_admin_operation, OperationType
+            log_admin_operation(
+                OperationType.DELETE_GROUP_SETTINGS,
+                update,
+                target_type='group',
+                target_id=str(group_id),
+                description=f"删除群组独立配置"
+            )
+            
             message = f"✅ 群组配置已删除\n\n"
             message += f"群组: {chat.title}\n"
             message += "已完全删除群组独立配置"
@@ -592,7 +672,21 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         # Mark transaction as paid with payment hash
+        transaction = db.get_transaction_by_id(transaction_id)
+        old_status = transaction['status'] if transaction else None
+        
         if db.mark_transaction_paid(transaction_id, payment_hash):
+            # Log operation
+            from services.audit_service import log_transaction_operation, OperationType
+            log_transaction_operation(
+                OperationType.MARK_PAID,
+                update,
+                transaction_id,
+                description=f"用户标记为已支付（支付哈希: {payment_hash[:20]}...）",
+                old_status=old_status,
+                new_status='paid'
+            )
+            
             # Get updated transaction
             transaction = db.get_transaction_by_id(transaction_id)
             

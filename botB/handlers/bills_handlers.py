@@ -272,6 +272,16 @@ async def handle_export_transactions(update: Update, context: ContextTypes.DEFAU
             
             logger.info(f"Admin {user_id} exported {len(transactions)} transactions ({export_format})")
             
+            # Log export operation
+            from services.audit_service import log_admin_operation, OperationType
+            log_admin_operation(
+                OperationType.EXPORT_TRANSACTIONS,
+                update,
+                target_type='group' if group_id else 'global',
+                target_id=str(group_id) if group_id else None,
+                description=f"导出 {len(transactions)} 笔交易 ({export_format.upper()})"
+            )
+            
         except Exception as e:
             logger.error(f"Error during export: {e}", exc_info=True)
             error_msg = f"❌ 导出失败: {str(e)}"
