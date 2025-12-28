@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - 'botA/**'
+      - 'database/**'
+      - 'api_server.py'
       - '.github/workflows/deploy-botA.yml'
   workflow_dispatch:
 
@@ -64,7 +66,11 @@ jobs:
             sudo systemctl restart wushizhifu-bot.service || echo "Bot A service not found, skipping restart"
             
             # Also restart API service to pick up database changes
-            sudo systemctl restart wushipay-api.service || echo "API service not found, skipping restart"
+            cd /home/ubuntu/wushizhifu
+            if [ -f "api_server.py" ]; then
+              echo "重启 API 服务器..."
+              sudo systemctl restart wushipay-api.service || echo "API service not found, skipping restart"
+            fi
             
             # Wait for services to start
             sleep 5
