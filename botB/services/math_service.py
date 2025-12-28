@@ -133,3 +133,74 @@ def parse_amount(text: str) -> float:
     # If neither, raise error
     raise ValueError(f"Cannot parse amount from: {text}")
 
+
+def is_batch_amounts(text: str) -> bool:
+    """
+    Check if text contains multiple amounts (batch format).
+    
+    Supports formats:
+    - Comma-separated: "1000,2000,3000"
+    - Newline-separated: "1000\n2000\n3000"
+    - Mixed: "1000, 2000\n3000"
+    
+    Args:
+        text: Input text
+        
+    Returns:
+        True if text contains multiple amounts
+    """
+    text = text.strip()
+    
+    # Check for comma or newline separators
+    if ',' in text or '\n' in text:
+        # Split by comma or newline and check if at least 2 parts
+        parts = re.split(r'[,,\n]+', text)
+        parts = [p.strip() for p in parts if p.strip()]
+        return len(parts) >= 2
+    
+    return False
+
+
+def parse_batch_amounts(text: str) -> list[float]:
+    """
+    Parse multiple amounts from text.
+    
+    Supports formats:
+    - Comma-separated: "1000,2000,3000"
+    - Newline-separated: "1000\n2000\n3000"
+    - Mixed: "1000, 2000\n3000"
+    - With math expressions: "1000-100, 2000+50, 3000*2"
+    
+    Args:
+        text: Input text containing multiple amounts
+        
+    Returns:
+        List of parsed amounts as floats
+        
+    Raises:
+        ValueError: If any amount cannot be parsed
+    """
+    text = text.strip()
+    
+    # Split by comma or newline
+    parts = re.split(r'[,,\n]+', text)
+    
+    amounts = []
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+        
+        # Parse each part (supports numbers and math expressions)
+        try:
+            amount = parse_amount(part)
+            if amount > 0:
+                amounts.append(amount)
+        except ValueError as e:
+            raise ValueError(f"无法解析金额 '{part}': {str(e)}")
+    
+    if not amounts:
+        raise ValueError("未找到有效的金额")
+    
+    return amounts
+

@@ -10,8 +10,11 @@ from telegram.ext import MessageHandler, filters, ContextTypes
 from config import Config
 from database import db
 from services.price_service import get_price_with_markup
-from services.settlement_service import calculate_settlement, format_settlement_bill
-from services.math_service import is_number, is_simple_math
+from services.settlement_service import (
+    calculate_settlement, format_settlement_bill,
+    calculate_batch_settlement, format_batch_settlement_bills
+)
+from services.math_service import is_number, is_simple_math, is_batch_amounts
 from admin_checker import is_admin
 
 logger = logging.getLogger(__name__)
@@ -322,7 +325,54 @@ async def handle_math_settlement(update: Update, context: ContextTypes.DEFAULT_T
         group_id = chat.id if chat.type in ['group', 'supergroup'] else None
         user = update.effective_user
         
-        # Calculate settlement with group-specific markup
+        # Check if this is a batch settlement (multiple amounts)
+        if is_batch_amounts(amount_text):
+            # Handle batch settlement
+            settlements, error_msg = calculate_batch_settlement(amount_text, group_id)
+            
+            if settlements is None:
+                await update.message.reply_text(f"❌ {error_msg}")
+                return
+            
+            # Get USDT address (group-specific or global)
+            usdt_address = None
+            if group_id:
+                group_setting = db.get_group_setting(group_id)
+                if group_setting and group_setting.get('usdt_address'):
+                    usdt_address = group_setting['usdt_address']
+            
+            if not usdt_address:
+                usdt_address = db.get_usdt_address()
+            
+            # Create transaction records for each settlement
+            transaction_ids = []
+            for settlement in settlements:
+                transaction_id = db.create_transaction(
+                    group_id=group_id,
+                    user_id=user.id,
+                    username=user.username,
+                    first_name=user.first_name,
+                    cny_amount=settlement['cny_amount'],
+                    usdt_amount=settlement['usdt_amount'],
+                    exchange_rate=settlement['final_price'],
+                    markup=settlement['markup'],
+                    usdt_address=usdt_address or ''
+                )
+                if transaction_id:
+                    transaction_ids.append(transaction_id)
+            
+            # Format and send batch settlement bill
+            bill_message = format_batch_settlement_bills(settlements, usdt_address)
+            
+            await update.message.reply_text(
+                bill_message,
+                parse_mode="HTML"
+            )
+            
+            logger.info(f"User {user.id} calculated batch settlement: {len(settlements)} bills, transaction_ids: {transaction_ids}")
+            return
+        
+        # Single settlement (existing logic)
         settlement_data, error_msg = calculate_settlement(amount_text, group_id)
         
         if settlement_data is None:
@@ -524,6 +574,18 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(contact_message, parse_mode="HTML")
         return
     
+    # Personal bills and stats (private chat only)
+    if chat.type == 'private':
+        if text == "📜 我的账单":
+            from handlers.personal_handlers import handle_personal_bills
+            await handle_personal_bills(update, context, page=1)
+            return
+        
+        if text == "📊 我的统计":
+            from handlers.personal_handlers import handle_personal_stats
+            await handle_personal_stats(update, context)
+            return
+    
     # Handle admin commands (w0-w9 + pinyin)
     if is_admin_user:
         # w0 / SZ - View group settings
@@ -631,8 +693,8 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await handle_admin_w4(update, context)
             return
     
-    # Check if message is a number or math expression (settlement calculation)
-    if is_number(text) or is_simple_math(text):
+    # Check if message is a number, math expression, or batch amounts (settlement calculation)
+    if is_number(text) or is_simple_math(text) or is_batch_amounts(text):
         await handle_math_settlement(update, context, text)
         return
     

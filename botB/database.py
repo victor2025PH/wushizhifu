@@ -812,6 +812,159 @@ class Database:
         except Exception as e:
             logger.error(f"Error updating transaction status: {e}", exc_info=True)
             return False
+    
+    # ========== User-level Transaction Methods ==========
+    
+    def get_transactions_by_user(self, user_id: int, limit: int = 20, offset: int = 0, 
+                                 start_date: str = None, end_date: str = None) -> list:
+        """
+        Get transactions for a specific user (personal bills).
+        
+        Args:
+            user_id: Telegram user ID
+            limit: Maximum number of records
+            offset: Offset for pagination
+            start_date: Optional start date filter (YYYY-MM-DD)
+            end_date: Optional end date filter (YYYY-MM-DD)
+            
+        Returns:
+            List of transaction dictionaries
+        """
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        if start_date and end_date:
+            cursor.execute("""
+                SELECT transaction_id, group_id, user_id, username, first_name,
+                       cny_amount, usdt_amount, exchange_rate, markup,
+                       usdt_address, status, created_at
+                FROM transactions
+                WHERE user_id = ? AND DATE(created_at) >= ? AND DATE(created_at) <= ?
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?
+            """, (user_id, start_date, end_date, limit, offset))
+        else:
+            cursor.execute("""
+                SELECT transaction_id, group_id, user_id, username, first_name,
+                       cny_amount, usdt_amount, exchange_rate, markup,
+                       usdt_address, status, created_at
+                FROM transactions
+                WHERE user_id = ?
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?
+            """, (user_id, limit, offset))
+        
+        rows = cursor.fetchall()
+        transactions = []
+        for row in rows:
+            transactions.append({
+                'transaction_id': row['transaction_id'],
+                'group_id': row['group_id'],
+                'user_id': row['user_id'],
+                'username': row['username'],
+                'first_name': row['first_name'],
+                'cny_amount': float(row['cny_amount']),
+                'usdt_amount': float(row['usdt_amount']),
+                'exchange_rate': float(row['exchange_rate']),
+                'markup': float(row['markup']) if row['markup'] else 0.0,
+                'usdt_address': row['usdt_address'],
+                'status': row['status'],
+                'created_at': row['created_at']
+            })
+        return transactions
+    
+    def count_transactions_by_user(self, user_id: int, start_date: str = None, end_date: str = None) -> int:
+        """
+        Count total transactions for a user (for pagination).
+        
+        Args:
+            user_id: Telegram user ID
+            start_date: Optional start date filter
+            end_date: Optional end date filter
+            
+        Returns:
+            Total count of transactions
+        """
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        if start_date and end_date:
+            cursor.execute("""
+                SELECT COUNT(*) as count
+                FROM transactions
+                WHERE user_id = ? AND DATE(created_at) >= ? AND DATE(created_at) <= ?
+            """, (user_id, start_date, end_date))
+        else:
+            cursor.execute("""
+                SELECT COUNT(*) as count
+                FROM transactions
+                WHERE user_id = ?
+            """, (user_id,))
+        
+        row = cursor.fetchone()
+        return int(row['count']) if row else 0
+    
+    def get_user_stats(self, user_id: int, date: str = None, 
+                      start_date: str = None, end_date: str = None) -> dict:
+        """
+        Get transaction statistics for a user.
+        
+        Args:
+            user_id: Telegram user ID
+            date: Date filter (YYYY-MM-DD format), None for all time
+            start_date: Start date filter (YYYY-MM-DD format)
+            end_date: End date filter (YYYY-MM-DD format)
+            
+        Returns:
+            Dictionary with statistics
+        """
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        if date:
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as count,
+                    SUM(cny_amount) as total_cny,
+                    SUM(usdt_amount) as total_usdt,
+                    AVG(cny_amount) as avg_cny,
+                    MAX(created_at) as last_active
+                FROM transactions
+                WHERE user_id = ? AND DATE(created_at) = ?
+            """, (user_id, date))
+        elif start_date and end_date:
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as count,
+                    SUM(cny_amount) as total_cny,
+                    SUM(usdt_amount) as total_usdt,
+                    AVG(cny_amount) as avg_cny,
+                    MAX(created_at) as last_active
+                FROM transactions
+                WHERE user_id = ? AND DATE(created_at) >= ? AND DATE(created_at) <= ?
+            """, (user_id, start_date, end_date))
+        else:
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as count,
+                    SUM(cny_amount) as total_cny,
+                    SUM(usdt_amount) as total_usdt,
+                    AVG(cny_amount) as avg_cny,
+                    MAX(created_at) as last_active
+                FROM transactions
+                WHERE user_id = ?
+            """, (user_id,))
+        
+        row = cursor.fetchone()
+        if row and row['count']:
+            return {
+                'count': int(row['count']),
+                'total_cny': float(row['total_cny']) if row['total_cny'] else 0.0,
+                'total_usdt': float(row['total_usdt']) if row['total_usdt'] else 0.0,
+                'avg_cny': float(row['avg_cny']) if row['avg_cny'] else 0.0,
+                'last_active': row['last_active']
+            }
+        return {'count': 0, 'total_cny': 0.0, 'total_usdt': 0.0, 'avg_cny': 0.0, 'last_active': None}
 
 
 # Global database instance

@@ -50,13 +50,17 @@ def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = Fals
                 KeyboardButton("💰 结算")
             ],
             [
+                KeyboardButton("📜 我的账单"),
+                KeyboardButton("📊 我的统计")
+            ],
+            [
                 KeyboardButton("📞 客服")
             ]
         ]
         
         # Add admin buttons if admin
         if user_id and is_admin(user_id):
-            keyboard.insert(-1, [
+            keyboard.insert(-2, [
                 KeyboardButton("⚙️ 管理"),
                 KeyboardButton("📊 数据")
             ])
