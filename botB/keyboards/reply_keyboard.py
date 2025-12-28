@@ -25,6 +25,6 @@ def get_main_reply_keyboard() -> ReplyKeyboardMarkup:
         keyboard=keyboard,
         resize_keyboard=True,
         one_time_keyboard=False,
-        persistent=True
+        input_field_placeholder="输入数字或算式自动计算结算账单"
     )
 
