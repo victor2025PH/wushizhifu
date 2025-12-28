@@ -112,12 +112,13 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "━━━━━━━━━━━━━━━━━━━━\n"
         "🔹 <b>自动结算计算</b>\n"
         "━━━━━━━━━━━━━━━━━━━━\n\n"
-        "直接发送数字或算式，自动生成结算账单：\n"
-        "• 纯数字：<code>2000</code>\n"
-        "• 加法：<code>100+50</code>\n"
-        "• 减法：<code>29981-125</code>\n"
-        "• 乘法：<code>200*2</code>\n"
-        "• 除法：<code>1000/2</code>\n\n"
+        "直接发送人民币金额或算式，自动计算应结算的 USDT 数量：\n"
+        "• 纯数字（人民币）：<code>20000</code>\n"
+        "• 加法：<code>10000+5000</code> = 15000 元\n"
+        "• 减法：<code>20000-200</code> = 19800 元\n"
+        "• 乘法：<code>2000*10</code> = 20000 元\n"
+        "• 除法：<code>20000/2</code> = 10000 元\n\n"
+        "💡 系统会自动将计算后的人民币金额，按当前汇率换算为应结算的 USDT 数量\n\n"
     )
     
     if is_admin_user:
