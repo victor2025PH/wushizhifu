@@ -152,7 +152,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• 工作时间：7×24小时"
     )
     
-    reply_markup = get_main_reply_keyboard()
+    is_group = update.effective_chat.type in ['group', 'supergroup']
+    reply_markup = get_main_reply_keyboard(user.id, is_group)
     await update.message.reply_text(
         help_text,
         parse_mode="HTML",
