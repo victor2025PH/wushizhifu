@@ -38,6 +38,7 @@ jobs:
           timeout: 300s
           script: |
             cd /home/ubuntu/wushizhifu
+            git stash || true
             git pull origin main
       
       - name: Install Dependencies and Restart
