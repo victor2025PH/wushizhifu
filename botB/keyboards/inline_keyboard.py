@@ -275,3 +275,40 @@ def get_transaction_detail_keyboard(transaction_id: str, group_id: int, return_p
     
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
+
+def get_onboarding_keyboard(step: int) -> InlineKeyboardMarkup:
+    """
+    Get inline keyboard for onboarding steps.
+    
+    Args:
+        step: Current step number (1-4)
+        
+    Returns:
+        InlineKeyboardMarkup with navigation buttons
+    """
+    keyboard = []
+    
+    if step < 4:
+        # Show next button
+        keyboard.append([
+            InlineKeyboardButton("下一步 →", callback_data=f"onboarding_step_{step + 1}")
+        ])
+    
+    if step > 1:
+        # Show previous button
+        keyboard.append([
+            InlineKeyboardButton("← 上一步", callback_data=f"onboarding_step_{step - 1}")
+        ])
+    
+    if step == 4:
+        # Show complete button
+        keyboard.append([
+            InlineKeyboardButton("✅ 完成引导，开始使用", callback_data="onboarding_complete")
+        ])
+    
+    keyboard.append([
+        InlineKeyboardButton("⏭️ 跳过引导", callback_data="onboarding_skip")
+    ])
+    
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
