@@ -27,6 +27,13 @@ jobs:
           script: |
             cd /home/ubuntu/wushizhifu
             
+            # Stop all possible bot processes first
+            echo "停止所有可能的 Bot 进程..."
+            sudo systemctl stop wushizhifu-bot.service || true
+            pkill -9 -f "botA/bot.py" || true
+            pkill -9 -f "wushizhifu.*bot" || true
+            sleep 3
+            
             # Pull latest code
             git pull origin main || true
             
@@ -49,11 +56,15 @@ jobs:
             pip install --upgrade pip -q
             pip install -r requirements.txt -q
             
+            # Wait a bit more to ensure Telegram API releases connections
+            echo "等待 Telegram API 释放连接..."
+            sleep 5
+            
             # Restart systemd service
             sudo systemctl restart wushizhifu-bot.service || echo "Service not found, skipping restart"
             
             # Wait for service to start
-            sleep 3
+            sleep 5
             
             # Show status
             sudo systemctl status wushizhifu-bot.service --no-pager -l || echo "Service not running"

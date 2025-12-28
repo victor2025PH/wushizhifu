@@ -47,18 +47,28 @@ async def on_startup(bot: Bot):
         raise
     
     # Clear any existing webhook to avoid conflicts with polling
+    logger.info("🔍 检查 Webhook 状态...")
     try:
-        from aiogram import Bot
         webhook_info = await bot.get_webhook_info()
+        logger.info(f"Webhook 信息: url={webhook_info.url}, pending_update_count={webhook_info.pending_update_count}")
+        
         if webhook_info.url:
             logger.warning(f"⚠️ 检测到 Webhook: {webhook_info.url}，正在清除以避免冲突...")
-            await bot.delete_webhook(drop_pending_updates=True)
-            logger.info("✅ Webhook 已清除")
-            # Wait a moment for Telegram API to process
+            result = await bot.delete_webhook(drop_pending_updates=True)
+            if result:
+                logger.info("✅ Webhook 已成功清除")
+            else:
+                logger.warning("⚠️ Webhook 清除可能失败")
+            
+            # Wait longer for Telegram API to fully process and release connections
+            logger.info("⏳ 等待 Telegram API 释放连接（5秒）...")
             import asyncio
-            await asyncio.sleep(2)
+            await asyncio.sleep(5)
+            logger.info("✅ 等待完成")
+        else:
+            logger.info("✅ 没有发现 Webhook（使用 Polling 模式）")
     except Exception as e:
-        logger.warning(f"⚠️ 清除 Webhook 时出错（可能不需要）: {e}")
+        logger.error(f"❌ 检查/清除 Webhook 时出错: {e}", exc_info=True)
     
     # Set up bot commands, menu button, and description
     try:
