@@ -1,0 +1,67 @@
+# 快速创建并启动 Bot 服务
+
+## 在服务器上执行以下命令：
+
+cd /home/ubuntu/wushizhifu/bot
+
+# 方法 1：使用脚本（推荐）
+chmod +x 创建服务并启动.sh
+./创建服务并启动.sh
+
+# 方法 2：手动创建服务
+# 1. 创建服务文件
+sudo tee /etc/systemd/system/wushizhifu-bot.service > /dev/null << 'EOF'
+[Unit]
+Description=WuShiPay Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/wushizhifu/bot
+Environment="PATH=/home/ubuntu/wushizhifu/bot/venv/bin"
+ExecStart=/home/ubuntu/wushizhifu/bot/venv/bin/python /home/ubuntu/wushizhifu/bot/bot.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# 2. 重新加载 systemd
+sudo systemctl daemon-reload
+
+# 3. 启用服务
+sudo systemctl enable wushizhifu-bot.service
+
+# 4. 启动服务
+sudo systemctl start wushizhifu-bot.service
+
+# 5. 查看状态
+sudo systemctl status wushizhifu-bot.service
+
+# 6. 查看日志
+sudo journalctl -u wushizhifu-bot -f
+
+## 常用服务管理命令：
+
+# 查看状态
+sudo systemctl status wushizhifu-bot
+
+# 查看日志（实时）
+sudo journalctl -u wushizhifu-bot -f
+
+# 查看最新 50 条日志
+sudo journalctl -u wushizhifu-bot -n 50 --no-pager
+
+# 重启服务
+sudo systemctl restart wushizhifu-bot
+
+# 停止服务
+sudo systemctl stop wushizhifu-bot
+
+# 禁用开机自启
+sudo systemctl disable wushizhifu-bot
+

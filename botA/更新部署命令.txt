@@ -1,0 +1,44 @@
+# 快速更新部署命令
+
+## 在服务器上执行以下命令：
+
+cd /home/ubuntu/wushizhifu/bot
+
+# 如果使用 Git：
+git pull origin main
+
+# 激活虚拟环境
+source venv/bin/activate
+
+# 安装/更新依赖
+pip install -r requirements.txt
+
+# 重启 Bot 服务
+sudo systemctl restart wushizhifu-bot
+
+# 查看服务状态
+sudo systemctl status wushizhifu-bot
+
+# 查看最新日志
+sudo journalctl -u wushizhifu-bot -n 50 --no-pager
+
+# 实时查看日志
+sudo journalctl -u wushizhifu-bot -f
+
+## 如果不用 Git，需要手动上传以下文件：
+- bot.py
+- keyboards/main_kb.py
+- handlers/user_handlers.py
+- utils/bot_setup.py (新文件)
+- requirements.txt
+
+## 验证更新：
+1. 检查日志中应该有：
+   ✅ Menu button set: '打开应用' -> https://50zf.usdt2026.cc
+   ✅ Bot commands set successfully
+
+2. 在 Telegram 中测试：
+   - 打开 Bot 个人资料页面，应该看到"打开应用"按钮
+   - 点击"💎 启动伍拾收银台"按钮，应该正常打开 MiniApp
+   - 测试其他按钮（支付、记录等）
+

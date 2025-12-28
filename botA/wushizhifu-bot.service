@@ -1,0 +1,31 @@
+[Unit]
+Description=WuShiPay Telegram Bot
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/wushizhifu/bot
+Environment="PATH=/home/ubuntu/wushizhifu/bot/venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/home/ubuntu/wushizhifu/bot/venv/bin/python /home/ubuntu/wushizhifu/bot/bot.py
+ExecReload=/bin/kill -HUP $MAINPID
+
+# 重启策略
+Restart=on-failure
+RestartSec=10
+StartLimitInterval=300
+StartLimitBurst=5
+
+# 日志
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=wushizhifu-bot
+
+# 安全设置
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

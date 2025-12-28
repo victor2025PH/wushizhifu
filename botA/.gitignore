@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# 環境變數
+.env
+.env.local
+
+# 數據庫
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 系統文件
+.DS_Store
+Thumbs.db
+
+# 日誌
+*.log
+logs/
+
+# 備份文件
+*.bak
+backups/
+*.backup
+
+# 臨時文件
+tmp/
+temp/
+*.tmp
+
+# 編譯文件
+dist/
+build/
+*.egg-info/
+
