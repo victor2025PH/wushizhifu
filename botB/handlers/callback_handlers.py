@@ -927,6 +927,12 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await show_contextual_help(update, help_context)
             return
     
+    # P2P leaderboard handlers
+    if callback_data in ["p2p_bank", "p2p_ali", "p2p_wx"]:
+        from handlers.p2p_handlers import handle_p2p_callback
+        await handle_p2p_callback(update, context, callback_data)
+        return
+    
     # Main menu
     if callback_data == "main_menu":
         await query.answer("💡 使用底部按钮或 /start 查看主菜单")

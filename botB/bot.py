@@ -175,30 +175,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def price_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /price command - fetch and display USDT/CNY price"""
-    from services.price_service import get_price_with_markup
+    """Handle /price command - fetch and display P2P leaderboard"""
+    from handlers.p2p_handlers import handle_p2p_price_command
     
-    await update.message.reply_text("⏳ 正在获取价格...")
-    
-    chat = update.effective_chat
-    group_id = chat.id if chat.type in ['group', 'supergroup'] else None
-    
-    final_price, error_msg, base_price, markup = get_price_with_markup(group_id)
-    
-    if final_price is None:
-        message = f"❌ 获取价格失败\n\n{error_msg or '未知错误'}"
-    else:
-        markup_source = "群组" if group_id and db.get_group_setting(group_id) else "全局"
-        message = (
-            f"💱 USDT/CNY 价格信息\n\n"
-            f"📊 基础价格：{base_price:.4f} CNY\n"
-            f"➕ 加价（{markup_source}）：{markup:.4f} CNY\n"
-            f"💰 最终价格：{final_price:.4f} CNY\n"
-        )
-        if error_msg:
-            message += f"\n⚠️ 注意：{error_msg}"
-    
-    await update.message.reply_text(message)
+    # Use new P2P leaderboard feature
+    await handle_p2p_price_command(update, context, payment_method="alipay")
 
 
 async def settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
