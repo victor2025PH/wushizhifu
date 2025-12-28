@@ -159,7 +159,7 @@ def get_group_settings_menu() -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton("➕ 设置加价", callback_data="group_settings_markup"),
-            InlineKeyboardButton("📍 设置地址", callback_data="group_settings_address")
+            InlineKeyboardButton("📍 地址管理", callback_data="address_list")
         ],
         [
             InlineKeyboardButton("🔄 重置设置", callback_data="group_settings_reset"),

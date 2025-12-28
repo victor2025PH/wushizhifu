@@ -463,15 +463,9 @@ async def handle_math_settlement(update: Update, context: ContextTypes.DEFAULT_T
             await update.message.reply_text(f"❌ {error_msg}")
             return
         
-        # Get USDT address (group-specific or global)
-        usdt_address = None
-        if group_id:
-            group_setting = db.get_group_setting(group_id)
-            if group_setting and group_setting.get('usdt_address'):
-                usdt_address = group_setting['usdt_address']
-        
-        if not usdt_address:
-            usdt_address = db.get_usdt_address()
+        # Get USDT address (using address management or legacy)
+        from services.settlement_service import get_settlement_address
+        usdt_address = get_settlement_address(group_id=group_id, strategy='default')
         
         # Create transaction record
         transaction_id = db.create_transaction(
@@ -588,6 +582,12 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if 'awaiting_template_input' in context.user_data:
         from handlers.template_handlers import handle_template_input
         await handle_template_input(update, context, text)
+        return
+    
+    # Handle address input (after admin clicks add address)
+    if 'adding_address' in context.user_data:
+        from handlers.address_handlers import handle_address_input
+        await handle_address_input(update, context, text)
         return
     
     # Handle filter input (after user clicks filter button)

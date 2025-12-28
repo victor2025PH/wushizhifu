@@ -904,6 +904,17 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_template_create_type(update, context, template_type)
         return
     
+    # Address management handlers
+    if callback_data == "address_list" or callback_data == "address_manage":
+        from handlers.address_handlers import handle_address_list
+        await handle_address_list(update, context)
+        return
+    
+    if callback_data == "address_add":
+        from handlers.address_handlers import handle_address_add_prompt
+        await handle_address_add_prompt(update, context)
+        return
+    
     # Main menu
     if callback_data == "main_menu":
         await query.answer("💡 使用底部按钮或 /start 查看主菜单")

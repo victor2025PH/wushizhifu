@@ -11,6 +11,35 @@ from typing import List
 logger = logging.getLogger(__name__)
 
 
+def get_settlement_address(group_id: Optional[int] = None, strategy: str = 'default') -> Optional[str]:
+    """
+    Get USDT address for settlement using address management.
+    
+    Args:
+        group_id: Optional group ID
+        strategy: Address selection strategy ('default', 'round_robin', 'random')
+        
+    Returns:
+        USDT address string or None
+    """
+    from database import db
+    
+    # Try to get from address management first
+    address_obj = db.get_active_address(group_id=group_id, strategy=strategy)
+    if address_obj:
+        # Increment usage
+        db.increment_address_usage(address_obj['id'])
+        return address_obj['address']
+    
+    # Fallback to legacy single address (group or global)
+    if group_id:
+        group_setting = db.get_group_setting(group_id)
+        if group_setting and group_setting.get('usdt_address'):
+            return group_setting['usdt_address']
+    
+    return db.get_usdt_address()
+
+
 def calculate_settlement(amount_text: str, group_id: Optional[int] = None) -> Tuple[Optional[dict], Optional[str]]:
     """
     Calculate settlement bill for given CNY amount.

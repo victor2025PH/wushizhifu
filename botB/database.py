@@ -175,6 +175,33 @@ class Database:
                 VALUES (NULL, ?, ?, ?, 1)
             """, (name, value, t_type))
         
+        # Create usdt_addresses table for multiple address management
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS usdt_addresses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                group_id BIGINT,
+                address TEXT NOT NULL,
+                label TEXT,
+                is_default BOOLEAN DEFAULT 0,
+                is_active BOOLEAN DEFAULT 1,
+                usage_count INTEGER DEFAULT 0,
+                last_used_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_by BIGINT
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_usdt_addresses_group_id 
+            ON usdt_addresses(group_id)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_usdt_addresses_active 
+            ON usdt_addresses(is_active)
+        """)
+        
         # Create operation_logs table for audit trail
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS operation_logs (
