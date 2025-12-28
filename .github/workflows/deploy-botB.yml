@@ -58,24 +58,7 @@ jobs:
             sleep 3
             sudo systemctl daemon-reload
             if [ ! -f "/etc/systemd/system/otc-bot.service" ]; then
-              sudo tee /etc/systemd/system/otc-bot.service > /dev/null << 'EOFSERVICE'
-[Unit]
-Description=OTC Telegram Bot (Bot B)
-After=network.target
-
-[Service]
-Type=simple
-User=ubuntu
-Group=ubuntu
-WorkingDirectory=/home/ubuntu/wushizhifu/botB
-Environment="PATH=/home/ubuntu/wushizhifu/botB/venv/bin:/usr/local/bin:/usr/bin:/bin"
-ExecStart=/home/ubuntu/wushizhifu/botB/venv/bin/python /home/ubuntu/wushizhifu/botB/bot.py
-Restart=on-failure
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-EOFSERVICE
+              sudo cp /home/ubuntu/wushizhifu/botB/otc-bot.service /etc/systemd/system/otc-bot.service
               sudo systemctl daemon-reload
             fi
             sudo systemctl restart otc-bot.service
