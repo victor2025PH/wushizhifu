@@ -63,6 +63,7 @@ jobs:
             sleep 5
             
             # Restart Bot A service
+            echo "重启 Bot A 服务..."
             sudo systemctl restart wushizhifu-bot.service || echo "Bot A service not found, skipping restart"
             
             # Also restart API service to pick up database changes
@@ -73,12 +74,31 @@ jobs:
             fi
             
             # Wait for services to start
-            sleep 5
+            echo "等待服务启动..."
+            sleep 8
             
-            # Show status
+            # Show status and verify services are running
+            echo ""
             echo "=== Bot A Service Status ==="
-            sudo systemctl status wushizhifu-bot.service --no-pager -l | head -15 || echo "Bot A service not running"
+            if sudo systemctl is-active --quiet wushizhifu-bot.service; then
+              echo "✅ Bot A 服务正在运行"
+              sudo systemctl status wushizhifu-bot.service --no-pager -l | head -20
+            else
+              echo "❌ Bot A 服务未运行"
+              echo "查看错误日志："
+              sudo journalctl -u wushizhifu-bot.service -n 30 --no-pager
+            fi
+            
             echo ""
             echo "=== API Service Status ==="
-            sudo systemctl status wushipay-api.service --no-pager -l | head -15 || echo "API service not running"
+            if sudo systemctl is-active --quiet wushipay-api.service 2>/dev/null; then
+              echo "✅ API 服务正在运行"
+              sudo systemctl status wushipay-api.service --no-pager -l | head -20
+            else
+              echo "⚠️  API 服务未运行（可能是正常的）"
+            fi
+            
+            echo ""
+            echo "=== 最新 Bot A 日志 ==="
+            sudo journalctl -u wushizhifu-bot.service -n 20 --no-pager
 
