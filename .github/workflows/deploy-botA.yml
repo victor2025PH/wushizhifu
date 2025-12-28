@@ -60,12 +60,19 @@ jobs:
             echo "等待 Telegram API 释放连接..."
             sleep 5
             
-            # Restart systemd service
-            sudo systemctl restart wushizhifu-bot.service || echo "Service not found, skipping restart"
+            # Restart Bot A service
+            sudo systemctl restart wushizhifu-bot.service || echo "Bot A service not found, skipping restart"
             
-            # Wait for service to start
+            # Also restart API service to pick up database changes
+            sudo systemctl restart wushipay-api.service || echo "API service not found, skipping restart"
+            
+            # Wait for services to start
             sleep 5
             
             # Show status
-            sudo systemctl status wushizhifu-bot.service --no-pager -l || echo "Service not running"
+            echo "=== Bot A Service Status ==="
+            sudo systemctl status wushizhifu-bot.service --no-pager -l | head -15 || echo "Bot A service not running"
+            echo ""
+            echo "=== API Service Status ==="
+            sudo systemctl status wushipay-api.service --no-pager -l | head -15 || echo "API service not running"
 
