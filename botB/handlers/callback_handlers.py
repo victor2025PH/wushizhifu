@@ -915,6 +915,18 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_address_add_prompt(update, context)
         return
     
+    # Help handlers
+    if callback_data.startswith("help_"):
+        if callback_data == "help_close":
+            from handlers.help_handlers import handle_help_close
+            await handle_help_close(update, context)
+            return
+        elif callback_data.startswith("help_"):
+            help_context = callback_data[5:]  # Remove "help_" prefix
+            from handlers.help_handlers import show_contextual_help
+            await show_contextual_help(update, help_context)
+            return
+    
     # Main menu
     if callback_data == "main_menu":
         await query.answer("💡 使用底部按钮或 /start 查看主菜单")
