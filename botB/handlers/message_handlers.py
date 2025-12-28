@@ -460,7 +460,15 @@ async def handle_math_settlement(update: Update, context: ContextTypes.DEFAULT_T
         settlement_data, error_msg = calculate_settlement(amount_text, group_id)
         
         if settlement_data is None:
-            await update.message.reply_text(f"❌ {error_msg}")
+            # Show error help if available
+            if "格式错误" in error_msg or "金额" in error_msg:
+                from handlers.help_handlers import show_error_help
+                await show_error_help(update, 'invalid_amount', error_msg)
+            elif "价格" in error_msg or "汇率" in error_msg:
+                from handlers.help_handlers import show_error_help
+                await show_error_help(update, 'no_price', error_msg)
+            else:
+                await update.message.reply_text(f"❌ {error_msg}")
             return
         
         # Get USDT address (using address management or legacy)
