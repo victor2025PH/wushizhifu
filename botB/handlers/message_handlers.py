@@ -30,7 +30,7 @@ def is_admin(user_id: int) -> bool:
 
 
 async def handle_admin_w01(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle w01: Get current OKX price + Admin Markup"""
+    """Handle w01: Get current CoinGecko price + Admin Markup"""
     try:
         final_price, error_msg, base_price = get_price_with_markup()
         admin_markup = db.get_admin_markup()
@@ -40,7 +40,7 @@ async def handle_admin_w01(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             message = (
                 f"💱 当前价格信息\n\n"
-                f"📊 OKX 基础价格: {base_price:.4f} CNY\n"
+                f"📊 CoinGecko 基础价格: {base_price:.4f} CNY\n"
                 f"➕ 管理员加价: {admin_markup:.4f} CNY\n"
                 f"💰 最终价格: {final_price:.4f} CNY\n"
             )

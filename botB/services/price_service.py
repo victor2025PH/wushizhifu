@@ -1,36 +1,74 @@
 """
-Price service for fetching USDT/CNY exchange rate from OKX API
+Price service for fetching USDT/CNY exchange rate from CoinGecko API
 """
 import requests
 import logging
+import time
 from typing import Optional, Tuple
 from config import Config
 
 logger = logging.getLogger(__name__)
 
+# In-memory cache for price data
+_price_cache = {
+    'price': None,
+    'timestamp': 0,
+    'cache_duration': 60  # Cache valid for 60 seconds
+}
 
-def get_okx_price() -> Tuple[Optional[float], Optional[str]]:
+
+def _is_cache_valid() -> bool:
     """
-    Fetch USDT/CNY price from OKX Public API.
+    Check if the cached price is still valid.
+    
+    Returns:
+        True if cache exists and is within cache duration
+    """
+    if _price_cache['price'] is None:
+        return False
+    
+    current_time = time.time()
+    cache_age = current_time - _price_cache['timestamp']
+    
+    return cache_age < _price_cache['cache_duration']
+
+
+def _update_cache(price: float):
+    """
+    Update the price cache with new price and timestamp.
+    
+    Args:
+        price: The price to cache
+    """
+    _price_cache['price'] = price
+    _price_cache['timestamp'] = time.time()
+
+
+def get_usdt_cny_price() -> Tuple[Optional[float], Optional[str]]:
+    """
+    Fetch USDT/CNY price from CoinGecko API.
+    Uses in-memory cache (60 seconds) to prevent API rate limiting.
     This function is called only when requested (no background polling).
     
     Returns:
         Tuple of (price: float or None, error_message: str or None)
         - If successful: (price, None)
-        - If failed: (None, error_message) or (fallback_price, "Using fallback price")
+        - If failed: (fallback_price, "Using fallback price")
     """
+    # Check cache first
+    if _is_cache_valid():
+        logger.info(f"Returning cached price: {_price_cache['price']}")
+        return _price_cache['price'], None
+    
     try:
-        # OKX API endpoint for USDT/CNY ticker
-        # Note: OKX may use different instrument IDs, common formats:
-        # - USDT-CNY (if available)
-        # - USDT/CNY
-        # We'll try USDT-CNY first, with fallback logic
-        url = Config.OKX_API_URL
+        # CoinGecko API endpoint for USDT/CNY
+        url = "https://api.coingecko.com/api/v3/simple/price"
         params = {
-            'instId': 'USDT-CNY'  # OKX instrument ID for USDT/CNY spot trading
+            'ids': 'tether',
+            'vs_currencies': 'cny'
         }
         
-        logger.info("Fetching USDT/CNY price from OKX API...")
+        logger.info("Fetching USDT/CNY price from CoinGecko API...")
         
         # Make request with timeout
         response = requests.get(
@@ -45,61 +83,55 @@ def get_okx_price() -> Tuple[Optional[float], Optional[str]]:
         # Parse JSON response
         data = response.json()
         
-        # OKX API response structure:
+        # CoinGecko API response structure:
         # {
-        #   "code": "0",
-        #   "data": [
-        #     {
-        #       "instId": "USDT-CNY",
-        #       "last": "7.2345",  # Last traded price
-        #       ...
-        #     }
-        #   ]
+        #   "tether": {
+        #     "cny": 7.2345
+        #   }
         # }
         
-        if data.get('code') == '0' and data.get('data'):
-            ticker_data = data['data'][0]
-            price_str = ticker_data.get('last')
+        if 'tether' in data and 'cny' in data['tether']:
+            price = float(data['tether']['cny'])
+            logger.info(f"CoinGecko price fetched successfully: {price}")
             
-            if price_str:
-                try:
-                    price = float(price_str)
-                    logger.info(f"OKX price fetched successfully: {price}")
-                    return price, None
-                except (ValueError, TypeError) as e:
-                    logger.error(f"Error parsing price from OKX response: {e}")
-                    # Return fallback price
-                    return Config.DEFAULT_FALLBACK_PRICE, "Failed to parse price, using fallback"
+            # Update cache
+            _update_cache(price)
+            
+            return price, None
         
-        # If code is not '0' or data is empty
-        error_msg = data.get('msg', 'Unknown error from OKX API')
-        logger.warning(f"OKX API returned error: {error_msg}")
-        return Config.DEFAULT_FALLBACK_PRICE, f"OKX API error: {error_msg}, using fallback price"
+        # If data structure is unexpected
+        error_msg = "Unexpected response structure from CoinGecko API"
+        logger.warning(error_msg)
+        return Config.DEFAULT_FALLBACK_PRICE, f"{error_msg}, using fallback price"
         
     except requests.exceptions.Timeout:
-        logger.error("OKX API request timeout")
+        logger.error("CoinGecko API request timeout")
         return Config.DEFAULT_FALLBACK_PRICE, "Request timeout, using fallback price"
         
     except requests.exceptions.RequestException as e:
-        logger.error(f"OKX API request failed: {e}")
+        logger.error(f"CoinGecko API request failed: {e}")
         return Config.DEFAULT_FALLBACK_PRICE, f"Request failed: {str(e)}, using fallback price"
         
+    except (KeyError, ValueError, TypeError) as e:
+        logger.error(f"Error parsing CoinGecko response: {e}")
+        return Config.DEFAULT_FALLBACK_PRICE, f"Failed to parse response: {str(e)}, using fallback price"
+        
     except Exception as e:
-        logger.error(f"Unexpected error fetching OKX price: {e}", exc_info=True)
+        logger.error(f"Unexpected error fetching CoinGecko price: {e}", exc_info=True)
         return Config.DEFAULT_FALLBACK_PRICE, f"Unexpected error: {str(e)}, using fallback price"
 
 
 def get_price_with_markup() -> Tuple[Optional[float], Optional[str], float]:
     """
-    Get OKX price with admin markup applied.
+    Get USDT/CNY price from CoinGecko with admin markup applied.
     
     Returns:
         Tuple of (final_price: float or None, error_message: str or None, base_price: float)
     """
     from database import db
     
-    # Get base price from OKX
-    base_price, error_msg = get_okx_price()
+    # Get base price from CoinGecko
+    base_price, error_msg = get_usdt_cny_price()
     
     if base_price is None:
         return None, error_msg or "Failed to fetch price", 0.0

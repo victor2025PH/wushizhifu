@@ -1,6 +1,6 @@
 """
 Settlement calculation service
-Handles OTC settlement calculations with OKX price and admin markup
+Handles OTC settlement calculations with CoinGecko price and admin markup
 """
 import logging
 from typing import Tuple, Optional
@@ -96,9 +96,9 @@ def format_settlement_bill(settlement_data: dict, usdt_address: str = None) -> s
     # Exchange rate breakdown
     if admin_markup != 0:
         markup_sign = "+" if admin_markup > 0 else ""
-        rate_breakdown = f"{final_price:.4f} (OKX: {base_price:.4f} {markup_sign}{admin_markup:.4f})"
+        rate_breakdown = f"{final_price:.4f} (CoinGecko: {base_price:.4f} {markup_sign}{admin_markup:.4f})"
     else:
-        rate_breakdown = f"{final_price:.4f} (OKX: {base_price:.4f})"
+        rate_breakdown = f"{final_price:.4f} (CoinGecko: {base_price:.4f})"
     
     message += f"📊 汇率: {rate_breakdown}\n"
     

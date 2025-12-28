@@ -33,10 +33,10 @@ class Config:
     # Database file path
     DB_PATH: str = "otc_bot.db"
     
-    # OKX API endpoint for USDT/CNY
-    OKX_API_URL: str = "https://www.okx.com/api/v5/market/ticker"
+    # CoinGecko API endpoint for USDT/CNY
+    COINGECKO_API_URL: str = "https://api.coingecko.com/api/v3/simple/price"
     
-    # Default fallback price (USDT/CNY) if OKX API fails
+    # Default fallback price (USDT/CNY) if CoinGecko API fails
     DEFAULT_FALLBACK_PRICE: float = 7.20
     
     @classmethod

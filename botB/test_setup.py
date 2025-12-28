@@ -25,7 +25,7 @@ def test_config():
             return False
         
         print(f"  Database path: {Config.DB_PATH}")
-        print(f"  OKX API URL: {Config.OKX_API_URL}")
+        print(f"  CoinGecko API URL: {Config.COINGECKO_API_URL}")
         print(f"  Fallback price: {Config.DEFAULT_FALLBACK_PRICE}")
         
         # Validate
@@ -103,18 +103,18 @@ def test_database():
 
 
 def test_price_service():
-    """Test OKX price fetching"""
+    """Test CoinGecko price fetching"""
     print("\n" + "=" * 50)
     print("Testing Price Service...")
     print("=" * 50)
     
     try:
-        from services.price_service import get_okx_price, get_price_with_markup
+        from services.price_service import get_usdt_cny_price, get_price_with_markup
         
         print(f"✓ Price service module loaded")
         
-        print(f"\n  Fetching price from OKX API...")
-        price, error = get_okx_price()
+        print(f"\n  Fetching price from CoinGecko API...")
+        price, error = get_usdt_cny_price()
         
         if price is not None:
             print(f"  ✓ Price fetched: {price:.4f} CNY")
@@ -122,7 +122,7 @@ def test_price_service():
                 print(f"  ⚠ Warning: {error}")
         else:
             print(f"  ✗ Failed to fetch price: {error}")
-            print(f"  (This might be OK if OKX API is temporarily unavailable)")
+            print(f"  (This might be OK if CoinGecko API is temporarily unavailable)")
         
         print(f"\n  Testing price with markup...")
         final_price, error_msg, base_price = get_price_with_markup()
