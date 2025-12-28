@@ -5,23 +5,122 @@ from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 from typing import Optional
 
 
-def get_settlement_bill_keyboard(bill_id: str = None) -> InlineKeyboardMarkup:
+def get_settlement_bill_keyboard(transaction_id: str = None, transaction_status: str = None, 
+                                is_admin: bool = False) -> InlineKeyboardMarkup:
     """
-    Get inline keyboard for settlement bill.
+    Get inline keyboard for settlement bill based on transaction status.
     
     Args:
-        bill_id: Optional bill ID for callback data
+        transaction_id: Transaction ID for callback data
+        transaction_status: Transaction status (pending, paid, confirmed, cancelled)
+        is_admin: Whether the user is an admin
         
     Returns:
-        InlineKeyboardMarkup with confirmation button
+        InlineKeyboardMarkup with appropriate buttons
     """
-    callback_data = f"confirm_bill_{bill_id}" if bill_id else "confirm_bill"
+    keyboard = []
     
+    if transaction_status == 'pending':
+        # Pending: User can mark as paid or cancel
+        keyboard.append([
+            InlineKeyboardButton("💰 已支付", callback_data=f"mark_paid_{transaction_id}" if transaction_id else "mark_paid"),
+            InlineKeyboardButton("❌ 取消", callback_data=f"cancel_tx_{transaction_id}" if transaction_id else "cancel_tx")
+        ])
+    elif transaction_status == 'paid':
+        # Paid: Admin can confirm, user can see status
+        if is_admin:
+            keyboard.append([
+                InlineKeyboardButton("✅ 确认交易", callback_data=f"confirm_tx_{transaction_id}" if transaction_id else "confirm_tx")
+            ])
+    elif transaction_status == 'confirmed':
+        # Confirmed: No action buttons needed
+        keyboard.append([
+            InlineKeyboardButton("✅ 已确认", callback_data="none")
+        ])
+    elif transaction_status == 'cancelled':
+        # Cancelled: No action buttons needed
+        keyboard.append([
+            InlineKeyboardButton("❌ 已取消", callback_data="none")
+        ])
+    else:
+        # Default: Pending state buttons
+        keyboard.append([
+            InlineKeyboardButton("💰 已支付", callback_data=f"mark_paid_{transaction_id}" if transaction_id else "mark_paid"),
+            InlineKeyboardButton("❌ 取消", callback_data=f"cancel_tx_{transaction_id}" if transaction_id else "cancel_tx")
+        ])
+    
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+def get_payment_hash_input_keyboard(transaction_id: str) -> InlineKeyboardMarkup:
+    """
+    Get inline keyboard for payment hash input.
+    
+    Args:
+        transaction_id: Transaction ID
+        
+    Returns:
+        InlineKeyboardMarkup with skip button
+    """
     keyboard = [
         [
-            InlineKeyboardButton("✅ 已核对", callback_data=callback_data)
+            InlineKeyboardButton("⏭️ 跳过（不填写）", callback_data=f"skip_payment_hash_{transaction_id}")
+        ],
+        [
+            InlineKeyboardButton("❌ 取消", callback_data=f"cancel_tx_{transaction_id}")
         ]
     ]
+    
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+def get_pending_transactions_keyboard(group_id: int = None, page: int = 1) -> InlineKeyboardMarkup:
+    """
+    Get inline keyboard for pending transactions list (admin view).
+    
+    Args:
+        group_id: Optional group ID
+        page: Page number
+        
+    Returns:
+        InlineKeyboardMarkup with navigation buttons
+    """
+    keyboard = [
+        [
+            InlineKeyboardButton("🔄 刷新", callback_data=f"refresh_pending_{group_id}_{page}" if group_id else f"refresh_pending_{page}")
+        ]
+    ]
+    
+    if group_id:
+        keyboard.append([
+            InlineKeyboardButton("🔙 返回", callback_data=f"group_stats_{group_id}")
+        ])
+    
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+def get_paid_transactions_keyboard(group_id: int = None, page: int = 1) -> InlineKeyboardMarkup:
+    """
+    Get inline keyboard for paid transactions list (admin view - waiting for confirmation).
+    
+    Args:
+        group_id: Optional group ID
+        page: Page number
+        
+    Returns:
+        InlineKeyboardMarkup with navigation buttons
+    """
+    keyboard = [
+        [
+            InlineKeyboardButton("✅ 批量确认", callback_data=f"batch_confirm_{group_id}" if group_id else "batch_confirm"),
+            InlineKeyboardButton("🔄 刷新", callback_data=f"refresh_paid_{group_id}_{page}" if group_id else f"refresh_paid_{page}")
+        ]
+    ]
+    
+    if group_id:
+        keyboard.append([
+            InlineKeyboardButton("🔙 返回", callback_data=f"group_stats_{group_id}")
+        ])
     
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
@@ -44,6 +143,10 @@ def get_group_settings_menu() -> InlineKeyboardMarkup:
         [
             InlineKeyboardButton("🔄 重置设置", callback_data="group_settings_reset"),
             InlineKeyboardButton("❌ 删除配置", callback_data="group_settings_delete")
+        ],
+        [
+            InlineKeyboardButton("⏳ 待支付交易", callback_data="pending_transactions"),
+            InlineKeyboardButton("✅ 待确认交易", callback_data="paid_transactions")
         ],
         [
             InlineKeyboardButton("📊 群组统计", callback_data="group_stats"),

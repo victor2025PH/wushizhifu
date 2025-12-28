@@ -4,6 +4,7 @@ Handles inline keyboard button callbacks
 """
 import logging
 import re
+from typing import Optional
 from telegram import Update
 from telegram.ext import CallbackQueryHandler, ContextTypes
 from database import db
@@ -11,7 +12,8 @@ from admin_checker import is_admin
 from keyboards.inline_keyboard import (
     get_group_settings_menu, get_global_management_menu,
     get_bills_history_keyboard, get_confirmation_keyboard,
-    get_settlement_bill_keyboard
+    get_settlement_bill_keyboard, get_payment_hash_input_keyboard,
+    get_paid_transactions_keyboard
 )
 from handlers.bills_handlers import handle_transaction_detail
 from handlers.stats_handlers import handle_group_stats, handle_global_stats
@@ -19,14 +21,277 @@ from handlers.stats_handlers import handle_group_stats, handle_global_stats
 logger = logging.getLogger(__name__)
 
 
-# ========== Settlement Bill Confirmation ==========
+# ========== Transaction Lifecycle Management ==========
 
-async def handle_confirm_bill(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle confirmation button click on settlement bill"""
+async def handle_mark_paid(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle 'mark as paid' button click on settlement bill"""
     query = update.callback_query
     
     try:
-        # Extract transaction_id from callback_data (format: confirm_bill_{transaction_id})
+        # Extract transaction_id from callback_data
+        callback_data = query.data
+        transaction_id = None
+        if callback_data.startswith("mark_paid_"):
+            parts = callback_data.split("_", 2)
+            if len(parts) > 2:
+                transaction_id = parts[2]
+        
+        if not transaction_id:
+            await query.answer("❌ 交易编号无效", show_alert=True)
+            return
+        
+        # Get transaction details
+        transaction = db.get_transaction_by_id(transaction_id)
+        if not transaction:
+            await query.answer("❌ 未找到该交易", show_alert=True)
+            return
+        
+        # Check if user owns this transaction
+        if transaction['user_id'] != query.from_user.id:
+            await query.answer("❌ 您无权操作此交易", show_alert=True)
+            return
+        
+        # Check if already paid or confirmed
+        if transaction['status'] in ['paid', 'confirmed']:
+            await query.answer(f"✅ 交易状态：{transaction['status']}", show_alert=True)
+            return
+        
+        # Ask for payment hash (optional)
+        context.user_data['awaiting_payment_hash'] = transaction_id
+        await query.message.reply_text(
+            "💰 <b>标记已支付</b>\n\n"
+            "请输入支付哈希（TXID）：\n"
+            "• 可直接输入哈希值\n"
+            "• 或点击「跳过」不填写\n\n"
+            "<i>提示：填写支付哈希有助于对账和审计</i>",
+            parse_mode="HTML",
+            reply_markup=get_payment_hash_input_keyboard(transaction_id)
+        )
+        await query.answer("💡 请输入支付哈希（可选）")
+        
+    except Exception as e:
+        logger.error(f"Error in handle_mark_paid: {e}", exc_info=True)
+        await query.answer("❌ 操作失败，请重试", show_alert=True)
+
+
+async def handle_skip_payment_hash(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle skip payment hash button"""
+    query = update.callback_query
+    
+    try:
+        callback_data = query.data
+        transaction_id = None
+        if callback_data.startswith("skip_payment_hash_"):
+            parts = callback_data.split("_", 3)
+            if len(parts) > 3:
+                transaction_id = parts[3]
+        
+        if not transaction_id:
+            await query.answer("❌ 交易编号无效", show_alert=True)
+            return
+        
+        # Mark as paid without payment hash
+        if db.mark_transaction_paid(transaction_id):
+            # Refresh transaction and update message
+            transaction = db.get_transaction_by_id(transaction_id)
+            await refresh_transaction_message(query, transaction)
+            await query.answer("✅ 已标记为已支付")
+            logger.info(f"User {query.from_user.id} marked transaction {transaction_id} as paid (no hash)")
+        else:
+            await query.answer("❌ 操作失败，请重试", show_alert=True)
+            
+    except Exception as e:
+        logger.error(f"Error in handle_skip_payment_hash: {e}", exc_info=True)
+        await query.answer("❌ 操作失败，请重试", show_alert=True)
+
+
+async def handle_cancel_transaction(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle cancel transaction button click"""
+    query = update.callback_query
+    
+    try:
+        callback_data = query.data
+        transaction_id = None
+        if callback_data.startswith("cancel_tx_"):
+            parts = callback_data.split("_", 2)
+            if len(parts) > 2:
+                transaction_id = parts[2]
+        
+        if not transaction_id:
+            await query.answer("❌ 交易编号无效", show_alert=True)
+            return
+        
+        # Get transaction details
+        transaction = db.get_transaction_by_id(transaction_id)
+        if not transaction:
+            await query.answer("❌ 未找到该交易", show_alert=True)
+            return
+        
+        # Check permissions: user can cancel own pending transactions, admin can cancel any pending
+        is_admin_user = is_admin(query.from_user.id)
+        if transaction['user_id'] != query.from_user.id and not is_admin_user:
+            await query.answer("❌ 您无权取消此交易", show_alert=True)
+            return
+        
+        # Check if can be cancelled
+        if transaction['status'] not in ['pending', 'paid']:
+            await query.answer(f"❌ 交易状态为 {transaction['status']}，无法取消", show_alert=True)
+            return
+        
+        # Cancel transaction
+        if db.cancel_transaction(transaction_id, query.from_user.id):
+            # Refresh transaction and update message
+            transaction = db.get_transaction_by_id(transaction_id)
+            await refresh_transaction_message(query, transaction)
+            await query.answer("❌ 交易已取消")
+            logger.info(f"User {query.from_user.id} cancelled transaction {transaction_id}")
+        else:
+            await query.answer("❌ 操作失败，请重试", show_alert=True)
+            
+    except Exception as e:
+        logger.error(f"Error in handle_cancel_transaction: {e}", exc_info=True)
+        await query.answer("❌ 操作失败，请重试", show_alert=True)
+
+
+async def handle_confirm_transaction(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle confirm transaction button click (admin only)"""
+    query = update.callback_query
+    
+    try:
+        # Check admin permission
+        if not is_admin(query.from_user.id):
+            await query.answer("❌ 仅管理员可以确认交易", show_alert=True)
+            return
+        
+        callback_data = query.data
+        transaction_id = None
+        if callback_data.startswith("confirm_tx_"):
+            parts = callback_data.split("_", 2)
+            if len(parts) > 2:
+                transaction_id = parts[2]
+        
+        if not transaction_id:
+            await query.answer("❌ 交易编号无效", show_alert=True)
+            return
+        
+        # Get transaction details
+        transaction = db.get_transaction_by_id(transaction_id)
+        if not transaction:
+            await query.answer("❌ 未找到该交易", show_alert=True)
+            return
+        
+        # Check if can be confirmed (must be paid)
+        if transaction['status'] != 'paid':
+            await query.answer(f"❌ 交易状态为 {transaction['status']}，无法确认", show_alert=True)
+            return
+        
+        # Confirm transaction
+        if db.confirm_transaction(transaction_id):
+            # Refresh transaction and update message
+            transaction = db.get_transaction_by_id(transaction_id)
+            await refresh_transaction_message(query, transaction)
+            await query.answer("✅ 交易已确认")
+            logger.info(f"Admin {query.from_user.id} confirmed transaction {transaction_id}")
+        else:
+            await query.answer("❌ 操作失败，请重试", show_alert=True)
+            
+    except Exception as e:
+        logger.error(f"Error in handle_confirm_transaction: {e}", exc_info=True)
+        await query.answer("❌ 操作失败，请重试", show_alert=True)
+
+
+async def handle_batch_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE, group_id: Optional[int] = None):
+    """Handle batch confirm paid transactions"""
+    query = update.callback_query
+    
+    try:
+        if not is_admin(query.from_user.id):
+            await query.answer("❌ 仅管理员可以批量确认", show_alert=True)
+            return
+        
+        # Get all paid transactions
+        paid_txs = db.get_paid_transactions(group_id=group_id, limit=100)
+        
+        if not paid_txs:
+            await query.answer("✅ 没有待确认的交易", show_alert=True)
+            return
+        
+        # Confirm all transactions
+        confirmed_count = 0
+        for tx in paid_txs:
+            if db.confirm_transaction(tx['transaction_id']):
+                confirmed_count += 1
+        
+        if confirmed_count > 0:
+            await query.answer(f"✅ 已批量确认 {confirmed_count} 笔交易", show_alert=True)
+            # Refresh the paid transactions list
+            from handlers.stats_handlers import handle_paid_transactions
+            await handle_paid_transactions(update, context, group_id)
+            logger.info(f"Admin {query.from_user.id} batch confirmed {confirmed_count} transactions (group_id: {group_id})")
+        else:
+            await query.answer("❌ 批量确认失败", show_alert=True)
+            
+    except Exception as e:
+        logger.error(f"Error in handle_batch_confirm: {e}", exc_info=True)
+        await query.answer("❌ 操作失败，请重试", show_alert=True)
+
+
+async def refresh_transaction_message(query, transaction):
+    """Refresh transaction bill message with updated status"""
+    from services.settlement_service import format_settlement_bill
+    from keyboards.inline_keyboard import get_settlement_bill_keyboard
+    
+    # Rebuild settlement data from transaction
+    settlement_data = {
+        'cny_amount': transaction['cny_amount'],
+        'base_price': transaction['exchange_rate'] - (transaction['markup'] or 0.0),
+        'markup': transaction['markup'] or 0.0,
+        'final_price': transaction['exchange_rate'],
+        'usdt_amount': transaction['usdt_amount']
+    }
+    
+    # Format time strings
+    paid_at = transaction.get('paid_at')
+    if paid_at:
+        paid_at = paid_at[:16]  # YYYY-MM-DD HH:MM
+    confirmed_at = transaction.get('confirmed_at')
+    if confirmed_at:
+        confirmed_at = confirmed_at[:16]
+    
+    # Format bill message
+    bill_message = format_settlement_bill(
+        settlement_data,
+        usdt_address=transaction.get('usdt_address'),
+        transaction_id=transaction['transaction_id'],
+        transaction_status=transaction['status'],
+        payment_hash=transaction.get('payment_hash'),
+        paid_at=paid_at,
+        confirmed_at=confirmed_at
+    )
+    
+    # Get keyboard based on status
+    is_admin_user = is_admin(query.from_user.id)
+    reply_markup = get_settlement_bill_keyboard(
+        transaction['transaction_id'],
+        transaction['status'],
+        is_admin_user
+    )
+    
+    # Update message
+    await query.edit_message_text(
+        text=bill_message,
+        parse_mode="HTML",
+        reply_markup=reply_markup
+    )
+
+
+async def handle_confirm_bill(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle old confirmation button (backward compatibility) - redirects to confirm transaction"""
+    # This is for backward compatibility with old bills
+    # New bills use handle_confirm_transaction
+    query = update.callback_query
+    
+    try:
         callback_data = query.data
         transaction_id = None
         if callback_data.startswith("confirm_bill_"):
@@ -34,31 +299,24 @@ async def handle_confirm_bill(update: Update, context: ContextTypes.DEFAULT_TYPE
             if len(parts) > 2:
                 transaction_id = parts[2]
         
-        # Update transaction status to 'confirmed' if transaction_id exists
         if transaction_id:
-            db.update_transaction_status(transaction_id, 'confirmed')
+            # Check if transaction is already paid, then confirm it
+            transaction = db.get_transaction_by_id(transaction_id)
+            if transaction:
+                if transaction['status'] == 'paid':
+                    await handle_confirm_transaction(update, context)
+                    return
+                elif transaction['status'] == 'pending':
+                    # Old behavior: just mark as confirmed (without payment)
+                    # For backward compatibility, we'll mark as paid first
+                    db.mark_transaction_paid(transaction_id)
+                    db.confirm_transaction(transaction_id)
+                    transaction = db.get_transaction_by_id(transaction_id)
+                    await refresh_transaction_message(query, transaction)
+                    await query.answer("✅ 已确认")
+                    return
         
-        # Get current message text
-        current_text = query.message.text
-        
-        # Check if already confirmed
-        if "(已确认)" in current_text or "✅ 已核对" in current_text:
-            await query.answer("✅ 账单已确认")
-            return
-        
-        # Append confirmation text
-        new_text = current_text + "\n\n✅ <b>(已确认)</b>"
-        
-        # Edit the message
-        await query.edit_message_text(
-            text=new_text,
-            parse_mode="HTML"
-        )
-        
-        # Acknowledge the callback
         await query.answer("✅ 已确认")
-        
-        logger.info(f"User {query.from_user.id} confirmed settlement bill, transaction_id: {transaction_id}")
         
     except Exception as e:
         logger.error(f"Error in handle_confirm_bill: {e}", exc_info=True)
@@ -130,6 +388,20 @@ async def handle_group_settings_menu(update: Update, context: ContextTypes.DEFAU
         elif callback_data == "group_stats":
             # Show group stats
             await handle_group_stats(update, context)
+            await query.answer()
+            return
+        
+        elif callback_data == "pending_transactions":
+            # Show pending transactions
+            from handlers.stats_handlers import handle_pending_transactions
+            await handle_pending_transactions(update, context, group_id)
+            await query.answer()
+            return
+        
+        elif callback_data == "paid_transactions":
+            # Show paid transactions (waiting for confirmation)
+            from handlers.stats_handlers import handle_paid_transactions
+            await handle_paid_transactions(update, context, group_id)
             await query.answer()
             return
         
@@ -325,7 +597,24 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     callback_data = query.data
     
-    # Settlement bill confirmation
+    # Transaction lifecycle management
+    if callback_data.startswith("mark_paid"):
+        await handle_mark_paid(update, context)
+        return
+    
+    if callback_data.startswith("skip_payment_hash"):
+        await handle_skip_payment_hash(update, context)
+        return
+    
+    if callback_data.startswith("cancel_tx"):
+        await handle_cancel_transaction(update, context)
+        return
+    
+    if callback_data.startswith("confirm_tx"):
+        await handle_confirm_transaction(update, context)
+        return
+    
+    # Settlement bill confirmation (backward compatibility)
     if callback_data.startswith("confirm_bill"):
         await handle_confirm_bill(update, context)
         return
@@ -345,14 +634,55 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_bills_pagination(update, context)
         return
     
-    # Confirmation dialogs
-    if callback_data.startswith("confirm_") or callback_data.startswith("cancel_"):
+    # Confirmation dialogs (exclude cancel_tx which is handled above)
+    if callback_data.startswith("confirm_") or (callback_data.startswith("cancel_") and not callback_data.startswith("cancel_tx")):
         await handle_confirmation(update, context)
+        return
+    
+    # Pending/Paid transactions
+    if callback_data == "pending_transactions":
+        from handlers.stats_handlers import handle_pending_transactions
+        chat = query.message.chat
+        group_id = chat.id if chat.type in ['group', 'supergroup'] else None
+        await handle_pending_transactions(update, context, group_id)
+        return
+    
+    if callback_data == "paid_transactions":
+        from handlers.stats_handlers import handle_paid_transactions
+        chat = query.message.chat
+        group_id = chat.id if chat.type in ['group', 'supergroup'] else None
+        await handle_paid_transactions(update, context, group_id)
+        return
+    
+    # Refresh buttons
+    if callback_data.startswith("refresh_pending") or callback_data.startswith("refresh_paid"):
+        # Parse group_id and page from callback_data
+        parts = callback_data.split("_")
+        if len(parts) >= 3:
+            group_id = int(parts[2]) if parts[2].isdigit() else None
+            if "pending" in callback_data:
+                from handlers.stats_handlers import handle_pending_transactions
+                await handle_pending_transactions(update, context, group_id)
+            else:
+                from handlers.stats_handlers import handle_paid_transactions
+                await handle_paid_transactions(update, context, group_id)
+        return
+    
+    # Batch confirm
+    if callback_data.startswith("batch_confirm"):
+        parts = callback_data.split("_")
+        group_id = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else None
+        await handle_batch_confirm(update, context, group_id)
         return
     
     # Main menu
     if callback_data == "main_menu":
         await query.answer("💡 使用底部按钮或 /start 查看主菜单")
+        return
+    
+    # None action (placeholder buttons)
+    if callback_data == "none":
+        await query.answer()
         return
 
 

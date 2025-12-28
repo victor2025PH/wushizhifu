@@ -8,6 +8,7 @@ from typing import Optional
 from telegram import Update
 from telegram.ext import ContextTypes
 from database import db
+from admin_checker import is_admin
 
 logger = logging.getLogger(__name__)
 
@@ -132,4 +133,133 @@ async def handle_global_stats(update: Update, context: ContextTypes.DEFAULT_TYPE
     except Exception as e:
         logger.error(f"Error in handle_global_stats: {e}", exc_info=True)
         await update.message.reply_text(f"❌ 错误: {str(e)}")
+
+
+async def handle_pending_transactions(update: Update, context: ContextTypes.DEFAULT_TYPE, group_id: Optional[int] = None):
+    """
+    Handle display of pending transactions (waiting for payment).
+    
+    Admin can view all pending transactions in a group or globally.
+    """
+    try:
+        user_id = update.effective_user.id
+        
+        if not is_admin(user_id):
+            await (update.callback_query or update.message).reply_text("❌ 此功能仅限管理员使用")
+            return
+        
+        # Get pending transactions
+        pending_txs = db.get_pending_transactions(group_id=group_id, limit=20)
+        
+        if not pending_txs:
+            message = "✅ <b>无待支付交易</b>\n\n当前没有待支付的交易记录。"
+            if update.callback_query:
+                await update.callback_query.answer(message, show_alert=True)
+                await update.callback_query.edit_message_text(message, parse_mode="HTML")
+            else:
+                await update.message.reply_text(message, parse_mode="HTML")
+            return
+        
+        message = f"⏳ <b>待支付交易列表</b>\n\n"
+        if group_id:
+            chat = update.effective_chat
+            message += f"群组: {chat.title or '未知群组'}\n"
+        else:
+            message += "范围: 全部群组\n"
+        message += f"共 {len(pending_txs)} 笔待支付交易\n"
+        message += "────────────────────────\n\n"
+        
+        for idx, tx in enumerate(pending_txs, 1):
+            time_str = tx['created_at'][:16] if len(tx['created_at']) > 16 else tx['created_at']
+            user_name = tx['first_name'] or tx['username'] or f"用户{tx['user_id']}"
+            message += (
+                f"{idx}. <code>{tx['transaction_id']}</code>\n"
+                f"   {tx['cny_amount']:,.2f} CNY → {tx['usdt_amount']:,.2f} USDT\n"
+                f"   用户: {user_name} | {time_str}\n\n"
+            )
+        
+        message += "<i>提示: 用户标记已支付后，交易将出现在"待确认"列表中。</i>"
+        
+        from keyboards.inline_keyboard import get_pending_transactions_keyboard
+        reply_markup = get_pending_transactions_keyboard(group_id)
+        
+        if update.callback_query:
+            await update.callback_query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
+            await update.callback_query.answer()
+        else:
+            await update.message.reply_text(message, parse_mode="HTML", reply_markup=reply_markup)
+        
+        logger.info(f"Admin {user_id} viewed pending transactions (group_id: {group_id})")
+        
+    except Exception as e:
+        logger.error(f"Error in handle_pending_transactions: {e}", exc_info=True)
+        await (update.callback_query or update.message).reply_text(f"❌ 错误: {str(e)}")
+
+
+async def handle_paid_transactions(update: Update, context: ContextTypes.DEFAULT_TYPE, group_id: Optional[int] = None):
+    """
+    Handle display of paid transactions waiting for confirmation.
+    
+    Admin can view and confirm paid transactions.
+    """
+    try:
+        user_id = update.effective_user.id
+        
+        if not is_admin(user_id):
+            await (update.callback_query or update.message).reply_text("❌ 此功能仅限管理员使用")
+            return
+        
+        # Get paid transactions
+        paid_txs = db.get_paid_transactions(group_id=group_id, limit=20)
+        
+        if not paid_txs:
+            message = "✅ <b>无待确认交易</b>\n\n当前没有待确认的交易记录。"
+            if update.callback_query:
+                await update.callback_query.answer(message, show_alert=True)
+                await update.callback_query.edit_message_text(message, parse_mode="HTML")
+            else:
+                await update.message.reply_text(message, parse_mode="HTML")
+            return
+        
+        message = f"✅ <b>待确认交易列表</b>\n\n"
+        if group_id:
+            chat = update.effective_chat
+            message += f"群组: {chat.title or '未知群组'}\n"
+        else:
+            message += "范围: 全部群组\n"
+        message += f"共 {len(paid_txs)} 笔待确认交易\n"
+        message += "────────────────────────\n\n"
+        
+        for idx, tx in enumerate(paid_txs, 1):
+            time_str = tx['created_at'][:16] if len(tx['created_at']) > 16 else tx['created_at']
+            paid_time = tx['paid_at'][:16] if tx.get('paid_at') and len(tx['paid_at']) > 16 else (tx.get('paid_at') or '未知')
+            user_name = tx['first_name'] or tx['username'] or f"用户{tx['user_id']}"
+            payment_hash_display = ""
+            if tx.get('payment_hash'):
+                ph = tx['payment_hash']
+                payment_hash_display = f"\n   哈希: <code>{ph[:15]}...</code>"
+            
+            message += (
+                f"{idx}. <code>{tx['transaction_id']}</code>\n"
+                f"   {tx['cny_amount']:,.2f} CNY → {tx['usdt_amount']:,.2f} USDT\n"
+                f"   用户: {user_name}\n"
+                f"   创建: {time_str} | 支付: {paid_time}{payment_hash_display}\n\n"
+            )
+        
+        message += "<i>提示: 点击交易编号可查看详情并确认。</i>"
+        
+        from keyboards.inline_keyboard import get_paid_transactions_keyboard
+        reply_markup = get_paid_transactions_keyboard(group_id)
+        
+        if update.callback_query:
+            await update.callback_query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
+            await update.callback_query.answer()
+        else:
+            await update.message.reply_text(message, parse_mode="HTML", reply_markup=reply_markup)
+        
+        logger.info(f"Admin {user_id} viewed paid transactions (group_id: {group_id})")
+        
+    except Exception as e:
+        logger.error(f"Error in handle_paid_transactions: {e}", exc_info=True)
+        await (update.callback_query or update.message).reply_text(f"❌ 错误: {str(e)}")
 

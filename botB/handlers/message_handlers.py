@@ -402,12 +402,17 @@ async def handle_math_settlement(update: Update, context: ContextTypes.DEFAULT_T
             usdt_address=usdt_address or ''
         )
         
-        # Format and send settlement bill
-        bill_message = format_settlement_bill(settlement_data, usdt_address, transaction_id)
+        # Format and send settlement bill (with status 'pending')
+        bill_message = format_settlement_bill(
+            settlement_data, 
+            usdt_address, 
+            transaction_id,
+            transaction_status='pending'
+        )
         
-        # Add inline keyboard for confirmation
+        # Add inline keyboard for confirmation (pending status)
         from keyboards.inline_keyboard import get_settlement_bill_keyboard
-        reply_markup = get_settlement_bill_keyboard(transaction_id)
+        reply_markup = get_settlement_bill_keyboard(transaction_id, 'pending', False)
         
         await update.message.reply_text(
             bill_message,
@@ -485,6 +490,85 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     is_admin_user = is_admin(user_id)
     chat = update.effective_chat
+    
+    # Handle payment hash input (after user clicks "已支付")
+    if 'awaiting_payment_hash' in context.user_data:
+        transaction_id = context.user_data['awaiting_payment_hash']
+        del context.user_data['awaiting_payment_hash']
+        
+        # Get transaction to verify ownership
+        transaction = db.get_transaction_by_id(transaction_id)
+        if not transaction:
+            await update.message.reply_text("❌ 未找到该交易")
+            return
+        
+        if transaction['user_id'] != user_id:
+            await update.message.reply_text("❌ 您无权操作此交易")
+            return
+        
+        # Validate payment hash (should be alphanumeric, typically 64 chars for TXID)
+        payment_hash = text.strip()
+        if len(payment_hash) > 200:  # Reasonable max length
+            await update.message.reply_text("❌ 支付哈希过长，请输入有效的交易哈希")
+            return
+        
+        # Mark transaction as paid with payment hash
+        if db.mark_transaction_paid(transaction_id, payment_hash):
+            # Get updated transaction
+            transaction = db.get_transaction_by_id(transaction_id)
+            
+            # Refresh transaction message if it exists in a recent message
+            # (Note: This is a simplified approach. In production, you might want to store message_id)
+            from services.settlement_service import format_settlement_bill
+            from keyboards.inline_keyboard import get_settlement_bill_keyboard
+            
+            settlement_data = {
+                'cny_amount': transaction['cny_amount'],
+                'base_price': transaction['exchange_rate'] - (transaction['markup'] or 0.0),
+                'markup': transaction['markup'] or 0.0,
+                'final_price': transaction['exchange_rate'],
+                'usdt_amount': transaction['usdt_amount']
+            }
+            
+            paid_at = transaction.get('paid_at')
+            if paid_at:
+                paid_at = paid_at[:16]
+            
+            bill_message = format_settlement_bill(
+                settlement_data,
+                usdt_address=transaction.get('usdt_address'),
+                transaction_id=transaction['transaction_id'],
+                transaction_status=transaction['status'],
+                payment_hash=transaction.get('payment_hash'),
+                paid_at=paid_at
+            )
+            
+            reply_markup = get_settlement_bill_keyboard(
+                transaction['transaction_id'],
+                transaction['status'],
+                is_admin_user
+            )
+            
+            await update.message.reply_text(
+                f"✅ <b>已标记为已支付</b>\n\n"
+                f"交易编号: <code>{transaction_id}</code>\n"
+                f"支付哈希: <code>{payment_hash[:20]}...</code>\n\n"
+                f"管理员将进行确认。",
+                parse_mode="HTML"
+            )
+            
+            # Also send updated bill
+            await update.message.reply_text(
+                bill_message,
+                parse_mode="HTML",
+                reply_markup=reply_markup
+            )
+            
+            logger.info(f"User {user_id} marked transaction {transaction_id} as paid with hash: {payment_hash[:20]}...")
+        else:
+            await update.message.reply_text("❌ 操作失败，请重试")
+        
+        return
     
     # Handle reply keyboard buttons (optimized text)
     if text in ["💱 汇率", "💱 查看汇率", "📊 查看汇率"]:

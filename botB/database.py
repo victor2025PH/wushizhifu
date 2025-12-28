@@ -96,10 +96,23 @@ class Database:
                 usdt_address TEXT,
                 status TEXT DEFAULT 'pending',
                 payment_hash TEXT,
+                paid_at TIMESTAMP,
                 confirmed_at TIMESTAMP,
+                cancelled_at TIMESTAMP,
+                cancelled_by BIGINT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        
+        # Add paid_at column if it doesn't exist (migration for existing databases)
+        cursor.execute("PRAGMA table_info(transactions)")
+        columns = [col[1] for col in cursor.fetchall()]
+        if 'paid_at' not in columns:
+            cursor.execute("ALTER TABLE transactions ADD COLUMN paid_at TIMESTAMP")
+        if 'cancelled_at' not in columns:
+            cursor.execute("ALTER TABLE transactions ADD COLUMN cancelled_at TIMESTAMP")
+        if 'cancelled_by' not in columns:
+            cursor.execute("ALTER TABLE transactions ADD COLUMN cancelled_by BIGINT")
         
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_transactions_group_id 
@@ -751,7 +764,8 @@ class Database:
         cursor.execute("""
             SELECT transaction_id, group_id, user_id, username, first_name,
                    cny_amount, usdt_amount, exchange_rate, markup,
-                   usdt_address, status, payment_hash, confirmed_at, created_at
+                   usdt_address, status, payment_hash, paid_at, confirmed_at, 
+                   cancelled_at, cancelled_by, created_at
             FROM transactions
             WHERE transaction_id = ?
         """, (transaction_id,))
@@ -771,12 +785,16 @@ class Database:
                 'usdt_address': row['usdt_address'],
                 'status': row['status'],
                 'payment_hash': row['payment_hash'],
+                'paid_at': row['paid_at'],
                 'confirmed_at': row['confirmed_at'],
+                'cancelled_at': row['cancelled_at'],
+                'cancelled_by': row['cancelled_by'],
                 'created_at': row['created_at']
             }
         return None
     
-    def update_transaction_status(self, transaction_id: str, status: str, payment_hash: str = None) -> bool:
+    def update_transaction_status(self, transaction_id: str, status: str, payment_hash: str = None, 
+                                 cancelled_by: int = None) -> bool:
         """
         Update transaction status.
         
@@ -784,6 +802,7 @@ class Database:
             transaction_id: Transaction ID
             status: New status (pending, paid, confirmed, cancelled)
             payment_hash: Optional payment hash
+            cancelled_by: Optional user ID who cancelled the transaction
             
         Returns:
             True if successful
@@ -792,13 +811,29 @@ class Database:
             conn = self.connect()
             cursor = conn.cursor()
             
-            if status == 'confirmed':
+            if status == 'paid':
+                # Mark as paid
                 cursor.execute("""
                     UPDATE transactions
-                    SET status = ?, payment_hash = ?, confirmed_at = CURRENT_TIMESTAMP
+                    SET status = ?, payment_hash = ?, paid_at = CURRENT_TIMESTAMP
                     WHERE transaction_id = ?
                 """, (status, payment_hash, transaction_id))
+            elif status == 'confirmed':
+                # Confirm transaction
+                cursor.execute("""
+                    UPDATE transactions
+                    SET status = ?, confirmed_at = CURRENT_TIMESTAMP
+                    WHERE transaction_id = ?
+                """, (status, transaction_id))
+            elif status == 'cancelled':
+                # Cancel transaction
+                cursor.execute("""
+                    UPDATE transactions
+                    SET status = ?, cancelled_at = CURRENT_TIMESTAMP, cancelled_by = ?
+                    WHERE transaction_id = ?
+                """, (status, cancelled_by, transaction_id))
             else:
+                # Other status updates
                 cursor.execute("""
                     UPDATE transactions
                     SET status = ?, payment_hash = ?
@@ -812,6 +847,215 @@ class Database:
         except Exception as e:
             logger.error(f"Error updating transaction status: {e}", exc_info=True)
             return False
+    
+    def mark_transaction_paid(self, transaction_id: str, payment_hash: str = None) -> bool:
+        """
+        Mark transaction as paid.
+        
+        Args:
+            transaction_id: Transaction ID
+            payment_hash: Optional payment hash (TXID)
+            
+        Returns:
+            True if successful
+        """
+        return self.update_transaction_status(transaction_id, 'paid', payment_hash)
+    
+    def cancel_transaction(self, transaction_id: str, cancelled_by: int) -> bool:
+        """
+        Cancel a transaction.
+        
+        Args:
+            transaction_id: Transaction ID
+            cancelled_by: User ID who cancelled the transaction
+            
+        Returns:
+            True if successful
+        """
+        return self.update_transaction_status(transaction_id, 'cancelled', cancelled_by=cancelled_by)
+    
+    def confirm_transaction(self, transaction_id: str) -> bool:
+        """
+        Confirm a paid transaction (admin only).
+        
+        Args:
+            transaction_id: Transaction ID
+            
+        Returns:
+            True if successful
+        """
+        return self.update_transaction_status(transaction_id, 'confirmed')
+    
+    def get_pending_transactions(self, group_id: int = None, limit: int = 50) -> list:
+        """
+        Get pending (not paid) transactions.
+        
+        Args:
+            group_id: Optional group ID filter
+            limit: Maximum number of records
+            
+        Returns:
+            List of pending transaction dictionaries
+        """
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        if group_id:
+            cursor.execute("""
+                SELECT transaction_id, group_id, user_id, username, first_name,
+                       cny_amount, usdt_amount, exchange_rate, markup,
+                       usdt_address, status, created_at
+                FROM transactions
+                WHERE group_id = ? AND status = 'pending'
+                ORDER BY created_at DESC
+                LIMIT ?
+            """, (group_id, limit))
+        else:
+            cursor.execute("""
+                SELECT transaction_id, group_id, user_id, username, first_name,
+                       cny_amount, usdt_amount, exchange_rate, markup,
+                       usdt_address, status, created_at
+                FROM transactions
+                WHERE status = 'pending'
+                ORDER BY created_at DESC
+                LIMIT ?
+            """, (limit,))
+        
+        rows = cursor.fetchall()
+        transactions = []
+        for row in rows:
+            transactions.append({
+                'transaction_id': row['transaction_id'],
+                'group_id': row['group_id'],
+                'user_id': row['user_id'],
+                'username': row['username'],
+                'first_name': row['first_name'],
+                'cny_amount': float(row['cny_amount']),
+                'usdt_amount': float(row['usdt_amount']),
+                'exchange_rate': float(row['exchange_rate']),
+                'markup': float(row['markup']) if row['markup'] else 0.0,
+                'usdt_address': row['usdt_address'],
+                'status': row['status'],
+                'created_at': row['created_at']
+            })
+        return transactions
+    
+    def get_paid_transactions(self, group_id: int = None, limit: int = 50) -> list:
+        """
+        Get paid transactions waiting for confirmation.
+        
+        Args:
+            group_id: Optional group ID filter
+            limit: Maximum number of records
+            
+        Returns:
+            List of paid transaction dictionaries
+        """
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        if group_id:
+            cursor.execute("""
+                SELECT transaction_id, group_id, user_id, username, first_name,
+                       cny_amount, usdt_amount, exchange_rate, markup,
+                       usdt_address, status, payment_hash, paid_at, created_at
+                FROM transactions
+                WHERE group_id = ? AND status = 'paid'
+                ORDER BY paid_at DESC
+                LIMIT ?
+            """, (group_id, limit))
+        else:
+            cursor.execute("""
+                SELECT transaction_id, group_id, user_id, username, first_name,
+                       cny_amount, usdt_amount, exchange_rate, markup,
+                       usdt_address, status, payment_hash, paid_at, created_at
+                FROM transactions
+                WHERE status = 'paid'
+                ORDER BY paid_at DESC
+                LIMIT ?
+            """, (limit,))
+        
+        rows = cursor.fetchall()
+        transactions = []
+        for row in rows:
+            transactions.append({
+                'transaction_id': row['transaction_id'],
+                'group_id': row['group_id'],
+                'user_id': row['user_id'],
+                'username': row['username'],
+                'first_name': row['first_name'],
+                'cny_amount': float(row['cny_amount']),
+                'usdt_amount': float(row['usdt_amount']),
+                'exchange_rate': float(row['exchange_rate']),
+                'markup': float(row['markup']) if row['markup'] else 0.0,
+                'usdt_address': row['usdt_address'],
+                'status': row['status'],
+                'payment_hash': row['payment_hash'],
+                'paid_at': row['paid_at'],
+                'created_at': row['created_at']
+            })
+        return transactions
+    
+    def get_transactions_by_status(self, status: str, group_id: int = None, limit: int = 50) -> list:
+        """
+        Get transactions by status.
+        
+        Args:
+            status: Transaction status (pending, paid, confirmed, cancelled)
+            group_id: Optional group ID filter
+            limit: Maximum number of records
+            
+        Returns:
+            List of transaction dictionaries
+        """
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        if group_id:
+            cursor.execute("""
+                SELECT transaction_id, group_id, user_id, username, first_name,
+                       cny_amount, usdt_amount, exchange_rate, markup,
+                       usdt_address, status, payment_hash, paid_at, confirmed_at, 
+                       cancelled_at, created_at
+                FROM transactions
+                WHERE group_id = ? AND status = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+            """, (group_id, status, limit))
+        else:
+            cursor.execute("""
+                SELECT transaction_id, group_id, user_id, username, first_name,
+                       cny_amount, usdt_amount, exchange_rate, markup,
+                       usdt_address, status, payment_hash, paid_at, confirmed_at,
+                       cancelled_at, created_at
+                FROM transactions
+                WHERE status = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+            """, (status, limit))
+        
+        rows = cursor.fetchall()
+        transactions = []
+        for row in rows:
+            transactions.append({
+                'transaction_id': row['transaction_id'],
+                'group_id': row['group_id'],
+                'user_id': row['user_id'],
+                'username': row['username'],
+                'first_name': row['first_name'],
+                'cny_amount': float(row['cny_amount']),
+                'usdt_amount': float(row['usdt_amount']),
+                'exchange_rate': float(row['exchange_rate']),
+                'markup': float(row['markup']) if row['markup'] else 0.0,
+                'usdt_address': row['usdt_address'],
+                'status': row['status'],
+                'payment_hash': row['payment_hash'],
+                'paid_at': row['paid_at'],
+                'confirmed_at': row['confirmed_at'],
+                'cancelled_at': row['cancelled_at'],
+                'created_at': row['created_at']
+            })
+        return transactions
     
     # ========== User-level Transaction Methods ==========
     

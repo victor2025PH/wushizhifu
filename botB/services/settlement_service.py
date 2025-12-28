@@ -81,7 +81,9 @@ def calculate_settlement(amount_text: str, group_id: Optional[int] = None) -> Tu
         return None, f"计算错误: {str(e)}"
 
 
-def format_settlement_bill(settlement_data: dict, usdt_address: str = None, transaction_id: str = None) -> str:
+def format_settlement_bill(settlement_data: dict, usdt_address: str = None, transaction_id: str = None, 
+                          transaction_status: str = None, payment_hash: str = None, 
+                          paid_at: str = None, confirmed_at: str = None) -> str:
     """
     Format settlement bill as HTML message (receipt style).
     
@@ -91,6 +93,10 @@ def format_settlement_bill(settlement_data: dict, usdt_address: str = None, tran
         settlement_data: Settlement data dictionary
         usdt_address: Optional USDT address to display
         transaction_id: Optional transaction ID to display
+        transaction_status: Optional transaction status (pending, paid, confirmed, cancelled)
+        payment_hash: Optional payment hash (TXID)
+        paid_at: Optional payment time
+        confirmed_at: Optional confirmation time
         
     Returns:
         Formatted HTML message
@@ -102,11 +108,23 @@ def format_settlement_bill(settlement_data: dict, usdt_address: str = None, tran
     usdt_amount = settlement_data['usdt_amount']     # Output: USDT amount
     price_error = settlement_data.get('price_error')
     
+    # Status emoji mapping
+    status_map = {
+        'pending': '⏳ 待支付',
+        'paid': '✅ 已支付（待确认）',
+        'confirmed': '✅ 已确认',
+        'cancelled': '❌ 已取消'
+    }
+    status_text = status_map.get(transaction_status, '⏳ 待支付') if transaction_status else '⏳ 待支付'
+    
     # Build receipt-style HTML message
     message = "🧾 <b>交易结算单</b>\n"
     if transaction_id:
         message += f"<code>#{transaction_id}</code>\n"
     message += "────────────────────────\n\n"
+    
+    # Transaction status
+    message += f"📊 状态: <b>{status_text}</b>\n\n"
     
     # Input: CNY amount
     message += f"💰 应收人民币: <b><code>{cny_amount:,.2f} CNY</code></b>\n\n"
@@ -131,6 +149,19 @@ def format_settlement_bill(settlement_data: dict, usdt_address: str = None, tran
         if len(usdt_address) > 30:
             address_display = f"{usdt_address[:15]}...{usdt_address[-15:]}"
         message += f"🔗 收款地址: <code>{address_display}</code>\n"
+    
+    # Payment information
+    if payment_hash:
+        hash_display = payment_hash
+        if len(hash_display) > 30:
+            hash_display = f"{hash_display[:15]}...{hash_display[-15:]}"
+        message += f"🔐 支付哈希: <code>{hash_display}</code>\n"
+    
+    if paid_at:
+        message += f"💰 支付时间: {paid_at}\n"
+    
+    if confirmed_at:
+        message += f"✅ 确认时间: {confirmed_at}\n"
     
     # Price error warning
     if price_error:
