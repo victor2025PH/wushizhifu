@@ -59,12 +59,44 @@ jobs:
             pip install -r requirements.txt -q
             
             # Wait a bit more to ensure Telegram API releases connections
-            echo "等待 Telegram API 释放连接..."
-            sleep 5
+            echo "等待 Telegram API 释放连接（10秒）..."
+            sleep 10
+            
+            # Ensure service file exists and is correct
+            echo "检查服务文件..."
+            if [ -f "/etc/systemd/system/wushizhifu-bot.service" ]; then
+              echo "✅ 服务文件存在"
+              # Reload systemd to pick up any changes
+              sudo systemctl daemon-reload
+            else
+              echo "⚠️  服务文件不存在，使用默认配置创建..."
+              sudo tee /etc/systemd/system/wushizhifu-bot.service > /dev/null <<EOF
+[Unit]
+Description=WuShiPay Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/wushizhifu/botA
+Environment="PATH=/home/ubuntu/wushizhifu/botA/venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/home/ubuntu/wushizhifu/botA/venv/bin/python /home/ubuntu/wushizhifu/botA/bot.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+              sudo systemctl daemon-reload
+            fi
             
             # Restart Bot A service
             echo "重启 Bot A 服务..."
             sudo systemctl restart wushizhifu-bot.service || echo "Bot A service not found, skipping restart"
+            
+            # Enable service to start on boot
+            sudo systemctl enable wushizhifu-bot.service || true
             
             # Also restart API service to pick up database changes
             cd /home/ubuntu/wushizhifu
