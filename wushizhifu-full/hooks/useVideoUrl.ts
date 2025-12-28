@@ -23,7 +23,7 @@ export function useVideoUrl(videoType: 'wechat' | 'alipay'): string | null {
 
     async function fetchVideoUrl() {
       try {
-        const endpoint = videoType === 'wechat' ? '/api/videos/wechat' : '/api/videos/alipay';
+        const endpoint = videoType === 'wechat' ? '/videos/wechat' : '/videos/alipay';
         const response = await fetch(`${API_BASE_URL}${endpoint}`);
 
         if (!response.ok) {

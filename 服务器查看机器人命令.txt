@@ -1,0 +1,24 @@
+# 重启 Bot A
+sudo systemctl restart botA.service
+
+# 重启 Bot B
+sudo systemctl restart botB.service
+
+# 同时重启两个
+sudo systemctl restart botA.service botB.service
+
+停止服务
+sudo systemctl stop botA.service
+sudo systemctl stop botB.service
+
+# 查看 Bot A 状态
+sudo systemctl status botA.service
+
+# 查看 Bot B 状态
+sudo systemctl status botB.service
+
+# Bot A 日志
+sudo journalctl -u botA.service -n 50 -f
+
+# Bot B 日志
+sudo journalctl -u botB.service -n 50 -f
