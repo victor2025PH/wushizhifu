@@ -51,19 +51,27 @@ export default function App() {
   const [showWelcome, setShowWelcome] = useState(false);
 
   useEffect(() => {
-    // Prevent multiple instances
+    // Prevent multiple instances (but allow if opened from different sources)
+    // Only prevent if opened in same session within 1 second
     const instanceId = Date.now().toString();
     const existingInstance = sessionStorage.getItem('miniapp_instance');
-    if (existingInstance && existingInstance !== instanceId) {
-      console.log("Another MiniApp instance detected, closing this one...");
-      if (window.Telegram?.WebApp) {
-        window.Telegram.WebApp.close();
-      } else {
-        window.close();
+    const existingTime = sessionStorage.getItem('miniapp_instance_time');
+    
+    if (existingInstance && existingTime) {
+      const timeDiff = Date.now() - parseInt(existingTime);
+      // Only prevent if opened within 1 second (likely duplicate)
+      if (timeDiff < 1000 && existingInstance !== instanceId) {
+        console.log("Another MiniApp instance detected within 1 second, closing this one...");
+        if (window.Telegram?.WebApp) {
+          window.Telegram.WebApp.close();
+        } else {
+          window.close();
+        }
+        return;
       }
-      return;
     }
     sessionStorage.setItem('miniapp_instance', instanceId);
+    sessionStorage.setItem('miniapp_instance_time', Date.now().toString());
     
     // Clear old cache on version change (for Telegram MiniApp cache busting)
     const APP_VERSION = '1.0.2'; // Update this when deploying new features
@@ -117,12 +125,15 @@ export default function App() {
     // Check URL params immediately (before Telegram WebApp initialization)
     const urlUser = checkUrlParams();
     
-    // Log current URL for debugging
+    // Log current URL for debugging (always log, even in production)
     console.log("🔍 ========== MiniApp Initialization Debug ==========");
-    console.log("🔍 Current URL:", window.location.href);
+    console.log("🔍 Timestamp:", new Date().toISOString());
+    console.log("🔍 Current URL (full):", window.location.href);
     console.log("🔍 URL Search:", window.location.search);
     console.log("🔍 URL Hash:", window.location.hash);
+    console.log("🔍 All URL Params:", Object.fromEntries(new URLSearchParams(window.location.search)));
     console.log("🔍 URL User from early check:", urlUser);
+    console.log("🔍 User state:", urlUser ? "✅ Found" : "❌ Not found");
     console.log("🔍 =================================================");
     
     // Also try reading from hash (Telegram sometimes uses hash for parameters)
