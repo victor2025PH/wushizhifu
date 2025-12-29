@@ -90,15 +90,34 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"📞 <b>需要帮助？</b>\n"
         f"点击下方「📞 联系人工」按钮或发送 /help\n\n"
+        f"💡 <b>按钮帮助：</b>\n"
+        f"点击任意按钮时会显示功能介绍和使用教程\n"
+        f"可以关闭帮助提示，也可在此重新打开\n\n"
         f"祝您使用愉快！✨"
     )
     
     is_group = update.effective_chat.type in ['group', 'supergroup']
     reply_markup = get_main_reply_keyboard(user.id, is_group)
+    
+    # Add inline keyboard for resetting help
+    from telegram import InlineKeyboardMarkup, InlineKeyboardButton
+    from services.button_help_service import reset_all_help
+    help_keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔄 重新显示所有按钮帮助", callback_data="reset_all_help")]
+    ])
+    
     await update.message.reply_text(
         welcome_message,
         parse_mode="HTML",
         reply_markup=reply_markup
+    )
+    
+    # Send help reset option separately
+    await update.message.reply_text(
+        "💡 <b>按钮帮助设置</b>\n\n"
+        "如果您之前关闭了按钮帮助提示，可以点击下方按钮重新打开：",
+        parse_mode="HTML",
+        reply_markup=help_keyboard
     )
 
 

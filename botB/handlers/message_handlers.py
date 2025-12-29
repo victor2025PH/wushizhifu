@@ -796,22 +796,72 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         return
     
-    # Handle reply keyboard buttons (optimized text)
+    # Handle reply keyboard buttons with help system
+    # Show help first if needed, then execute function
+    from services.button_help_service import (
+        format_button_help_message, 
+        should_show_help, 
+        mark_help_shown
+    )
+    from keyboards.inline_keyboard import get_button_help_keyboard
+    
     if text in ["💱 汇率", "💱 查看汇率", "📊 查看汇率"]:
+        # Show help if needed
+        if should_show_help(user_id, "💱 汇率"):
+            help_message = format_button_help_message("💱 汇率")
+            if help_message:
+                help_keyboard = get_button_help_keyboard("💱 汇率")
+                await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
+                mark_help_shown(user_id, "💱 汇率", shown=True)
         await handle_price_button(update, context)
         return
     
     if text == "📊 今日":
+        # Show help if needed
+        if should_show_help(user_id, "📊 今日"):
+            help_message = format_button_help_message("📊 今日")
+            if help_message:
+                help_keyboard = get_button_help_keyboard("📊 今日")
+                await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
+                mark_help_shown(user_id, "📊 今日", shown=True)
         await handle_today_bills_button(update, context)
         return
     
     if text == "📜 历史":
+        # Show help if needed
+        if should_show_help(user_id, "📜 历史"):
+            help_message = format_button_help_message("📜 历史")
+            if help_message:
+                help_keyboard = get_button_help_keyboard("📜 历史")
+                await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
+                mark_help_shown(user_id, "📜 历史", shown=True)
         # Show history bills (first page)
         from handlers.bills_handlers import handle_history_bills
         await handle_history_bills(update, context, page=1)
         return
     
+    if text == "💰 结算":
+        # Show help if needed
+        if should_show_help(user_id, "💰 结算"):
+            help_message = format_button_help_message("💰 结算")
+            if help_message:
+                help_keyboard = get_button_help_keyboard("💰 结算")
+                await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
+                mark_help_shown(user_id, "💰 结算", shown=True)
+        from handlers.template_handlers import handle_template_menu
+        await handle_template_menu(update, context)
+        return
+    
     if text in ["⚙️ 设置", "⚙️ 管理"]:
+        # Show help if needed
+        button_text = "⚙️ 设置" if chat.type in ['group', 'supergroup'] else "⚙️ 管理"
+        if should_show_help(user_id, button_text):
+            help_message = format_button_help_message(button_text)
+            if help_message:
+                help_keyboard = get_button_help_keyboard(button_text)
+                await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
+                mark_help_shown(user_id, button_text, shown=True)
+        
         # Show group settings menu (admin only)
         if not is_admin_user:
             await update.message.reply_text("❌ 此功能仅限管理员使用")
@@ -836,6 +886,15 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     if text in ["📈 统计", "📊 数据"]:
+        # Show help if needed
+        button_text = "📈 统计" if chat.type in ['group', 'supergroup'] else "📊 数据"
+        if should_show_help(user_id, button_text):
+            help_message = format_button_help_message(button_text)
+            if help_message:
+                help_keyboard = get_button_help_keyboard(button_text)
+                await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
+                mark_help_shown(user_id, button_text, shown=True)
+        
         # Show statistics (admin only)
         if not is_admin_user:
             await update.message.reply_text("❌ 此功能仅限管理员使用")
@@ -850,6 +909,14 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     if text in ["🔗 收款地址", "🔗 地址"]:
+        # Show help if needed
+        if should_show_help(user_id, "🔗 地址"):
+            help_message = format_button_help_message("🔗 地址")
+            if help_message:
+                help_keyboard = get_button_help_keyboard("🔗 地址")
+                await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
+                mark_help_shown(user_id, "🔗 地址", shown=True)
+        
         # Show address (group-specific or global)
         chat = update.effective_chat
         group_id = chat.id if chat.type in ['group', 'supergroup'] else None
@@ -873,6 +940,14 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     if text in ["📞 联系客服", "📞 客服"]:
+        # Show help if needed
+        if should_show_help(user_id, "📞 客服"):
+            help_message = format_button_help_message("📞 客服")
+            if help_message:
+                help_keyboard = get_button_help_keyboard("📞 客服")
+                await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
+                mark_help_shown(user_id, "📞 客服", shown=True)
+        
         contact_message = (
             "📞 <b>联系人工客服</b>\n\n"
             "如有任何问题，请联系管理员：\n"
@@ -884,17 +959,30 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(contact_message, parse_mode="HTML")
         return
     
-    # Handle template button
-    if text == "📝 模板" or text == "💰 结算":
-        from handlers.template_handlers import handle_template_menu
-        await handle_template_menu(update, context)
-        return
-    
     # Personal bills and stats (private chat only)
     if chat.type == 'private':
         if text == "📜 我的账单":
+            # Show help if needed
+            if should_show_help(user_id, "📜 我的账单"):
+                help_message = format_button_help_message("📜 我的账单")
+                if help_message:
+                    help_keyboard = get_button_help_keyboard("📜 我的账单")
+                    await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
+                    mark_help_shown(user_id, "📜 我的账单", shown=True)
             from handlers.personal_handlers import handle_personal_bills
             await handle_personal_bills(update, context, page=1)
+            return
+        
+        if text == "🔔 预警":
+            # Show help if needed
+            if should_show_help(user_id, "🔔 预警"):
+                help_message = format_button_help_message("🔔 预警")
+                if help_message:
+                    help_keyboard = get_button_help_keyboard("🔔 预警")
+                    await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
+                    mark_help_shown(user_id, "🔔 预警", shown=True)
+            from handlers.price_alert_handlers import handle_price_alert_menu
+            await handle_price_alert_menu(update, context)
             return
         
         if text == "📊 我的统计":

@@ -5,6 +5,24 @@ from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 from typing import Optional
 
 
+def get_button_help_keyboard(button_text: str) -> InlineKeyboardMarkup:
+    """
+    Get inline keyboard for button help message.
+    
+    Args:
+        button_text: Button text
+        
+    Returns:
+        InlineKeyboardMarkup with close help button
+    """
+    keyboard = [
+        [
+            InlineKeyboardButton("✅ 我知道了，不再显示", callback_data=f"close_help_{button_text}")
+        ]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
 def get_settlement_bill_keyboard(transaction_id: str = None, transaction_status: str = None, 
                                 is_admin: bool = False) -> InlineKeyboardMarkup:
     """

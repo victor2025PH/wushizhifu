@@ -8,60 +8,56 @@ from admin_checker import is_admin
 
 def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = False) -> ReplyKeyboardMarkup:
     """
-    Get main reply keyboard with optimized button text.
+    Get main reply keyboard with three buttons per row.
     
     Args:
         user_id: Optional user ID to check admin status
         is_group: Whether this is a group chat
     
     Returns:
-        ReplyKeyboardMarkup with main menu buttons
+        ReplyKeyboardMarkup with main menu buttons (3 per row)
     """
     keyboard = []
     
     if is_group:
-        # Group layout
+        # Group layout - 3 buttons per row
         keyboard = [
             [
                 KeyboardButton("💱 汇率"),
-                KeyboardButton("📊 今日")
+                KeyboardButton("📊 今日"),
+                KeyboardButton("📜 历史")
             ],
             [
-                KeyboardButton("📜 历史"),
-                KeyboardButton("💰 结算")
-            ],
-            [
+                KeyboardButton("💰 结算"),
                 KeyboardButton("🔗 地址"),
                 KeyboardButton("📞 客服")
             ]
         ]
         
-        # Add admin buttons if admin
+        # Add admin buttons if admin (3 per row)
         if user_id and is_admin(user_id):
-            keyboard.insert(-1, [
+            keyboard.append([
                 KeyboardButton("⚙️ 设置"),
                 KeyboardButton("📈 统计")
             ])
     else:
-        # Private chat layout
+        # Private chat layout - 3 buttons per row
         keyboard = [
             [
                 KeyboardButton("💱 汇率"),
-                KeyboardButton("💰 结算")
-            ],
-            [
-                KeyboardButton("📝 模板"),
+                KeyboardButton("💰 结算"),
                 KeyboardButton("📜 我的账单")
             ],
             [
                 KeyboardButton("🔔 预警"),
+                KeyboardButton("🔗 地址"),
                 KeyboardButton("📞 客服")
             ]
         ]
         
-        # Add admin buttons if admin
+        # Add admin buttons if admin (3 per row)
         if user_id and is_admin(user_id):
-            keyboard.insert(-2, [
+            keyboard.append([
                 KeyboardButton("⚙️ 管理"),
                 KeyboardButton("📊 数据")
             ])

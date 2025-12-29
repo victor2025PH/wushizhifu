@@ -939,6 +939,34 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("💡 使用底部按钮或 /start 查看主菜单")
         return
     
+    # Button help close
+    if callback_data.startswith("close_help_"):
+        button_text = callback_data.replace("close_help_", "", 1)
+        from services.button_help_service import mark_help_shown
+        mark_help_shown(query.from_user.id, button_text, shown=False)
+        await query.answer("✅ 已关闭帮助提示，可在 /start 中重新打开", show_alert=False)
+        try:
+            await query.message.delete()
+        except:
+            pass
+        return
+    
+    # Reset all help
+    if callback_data == "reset_all_help":
+        from services.button_help_service import reset_all_help
+        reset_all_help(query.from_user.id)
+        await query.answer("✅ 已重置所有按钮帮助，下次点击按钮时会重新显示", show_alert=True)
+        try:
+            await query.message.edit_text(
+                "✅ <b>按钮帮助已重置</b>\n\n"
+                "所有按钮的帮助提示已重新启用。\n"
+                "下次点击按钮时会显示功能介绍和使用教程。",
+                parse_mode="HTML"
+            )
+        except:
+            pass
+        return
+    
     # None action (placeholder buttons)
     if callback_data == "none":
         await query.answer()
