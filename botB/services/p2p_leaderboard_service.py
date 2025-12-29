@@ -55,19 +55,20 @@ def get_p2p_leaderboard(payment_method: str = "alipay", rows: int = 20, page: in
         # Map payment method to API codes
         pay_types = PAYMENT_METHOD_MAP.get(payment_method.lower(), ["ALIPAY"])
         
-        # Prepare payload (simplified to avoid illegal parameter errors)
+        # Prepare payload - using minimal required parameters to avoid errors
+        # Note: Some optional parameters like proMerchantAds, shieldMerchantAds, publisherType
+        # may cause "illegal parameter" errors if not properly formatted
         payload = {
             "page": page,
             "rows": rows,
             "payTypes": pay_types,
             "asset": "USDT",
-            "tradeType": "BUY",  # Showing sellers
+            "tradeType": "BUY",  # Showing sellers (we want to buy USDT, so we show sellers)
             "fiat": "CNY",
-            "countries": []
+            "countries": [],
+            "proMerchantAds": False,
+            "shieldMerchantAds": False
         }
-        
-        # Optional parameters - only include if needed
-        # Some parameters may cause "illegal parameter" errors if not properly formatted
         
         logger.info(f"Fetching P2P leaderboard for payment method: {payment_method}")
         
@@ -185,7 +186,12 @@ def get_p2p_leaderboard(payment_method: str = "alipay", rows: int = 20, page: in
                 }
             }
         
-        logger.warning(f"Unexpected response structure from Binance P2P API: {data}")
+        # Log error details for debugging
+        error_code = data.get('code', 'Unknown')
+        error_message = data.get('message', 'Unknown error')
+        logger.warning(f"Binance P2P API error - Code: {error_code}, Message: {error_message}")
+        logger.debug(f"Full API response: {data}")
+        logger.debug(f"Request payload was: {payload}")
         return None
         
     except requests.exceptions.Timeout:
