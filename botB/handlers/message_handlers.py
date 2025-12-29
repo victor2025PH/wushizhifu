@@ -1141,7 +1141,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         # w1 / HL - View price
-        if is_pinyin_command(text, "w1", "hl") or text == "w01":
+        if is_pinyin_command(text, "w1", "hl") or text == "w1" or text == "w01":
             await handle_admin_w1(update, context)
             return
         
@@ -1192,7 +1192,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         # w8 / CZSZ - Reset group settings
-        if is_pinyin_command(text, "w8", "czsz") or text == "w08":
+        if is_pinyin_command(text, "w8", "czsz") or text == "w8" or text == "w08":
             await handle_admin_w8(update, context)
             return
         
@@ -1201,16 +1201,17 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await handle_admin_w9(update, context)
             return
         
-        # Legacy commands (backward compatibility)
+        # Legacy commands (backward compatibility - w01-w09 support)
+        # w01 → w1
         if text == "w01":
             await handle_admin_w1(update, context)
             return
         
+        # w02 → w2 (group) or w5 (global)
         w02_match = re.match(r'^w02\s+(-?\d+\.?\d*)$', text)
         if w02_match:
             try:
                 markup_value = float(w02_match.group(1))
-                # w02 in group = w2 (group), w02 in private = w5 (global)
                 chat = update.effective_chat
                 if chat.type in ['group', 'supergroup']:
                     await handle_admin_w2(update, context, markup_value)
@@ -1221,6 +1222,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text("❌ w02 格式错误，应为: w02 [数字]")
                 return
         
+        # w03 → w2 (negative) or w5 (negative)
         w03_match = re.match(r'^w03\s+(\d+\.?\d*)$', text)
         if w03_match:
             try:
@@ -1236,8 +1238,14 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text("❌ w03 格式错误，应为: w03 [数字]")
                 return
         
+        # w04 → w4
         if text == "w04":
             await handle_admin_w4(update, context)
+            return
+        
+        # w08 → w8
+        if text == "w08":
+            await handle_admin_w8(update, context)
             return
     
     # Check if message is a number, math expression, or batch amounts (settlement calculation)

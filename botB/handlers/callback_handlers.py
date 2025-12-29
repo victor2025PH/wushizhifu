@@ -733,6 +733,37 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_group_settings_menu(update, context)
         return
     
+    # Admin commands help
+    if callback_data == "admin_commands_help":
+        from handlers.admin_commands_handlers import handle_admin_commands_help
+        await handle_admin_commands_help(update, context)
+        return
+    
+    # Group settings menu (when returning from help)
+    if callback_data == "group_settings_menu":
+        chat = query.message.chat
+        from keyboards.inline_keyboard import get_group_settings_menu
+        reply_markup = get_group_settings_menu()
+        message = (
+            "⚙️ <b>群组设置菜单</b>\n\n"
+            "请选择要执行的操作："
+        )
+        await query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
+        await query.answer()
+        return
+    
+    # Global management menu (when returning from help)
+    if callback_data == "global_management_menu":
+        from keyboards.inline_keyboard import get_global_management_menu
+        reply_markup = get_global_management_menu()
+        message = (
+            "🌐 <b>全局管理菜单</b>\n\n"
+            "请选择要执行的操作："
+        )
+        await query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
+        await query.answer()
+        return
+    
     # Global management menu
     if callback_data.startswith("global_settings") or callback_data == "global_groups_list" or callback_data == "global_stats":
         await handle_global_management_menu(update, context)

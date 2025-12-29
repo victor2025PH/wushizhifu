@@ -210,6 +210,9 @@ def get_group_settings_menu() -> InlineKeyboardMarkup:
             InlineKeyboardButton("📋 操作日志", callback_data="view_logs"),
         ],
         [
+            InlineKeyboardButton("⚡ 管理员指令教程", callback_data="admin_commands_help")
+        ],
+        [
             InlineKeyboardButton("🔙 返回主菜单", callback_data="main_menu")
         ]
     ]
@@ -237,7 +240,34 @@ def get_global_management_menu() -> InlineKeyboardMarkup:
             InlineKeyboardButton("📈 全局统计", callback_data="global_stats")
         ],
         [
+            InlineKeyboardButton("⚡ 管理员指令教程", callback_data="admin_commands_help")
+        ],
+        [
             InlineKeyboardButton("🔙 返回主菜单", callback_data="main_menu")
+        ]
+    ]
+    
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+def get_admin_commands_help_keyboard(is_group: bool = False) -> InlineKeyboardMarkup:
+    """
+    Get inline keyboard for admin commands help.
+    
+    Args:
+        is_group: Whether this is a group chat
+        
+    Returns:
+        InlineKeyboardMarkup with back button
+    """
+    if is_group:
+        callback_data = "group_settings_menu"
+    else:
+        callback_data = "global_management_menu"
+    
+    keyboard = [
+        [
+            InlineKeyboardButton("🔙 返回管理菜单", callback_data=callback_data)
         ]
     ]
     
