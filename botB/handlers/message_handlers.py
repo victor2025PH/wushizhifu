@@ -296,10 +296,19 @@ async def handle_admin_w6(update: Update, context: ContextTypes.DEFAULT_TYPE, ad
 async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle w7/CKQL: View all configured groups"""
     try:
+        # Handle both message and callback query updates
+        if update.message:
+            message_target = update.message
+        elif update.callback_query and update.callback_query.message:
+            message_target = update.callback_query.message
+        else:
+            logger.error("handle_admin_w7: No message target found")
+            return
+        
         groups = db.get_all_groups()
         
         if not groups:
-            await update.message.reply_text("📭 暂无已配置的群组\n\n所有群组都在使用全局默认设置")
+            await message_target.reply_text("📭 暂无已配置的群组\n\n所有群组都在使用全局默认设置")
             return
         
         message = f"📊 <b>所有已配置群组</b>\n\n"
@@ -321,12 +330,19 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if len(groups) > 20:
             message += f"\n... 还有 {len(groups) - 20} 个群组未显示"
         
-        await update.message.reply_text(message, parse_mode="HTML")
+        await message_target.reply_text(message, parse_mode="HTML")
         logger.info(f"Admin {update.effective_user.id} executed w7/CKQL")
         
     except Exception as e:
         logger.error(f"Error in handle_admin_w7: {e}", exc_info=True)
-        await update.message.reply_text(f"❌ 错误: {str(e)}")
+        # Try to send error message
+        try:
+            if update.message:
+                await update.message.reply_text(f"❌ 错误: {str(e)}")
+            elif update.callback_query and update.callback_query.message:
+                await update.callback_query.message.reply_text(f"❌ 错误: {str(e)}")
+        except:
+            pass
 
 
 async def handle_admin_w8(update: Update, context: ContextTypes.DEFAULT_TYPE):
