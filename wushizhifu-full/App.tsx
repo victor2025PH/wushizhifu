@@ -51,15 +51,71 @@ export default function App() {
   const [showWelcome, setShowWelcome] = useState(false);
 
   useEffect(() => {
+    // Prevent multiple instances
+    const instanceId = Date.now().toString();
+    const existingInstance = sessionStorage.getItem('miniapp_instance');
+    if (existingInstance && existingInstance !== instanceId) {
+      console.log("Another MiniApp instance detected, closing this one...");
+      if (window.Telegram?.WebApp) {
+        window.Telegram.WebApp.close();
+      } else {
+        window.close();
+      }
+      return;
+    }
+    sessionStorage.setItem('miniapp_instance', instanceId);
+    
     // Clear old cache on version change (for Telegram MiniApp cache busting)
-    const APP_VERSION = '1.0.1'; // Update this when deploying new features
+    const APP_VERSION = '1.0.2'; // Update this when deploying new features
     const cachedVersion = localStorage.getItem('app_version');
     if (cachedVersion && cachedVersion !== APP_VERSION) {
       // Clear old cache
       localStorage.clear();
       sessionStorage.clear();
+      sessionStorage.setItem('miniapp_instance', instanceId); // Restore instance ID
     }
     localStorage.setItem('app_version', APP_VERSION);
+    
+    // Check URL parameters FIRST (before Telegram WebApp initialization)
+    // This ensures we get user info even if initData is not available
+    const checkUrlParams = () => {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('user_id');
+        const userName = urlParams.get('user_name');
+        const firstName = urlParams.get('first_name');
+        
+        if (userId) {
+          const userData = {
+            id: parseInt(userId),
+            first_name: firstName || userName || 'User',
+            username: userName || undefined,
+            language_code: urlParams.get('language_code') || 'zh'
+          };
+          console.log("✅ Found user info in URL params (early check):", userData);
+          setUser(userData);
+          
+          // Sync with backend immediately
+          (async () => {
+            try {
+              const { apiClient } = await import('./api');
+              await apiClient.syncUser(userData);
+              console.log("User data synced with backend from URL params");
+            } catch (error) {
+              console.error("Failed to sync user data from URL params:", error);
+            }
+          })();
+          
+          return userData;
+        }
+      } catch (e) {
+        console.error("Failed to parse URL params (early check):", e);
+      }
+      return null;
+    };
+    
+    // Check URL params immediately
+    const urlUser = checkUrlParams();
     
     // Initialize Telegram WebApp and sync user data
     const initializeApp = async () => {
@@ -75,7 +131,7 @@ export default function App() {
           
           const tgUser = window.Telegram.WebApp.initDataUnsafe?.user;
           if (tgUser) {
-            console.log("User data found:", tgUser);
+            console.log("✅ User data found in initDataUnsafe:", tgUser);
             setUser(tgUser);
             
             // Set language based on user preference
@@ -87,14 +143,15 @@ export default function App() {
             try {
               const { apiClient } = await import('./api');
               apiClient.syncUser(tgUser).then(() => {
-                console.log("User data synced with backend");
+                console.log("User data synced with backend from initData");
               }).catch((error) => {
                 console.error("Failed to sync user data:", error);
               });
             } catch (error) {
               console.error("Failed to import apiClient:", error);
             }
-          } else {
+          } else if (!urlUser) {
+            // Only try fallback methods if we didn't already get user from URL
             console.warn("⚠️ No user data found in initDataUnsafe");
             console.warn("This usually means the app was opened outside Telegram or initData is missing");
             
@@ -131,8 +188,9 @@ export default function App() {
             }
             
             // Method 2: Try to get user from query string (if Bot passed it)
+            // Note: This is a fallback - we already checked URL params earlier
             if (!userFound) {
-              console.log("Method 2: Checking URL parameters for user info...");
+              console.log("Method 2: Checking URL parameters for user info (fallback)...");
               try {
                 const urlParams = new URLSearchParams(window.location.search);
                 const userId = urlParams.get('user_id');
@@ -146,9 +204,20 @@ export default function App() {
                     username: userName || undefined,
                     language_code: urlParams.get('language_code') || 'zh'
                   };
-                  console.log("✅ Found user info in URL params:", userData);
+                  console.log("✅ Found user info in URL params (fallback):", userData);
                   setUser(userData);
                   userFound = true;
+                  
+                  // Sync with backend
+                  (async () => {
+                    try {
+                      const { apiClient } = await import('./api');
+                      await apiClient.syncUser(userData);
+                      console.log("User data synced with backend from URL params (fallback)");
+                    } catch (error) {
+                      console.error("Failed to sync user data from URL params:", error);
+                    }
+                  })();
                 }
               } catch (e) {
                 console.error("Failed to parse URL params:", e);
