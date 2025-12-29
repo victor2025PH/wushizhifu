@@ -1956,6 +1956,284 @@ class Database:
         except Exception as e:
             logger.error(f"Error creating price alert: {e}", exc_info=True)
             return False
+    
+    # ========== USDT Address Management Methods ==========
+    
+    def get_usdt_addresses(self, group_id: Optional[int] = None, active_only: bool = True) -> list:
+        """
+        Get USDT addresses for a group or globally.
+        
+        Args:
+            group_id: Optional group ID (None for global addresses)
+            active_only: If True, only return active addresses
+            
+        Returns:
+            List of address dictionaries
+        """
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        if group_id:
+            if active_only:
+                cursor.execute("""
+                    SELECT id, group_id, address, label, is_default, is_active,
+                           usage_count, last_used_at, created_at
+                    FROM usdt_addresses
+                    WHERE group_id = ? AND is_active = 1
+                    ORDER BY is_default DESC, usage_count DESC, created_at DESC
+                """, (group_id,))
+            else:
+                cursor.execute("""
+                    SELECT id, group_id, address, label, is_default, is_active,
+                           usage_count, last_used_at, created_at
+                    FROM usdt_addresses
+                    WHERE group_id = ?
+                    ORDER BY is_default DESC, usage_count DESC, created_at DESC
+                """, (group_id,))
+        else:
+            if active_only:
+                cursor.execute("""
+                    SELECT id, group_id, address, label, is_default, is_active,
+                           usage_count, last_used_at, created_at
+                    FROM usdt_addresses
+                    WHERE group_id IS NULL AND is_active = 1
+                    ORDER BY is_default DESC, usage_count DESC, created_at DESC
+                """)
+            else:
+                cursor.execute("""
+                    SELECT id, group_id, address, label, is_default, is_active,
+                           usage_count, last_used_at, created_at
+                    FROM usdt_addresses
+                    WHERE group_id IS NULL
+                    ORDER BY is_default DESC, usage_count DESC, created_at DESC
+                """)
+        
+        rows = cursor.fetchall()
+        addresses = []
+        for row in rows:
+            addresses.append({
+                'id': row['id'],
+                'group_id': row['group_id'],
+                'address': row['address'],
+                'label': row['label'],
+                'is_default': bool(row['is_default']),
+                'is_active': bool(row['is_active']),
+                'usage_count': int(row['usage_count']) if row['usage_count'] else 0,
+                'last_used_at': row['last_used_at'],
+                'created_at': row['created_at']
+            })
+        return addresses
+    
+    def get_active_address(self, group_id: Optional[int] = None, strategy: str = 'default') -> Optional[dict]:
+        """
+        Get an active address using the specified strategy.
+        
+        Args:
+            group_id: Optional group ID (None for global addresses)
+            strategy: Selection strategy ('default', 'round_robin', 'random')
+            
+        Returns:
+            Address dictionary or None
+        """
+        addresses = self.get_usdt_addresses(group_id=group_id, active_only=True)
+        
+        if not addresses:
+            return None
+        
+        if strategy == 'default':
+            # Return default address if exists, otherwise first one
+            for addr in addresses:
+                if addr['is_default']:
+                    return addr
+            return addresses[0] if addresses else None
+        
+        elif strategy == 'round_robin':
+            # Return address with least usage
+            return min(addresses, key=lambda x: x['usage_count'])
+        
+        elif strategy == 'random':
+            # Return random address
+            import random
+            return random.choice(addresses) if addresses else None
+        
+        else:
+            # Default to first address
+            return addresses[0] if addresses else None
+    
+    def add_usdt_address(self, group_id: Optional[int], address: str, label: str = None, 
+                        is_default: bool = False, created_by: int = None) -> bool:
+        """
+        Add a new USDT address.
+        
+        Args:
+            group_id: Optional group ID (None for global address)
+            address: USDT address
+            label: Optional label for the address
+            is_default: Whether this should be the default address
+            created_by: Optional user ID who created this address
+            
+        Returns:
+            True if successful
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            # If setting as default, unset other defaults
+            if is_default:
+                if group_id:
+                    cursor.execute("""
+                        UPDATE usdt_addresses 
+                        SET is_default = 0 
+                        WHERE group_id = ?
+                    """, (group_id,))
+                else:
+                    cursor.execute("""
+                        UPDATE usdt_addresses 
+                        SET is_default = 0 
+                        WHERE group_id IS NULL
+                    """)
+            
+            cursor.execute("""
+                INSERT INTO usdt_addresses (group_id, address, label, is_default, created_by)
+                VALUES (?, ?, ?, ?, ?)
+            """, (group_id, address, label or '未命名地址', 1 if is_default else 0, created_by))
+            
+            conn.commit()
+            logger.info(f"USDT address added (group_id: {group_id}, label: {label})")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error adding USDT address: {e}", exc_info=True)
+            return False
+    
+    def increment_address_usage(self, address_id: int) -> bool:
+        """
+        Increment usage count for an address.
+        
+        Args:
+            address_id: Address ID
+            
+        Returns:
+            True if successful
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                UPDATE usdt_addresses 
+                SET usage_count = usage_count + 1,
+                    last_used_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (address_id,))
+            
+            conn.commit()
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error incrementing address usage: {e}", exc_info=True)
+            return False
+    
+    def update_usdt_address(self, address_id: int, address: str = None, label: str = None, 
+                           is_default: bool = None, is_active: bool = None) -> bool:
+        """
+        Update an existing USDT address.
+        
+        Args:
+            address_id: Address ID
+            address: Optional new address
+            label: Optional new label
+            is_default: Optional default status
+            is_active: Optional active status
+            
+        Returns:
+            True if successful
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            updates = []
+            params = []
+            
+            if address is not None:
+                updates.append("address = ?")
+                params.append(address)
+            
+            if label is not None:
+                updates.append("label = ?")
+                params.append(label)
+            
+            if is_default is not None:
+                updates.append("is_default = ?")
+                params.append(1 if is_default else 0)
+                
+                # If setting as default, unset other defaults for same group
+                if is_default:
+                    cursor.execute("""
+                        SELECT group_id FROM usdt_addresses WHERE id = ?
+                    """, (address_id,))
+                    row = cursor.fetchone()
+                    if row:
+                        group_id = row['group_id']
+                        if group_id:
+                            cursor.execute("""
+                                UPDATE usdt_addresses 
+                                SET is_default = 0 
+                                WHERE group_id = ? AND id != ?
+                            """, (group_id, address_id))
+                        else:
+                            cursor.execute("""
+                                UPDATE usdt_addresses 
+                                SET is_default = 0 
+                                WHERE group_id IS NULL AND id != ?
+                            """, (address_id,))
+            
+            if is_active is not None:
+                updates.append("is_active = ?")
+                params.append(1 if is_active else 0)
+            
+            if not updates:
+                return True
+            
+            updates.append("updated_at = CURRENT_TIMESTAMP")
+            params.append(address_id)
+            
+            query = f"UPDATE usdt_addresses SET {', '.join(updates)} WHERE id = ?"
+            cursor.execute(query, tuple(params))
+            
+            conn.commit()
+            logger.info(f"USDT address {address_id} updated")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error updating USDT address: {e}", exc_info=True)
+            return False
+    
+    def delete_usdt_address(self, address_id: int) -> bool:
+        """
+        Delete a USDT address.
+        
+        Args:
+            address_id: Address ID
+            
+        Returns:
+            True if successful
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            cursor.execute("DELETE FROM usdt_addresses WHERE id = ?", (address_id,))
+            conn.commit()
+            
+            logger.info(f"USDT address {address_id} deleted")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error deleting USDT address: {e}", exc_info=True)
+            return False
 
 
 # Global database instance
