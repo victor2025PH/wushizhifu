@@ -55,19 +55,19 @@ def get_p2p_leaderboard(payment_method: str = "alipay", rows: int = 20, page: in
         # Map payment method to API codes
         pay_types = PAYMENT_METHOD_MAP.get(payment_method.lower(), ["ALIPAY"])
         
-        # Prepare payload
+        # Prepare payload (simplified to avoid illegal parameter errors)
         payload = {
-            "fiat": "CNY",
-            "asset": "USDT",
-            "tradeType": "BUY",  # Showing sellers
+            "page": page,
             "rows": rows,
             "payTypes": pay_types,
-            "page": page,
-            "countries": [],
-            "proMerchantAds": False,
-            "shieldMerchantAds": False,
-            "publisherType": None
+            "asset": "USDT",
+            "tradeType": "BUY",  # Showing sellers
+            "fiat": "CNY",
+            "countries": []
         }
+        
+        # Optional parameters - only include if needed
+        # Some parameters may cause "illegal parameter" errors if not properly formatted
         
         logger.info(f"Fetching P2P leaderboard for payment method: {payment_method}")
         
