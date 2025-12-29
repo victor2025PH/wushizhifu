@@ -26,32 +26,43 @@ def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = Fals
     # This helps when initData is not available from ReplyKeyboard WebApp buttons
     def get_webapp_url():
         base_url = Config.get_miniapp_url("dashboard")
-        if user_info and user_info.get('id'):
-            # Add user info as URL parameters (as fallback when initData is missing)
-            params = {
-                'user_id': str(user_info.get('id')),
-                'first_name': user_info.get('first_name', '') or '',
-            }
-            if user_info.get('username'):
-                params['user_name'] = user_info.get('username')
-            if user_info.get('language_code'):
-                params['language_code'] = user_info.get('language_code')
-            
-            # Ensure we have user_id and it's valid
-            user_id_str = str(params.get('user_id', '')).strip()
-            if user_id_str and user_id_str != 'None' and user_id_str != '':
-                # Filter out empty values
-                clean_params = {k: v for k, v in params.items() if v and str(v).strip() and str(v).strip() != 'None'}
-                if clean_params.get('user_id'):
-                    param_string = urlencode(clean_params, safe='')
-                    final_url = f"{base_url}&{param_string}"
-                    import logging
-                    logger = logging.getLogger(__name__)
-                    logger.info(f"✅ Generated WebApp URL with user params: user_id={clean_params.get('user_id')}, first_name={clean_params.get('first_name', 'N/A')}")
-                    return final_url
         import logging
         logger = logging.getLogger(__name__)
-        logger.warning(f"⚠️ WebApp URL generated without user_info. user_info={user_info}, user_id={user_id}")
+        
+        if user_info and user_info.get('id'):
+            user_id_value = user_info.get('id')
+            # Convert to string and validate
+            if user_id_value and str(user_id_value).strip() and str(user_id_value) != 'None':
+                # Build parameters - only include non-empty values
+                params = {
+                    'user_id': str(user_id_value).strip(),
+                }
+                
+                first_name = (user_info.get('first_name') or '').strip()
+                if first_name:
+                    params['first_name'] = first_name
+                
+                username = (user_info.get('username') or '').strip()
+                if username:
+                    params['user_name'] = username
+                
+                language_code = (user_info.get('language_code') or '').strip()
+                if language_code:
+                    params['language_code'] = language_code
+                
+                # URL encode parameters
+                if params.get('user_id'):
+                    param_string = urlencode(params, doseq=False)
+                    final_url = f"{base_url}&{param_string}"
+                    logger.info(f"✅ Generated WebApp URL with user params: user_id={params.get('user_id')}, first_name={params.get('first_name', 'N/A')}, url_length={len(final_url)}")
+                    logger.debug(f"Full URL: {final_url}")
+                    return final_url
+                else:
+                    logger.warning(f"⚠️ user_id is empty after processing. user_info={user_info}")
+        else:
+            logger.warning(f"⚠️ WebApp URL generated without user_info. user_info={user_info}, user_id={user_id}")
+        
+        logger.info(f"Using base URL without user params: {base_url}")
         return base_url
     
     if is_group:
