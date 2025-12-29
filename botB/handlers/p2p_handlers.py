@@ -254,7 +254,7 @@ async def handle_p2p_price_command(update: Update, context: ContextTypes.DEFAULT
         if chat.type in ['group', 'supergroup']:
             from utils.message_utils import send_with_reply_keyboard
             try:
-                await send_with_reply_keyboard(update, "​")  # Zero-width space to show keyboard
+                await send_with_reply_keyboard(update, "💡")  # Visible emoji to show keyboard reliably
             except Exception as e:
                 logger.warning(f"Failed to send reply keyboard after P2P leaderboard: {e}")
         
@@ -371,7 +371,7 @@ async def handle_p2p_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         if chat.type in ['group', 'supergroup']:
             from utils.message_utils import send_with_reply_keyboard
             try:
-                await send_with_reply_keyboard(update, "​")  # Zero-width space to show keyboard
+                await send_with_reply_keyboard(update, "💡")  # Visible emoji to show keyboard reliably
             except Exception as e:
                 logger.warning(f"Failed to send reply keyboard after P2P callback: {e}")
         

@@ -86,7 +86,7 @@ async def handle_history_bills(update: Update, context: ContextTypes.DEFAULT_TYP
                 await update.callback_query.edit_message_text(no_data_msg)
                 # Also send reply keyboard if in group
                 if chat.type in ['group', 'supergroup']:
-                    await send_with_reply_keyboard(update, "​")  # Zero-width space
+                    await send_with_reply_keyboard(update, "💡")  # Visible emoji to show keyboard reliably
             else:
                 await send_with_reply_keyboard(update, no_data_msg)
             return

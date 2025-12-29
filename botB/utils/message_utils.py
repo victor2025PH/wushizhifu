@@ -57,9 +57,15 @@ async def send_with_reply_keyboard(update: Update, text: str,
             reply_markup=inline_keyboard
         )
         # If in group and we have reply keyboard, also send a message to ensure keyboard is shown
+        # Note: Telegram removes reply keyboard after edit_message_text in groups
         if is_group and reply_keyboard:
             try:
-                await update.callback_query.message.reply_text("​", reply_markup=reply_keyboard)
+                # Send a visible message with reply keyboard to ensure it's shown
+                # Using a small visible text instead of zero-width space for better reliability
+                await update.callback_query.message.reply_text(
+                    "💡",  # Small emoji to show keyboard reliably
+                    reply_markup=reply_keyboard
+                )
             except Exception as e:
                 logger.warning(f"Failed to send reply keyboard after edit: {e}")
         return message
@@ -83,8 +89,9 @@ async def send_with_reply_keyboard(update: Update, text: str,
                 reply_markup=inline_keyboard
             )
             # Then send minimal message with reply keyboard to ensure it's shown
+            # Note: Using visible emoji for better reliability than zero-width space
             try:
-                await message_target.reply_text("​", reply_markup=reply_keyboard)
+                await message_target.reply_text("💡", reply_markup=reply_keyboard)
             except Exception as e:
                 logger.warning(f"Failed to send reply keyboard: {e}")
             return message
