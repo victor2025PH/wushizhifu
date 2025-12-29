@@ -4,7 +4,7 @@ Main entry point using python-telegram-bot (version 20+ async)
 """
 import logging
 import asyncio
-from telegram import Update, BotCommand
+from telegram import Update, BotCommand, MenuButtonWebApp, WebAppInfo
 from telegram.ext import Application, CommandHandler, ContextTypes
 from config import Config
 from database import db
