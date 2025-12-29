@@ -516,8 +516,9 @@ async def handle_math_settlement(update: Update, context: ContextTypes.DEFAULT_T
 # ========== Button Handlers ==========
 
 async def handle_price_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle price button click"""
-    await handle_admin_w1(update, context)
+    """Handle price button click - show Binance P2P merchant leaderboard"""
+    from handlers.p2p_handlers import handle_p2p_leaderboard_command
+    await handle_p2p_leaderboard_command(update, context)
 
 
 async def handle_today_bills_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
