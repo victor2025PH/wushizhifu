@@ -114,19 +114,22 @@ export default function App() {
       return null;
     };
     
-    // Check URL params immediately
+    // Check URL params immediately (before Telegram WebApp initialization)
     const urlUser = checkUrlParams();
     
     // Log current URL for debugging
+    console.log("🔍 ========== MiniApp Initialization Debug ==========");
     console.log("🔍 Current URL:", window.location.href);
     console.log("🔍 URL Search:", window.location.search);
+    console.log("🔍 URL Hash:", window.location.hash);
     console.log("🔍 URL User from early check:", urlUser);
+    console.log("🔍 =================================================");
     
     // Also try reading from hash (Telegram sometimes uses hash for parameters)
-    try {
-      const hashParams = new URLSearchParams(window.location.hash.substring(1));
-      console.log("🔍 Hash params:", window.location.hash);
-      if (hashParams.has('user_id') && !urlUser) {
+    if (!urlUser) {
+      try {
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        console.log("🔍 Checking hash params:", window.location.hash);
         const userId = hashParams.get('user_id');
         const userName = hashParams.get('user_name');
         const firstName = hashParams.get('first_name');
@@ -139,10 +142,21 @@ export default function App() {
           };
           console.log("✅ Found user info in hash params:", userData);
           setUser(userData);
+          
+          // Sync with backend
+          (async () => {
+            try {
+              const { apiClient } = await import('./api');
+              await apiClient.syncUser(userData);
+              console.log("User data synced with backend from hash params");
+            } catch (error) {
+              console.error("Failed to sync user data from hash params:", error);
+            }
+          })();
         }
+      } catch (e) {
+        console.error("Failed to parse hash params:", e);
       }
-    } catch (e) {
-      console.error("Failed to parse hash params:", e);
     }
     
     // Initialize Telegram WebApp and sync user data

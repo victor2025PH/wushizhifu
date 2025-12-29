@@ -37,17 +37,21 @@ def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = Fals
             if user_info.get('language_code'):
                 params['language_code'] = user_info.get('language_code')
             
-            # Ensure we have user_id
-            if params.get('user_id') and params['user_id'] != 'None':
-                param_string = urlencode(params, safe='')
-                final_url = f"{base_url}&{param_string}"
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.info(f"Generated WebApp URL with user params: {final_url[:100]}...")
-                return final_url
+            # Ensure we have user_id and it's valid
+            user_id_str = str(params.get('user_id', '')).strip()
+            if user_id_str and user_id_str != 'None' and user_id_str != '':
+                # Filter out empty values
+                clean_params = {k: v for k, v in params.items() if v and str(v).strip() and str(v).strip() != 'None'}
+                if clean_params.get('user_id'):
+                    param_string = urlencode(clean_params, safe='')
+                    final_url = f"{base_url}&{param_string}"
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.info(f"✅ Generated WebApp URL with user params: user_id={clean_params.get('user_id')}, first_name={clean_params.get('first_name', 'N/A')}")
+                    return final_url
         import logging
         logger = logging.getLogger(__name__)
-        logger.warning(f"WebApp URL generated without user_info. user_info={user_info}")
+        logger.warning(f"⚠️ WebApp URL generated without user_info. user_info={user_info}, user_id={user_id}")
         return base_url
     
     if is_group:
