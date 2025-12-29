@@ -42,11 +42,12 @@ def _get_cached_merchants(payment_method: str) -> Optional[List]:
         return None
     
     # Collect all cached merchants from all pages
+    # Filter out 'last_update' key and sort only integer keys (page numbers)
     all_merchants = []
-    for key in sorted(cache_entry.keys()):
-        if key != 'last_update' and isinstance(key, int):
-            merchants = cache_entry.get(key, [])
-            all_merchants.extend(merchants)
+    page_keys = [key for key in cache_entry.keys() if isinstance(key, int)]
+    for key in sorted(page_keys):
+        merchants = cache_entry.get(key, [])
+        all_merchants.extend(merchants)
     
     return all_merchants if all_merchants else None
 
