@@ -2234,6 +2234,223 @@ class Database:
         except Exception as e:
             logger.error(f"Error deleting USDT address: {e}", exc_info=True)
             return False
+    
+    # ========== Template Methods ==========
+    
+    def get_templates(self, user_id: Optional[int] = None, template_type: str = None) -> list:
+        """
+        Get templates for a user or all preset templates.
+        
+        Args:
+            user_id: Optional user ID (None for preset templates only)
+            template_type: Optional template type filter ('amount' or 'formula')
+            
+        Returns:
+            List of template dictionaries
+        """
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        query = "SELECT * FROM settlement_templates WHERE 1=1"
+        params = []
+        
+        if user_id is None:
+            # Get preset templates only (user_id IS NULL)
+            query += " AND user_id IS NULL"
+        else:
+            # Get user's templates
+            query += " AND user_id = ?"
+            params.append(user_id)
+        
+        if template_type:
+            query += " AND template_type = ?"
+            params.append(template_type)
+        
+        query += " ORDER BY is_preset DESC, usage_count DESC, created_at DESC"
+        
+        cursor.execute(query, tuple(params))
+        rows = cursor.fetchall()
+        templates = []
+        for row in rows:
+            templates.append({
+                'id': row['id'],
+                'user_id': row['user_id'],
+                'template_name': row['template_name'],
+                'template_value': row['template_value'],
+                'template_type': row['template_type'],
+                'is_preset': bool(row['is_preset']),
+                'usage_count': int(row['usage_count']) if row['usage_count'] else 0,
+                'created_at': row['created_at'],
+                'updated_at': row['updated_at']
+            })
+        return templates
+    
+    def create_template(self, user_id: int, template_name: str, template_value: str, 
+                       template_type: str) -> bool:
+        """
+        Create a new template.
+        
+        Args:
+            user_id: User ID (required for user templates)
+            template_name: Template name/label
+            template_value: Template value (amount or formula)
+            template_type: Template type ('amount' or 'formula')
+            
+        Returns:
+            True if successful
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT INTO settlement_templates (user_id, template_name, template_value, template_type)
+                VALUES (?, ?, ?, ?)
+            """, (user_id, template_name, template_value, template_type))
+            
+            conn.commit()
+            logger.info(f"Template created for user {user_id}: {template_name} = {template_value}")
+            return True
+            
+        except sqlite3.IntegrityError:
+            logger.warning(f"Template already exists for user {user_id}: {template_name}")
+            return False
+        except Exception as e:
+            logger.error(f"Error creating template: {e}", exc_info=True)
+            return False
+    
+    def update_template(self, template_id: int, template_name: str = None, 
+                       template_value: str = None) -> bool:
+        """
+        Update an existing template.
+        
+        Args:
+            template_id: Template ID
+            template_name: Optional new template name
+            template_value: Optional new template value
+            
+        Returns:
+            True if successful
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            updates = []
+            params = []
+            
+            if template_name is not None:
+                updates.append("template_name = ?")
+                params.append(template_name)
+            
+            if template_value is not None:
+                updates.append("template_value = ?")
+                params.append(template_value)
+            
+            if not updates:
+                return True
+            
+            updates.append("updated_at = CURRENT_TIMESTAMP")
+            params.append(template_id)
+            
+            query = f"UPDATE settlement_templates SET {', '.join(updates)} WHERE id = ?"
+            cursor.execute(query, tuple(params))
+            
+            conn.commit()
+            logger.info(f"Template {template_id} updated")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error updating template: {e}", exc_info=True)
+            return False
+    
+    def delete_template(self, template_id: int) -> bool:
+        """
+        Delete a template (only user templates, not preset).
+        
+        Args:
+            template_id: Template ID
+            
+        Returns:
+            True if successful
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            # Only allow deleting user templates (not preset)
+            cursor.execute("""
+                DELETE FROM settlement_templates 
+                WHERE id = ? AND (is_preset = 0 OR is_preset IS NULL)
+            """, (template_id,))
+            
+            conn.commit()
+            logger.info(f"Template {template_id} deleted")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error deleting template: {e}", exc_info=True)
+            return False
+    
+    def increment_template_usage(self, template_id: int) -> bool:
+        """
+        Increment usage count for a template.
+        
+        Args:
+            template_id: Template ID
+            
+        Returns:
+            True if successful
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                UPDATE settlement_templates 
+                SET usage_count = usage_count + 1,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (template_id,))
+            
+            conn.commit()
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error incrementing template usage: {e}", exc_info=True)
+            return False
+    
+    def get_template(self, template_id: int) -> Optional[dict]:
+        """
+        Get template by ID.
+        
+        Args:
+            template_id: Template ID
+            
+        Returns:
+            Template dictionary or None
+        """
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT * FROM settlement_templates WHERE id = ?
+        """, (template_id,))
+        
+        row = cursor.fetchone()
+        if row:
+            return {
+                'id': row['id'],
+                'user_id': row['user_id'],
+                'template_name': row['template_name'],
+                'template_value': row['template_value'],
+                'template_type': row['template_type'],
+                'is_preset': bool(row['is_preset']),
+                'usage_count': int(row['usage_count']) if row['usage_count'] else 0,
+                'created_at': row['created_at'],
+                'updated_at': row['updated_at']
+            }
+        return None
 
 
 # Global database instance
