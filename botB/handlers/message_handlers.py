@@ -1010,13 +1010,18 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ 此功能仅限管理员使用")
             return
         
+        # 首先显示完整的指令教程
+        from handlers.admin_commands_handlers import handle_admin_commands_help
+        await handle_admin_commands_help(update, context)
+        
+        # 然后显示管理菜单
         if is_group := chat.type in ['group', 'supergroup']:
             from keyboards.inline_keyboard import get_group_settings_menu
             reply_markup = get_group_settings_menu()
             message = (
                 "⚙️ <b>群组设置菜单</b>\n\n"
                 "请选择要执行的操作：\n\n"
-                "💡 <i>提示：点击「⚡ 管理员指令教程」查看完整指令说明（w0-w9）</i>"
+                "💡 <i>提示：上方已显示完整指令教程，也可以点击「⚡ 管理员指令教程」再次查看</i>"
             )
         else:
             from keyboards.inline_keyboard import get_global_management_menu
@@ -1024,39 +1029,10 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             message = (
                 "🌐 <b>全局管理菜单</b>\n\n"
                 "请选择要执行的操作：\n\n"
-                "💡 <i>提示：点击「⚡ 管理员指令教程」查看完整指令说明（w1-w7）</i>"
+                "💡 <i>提示：上方已显示完整指令教程，也可以点击「⚡ 管理员指令教程」再次查看</i>"
             )
         
         await update.message.reply_text(message, parse_mode="HTML", reply_markup=reply_markup)
-        
-        # 自动发送指令教程（可选：首次使用或用户要求）
-        # 这里先发送一个提示，让用户知道可以查看教程
-        tutorial_hint = (
-            "📖 <b>快速提示</b>\n\n"
-            "管理员可以使用以下快捷指令：\n\n"
-        )
-        if is_group:
-            tutorial_hint += (
-                "• <code>w0</code> - 查看群组设置\n"
-                "• <code>w1</code> - 查看价格详情\n"
-                "• <code>w2 [数字]</code> - 设置群组加价\n"
-                "• <code>w3 [地址]</code> - 设置群组地址\n"
-                "• <code>w8</code> - 重置设置\n"
-                "• <code>w9</code> - 删除配置\n\n"
-            )
-        else:
-            tutorial_hint += (
-                "• <code>w1</code> - 查看价格详情\n"
-                "• <code>w4</code> - 查看全局设置\n"
-                "• <code>w5 [数字]</code> - 设置全局加价\n"
-                "• <code>w6 [地址]</code> - 设置全局地址\n"
-                "• <code>w7</code> - 查看所有群组\n\n"
-            )
-        tutorial_hint += (
-            "💡 点击上方菜单中的「⚡ 管理员指令教程」查看详细说明和使用示例"
-        )
-        
-        await update.message.reply_text(tutorial_hint, parse_mode="HTML")
         return
     
     if text in ["📈 统计", "📊 数据"]:
