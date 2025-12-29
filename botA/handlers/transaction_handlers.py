@@ -34,7 +34,8 @@ async def callback_transactions(callback: CallbackQuery):
                 "开始您的第一笔交易吧！"
             )
             is_admin = AdminRepository.is_admin(user_id)
-            keyboard = get_main_keyboard(user_id=user_id, is_admin=is_admin)
+            is_group = callback.message.chat.type in ['group', 'supergroup']
+            keyboard = get_main_keyboard(user_id=user_id, is_admin=is_admin, is_group=is_group)
         else:
             text = f"*📜 交易记录*\n\n*最近 {len(transactions)} 笔交易：*\n\n"
             

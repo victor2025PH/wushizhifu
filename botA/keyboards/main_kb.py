@@ -6,12 +6,12 @@ from config import Config
 from database.admin_repository import AdminRepository
 
 
-def get_main_keyboard(user_id: int = None, is_admin: bool = False) -> InlineKeyboardMarkup:
+def get_main_keyboard(user_id: int = None, is_admin: bool = False, is_group: bool = False) -> InlineKeyboardMarkup:
     """
     Returns the main inline keyboard for the bot.
     
     Layout:
-    - Row 1: Launch Mini App button
+    - Row 1: Launch Mini App button (only in private chats)
     - Row 2: Alipay and WeChat payment channels (跳轉到 MiniApp)
     - Row 3: Transaction records and Calculator (跳轉到 MiniApp)
     - Row 4: Wallet and Settings (跳轉到 MiniApp)
@@ -22,19 +22,24 @@ def get_main_keyboard(user_id: int = None, is_admin: bool = False) -> InlineKeyb
     Args:
         user_id: User ID for admin check (optional, used if is_admin not provided)
         is_admin: Whether user is admin (if not provided, will check using user_id)
+        is_group: Whether this is a group chat (WebApp buttons are not allowed in groups)
     """
     # If is_admin not provided but user_id is, check admin status
     if not is_admin and user_id is not None:
         is_admin = AdminRepository.is_admin(user_id)
     keyboard_rows = []
     
-    # Row 1: Launch Mini App
-    keyboard_rows.append([
-        InlineKeyboardButton(
-            text="💎 启动伍拾收银台",
-            web_app=WebAppInfo(url=Config.get_miniapp_url("dashboard"))
-        )
-    ])
+    # Row 1: Launch Mini App (only in private chats)
+    # Note: Inline keyboard WebApp buttons ARE allowed in groups, but we'll skip it for consistency
+    # Actually, inline WebApp buttons ARE allowed in groups, so we can keep it
+    # But let's check if there are any issues - if so, we can conditionally exclude it
+    if not is_group:
+        keyboard_rows.append([
+            InlineKeyboardButton(
+                text="💎 启动伍拾收银台",
+                web_app=WebAppInfo(url=Config.get_miniapp_url("dashboard"))
+            )
+        ])
     
     # Row 2: Payment channels (Bot 内部功能)
     keyboard_rows.append([

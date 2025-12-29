@@ -1375,11 +1375,12 @@ async def callback_main_menu(callback: CallbackQuery):
         welcome_text = MessageService.generate_welcome_message(user, is_new)
         
         is_admin = AdminRepository.is_admin(user.id)
+        is_group = callback.message.chat.type in ['group', 'supergroup']
         
         await callback.message.edit_text(
             text=welcome_text,
             parse_mode="MarkdownV2",
-            reply_markup=get_main_keyboard(user_id=user.id, is_admin=is_admin)
+            reply_markup=get_main_keyboard(user_id=user.id, is_admin=is_admin, is_group=is_group)
         )
         await callback.answer()
         

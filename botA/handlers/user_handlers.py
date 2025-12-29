@@ -139,10 +139,13 @@ async def cmd_start(message: Message):
             if referral_code and is_new_user:
                 action_prompt += "\n\n🎁 *您已通过好友邀请注册，首次交易可获得 5 USDT 红包\\!*"
             
+            # Check if this is a group chat
+            is_group = message.chat.type in ['group', 'supergroup']
+            
             await message.answer(
                 text=action_prompt,
                 parse_mode="MarkdownV2",
-                reply_markup=get_main_keyboard(user_id=user.id, is_admin=is_admin)
+                reply_markup=get_main_keyboard(user_id=user.id, is_admin=is_admin, is_group=is_group)
             )
         except Exception as e:
             logger.error(f"Error sending action prompt: {e}", exc_info=True)
@@ -198,10 +201,13 @@ async def cmd_help(message: Message):
             "也可以点击聊天界面顶部的「打开应用」按钮\\。"
         )
         
+        # Check if this is a group chat
+        is_group = message.chat.type in ['group', 'supergroup']
+        
         await message.answer(
             text=help_text,
             parse_mode="MarkdownV2",
-            reply_markup=get_main_keyboard(user_id=user.id, is_admin=is_admin)
+            reply_markup=get_main_keyboard(user_id=user.id, is_admin=is_admin, is_group=is_group)
         )
         
         logger.info(f"User {user.id} ({user.username or 'no username'}) sent /help command")
@@ -221,11 +227,12 @@ async def callback_rates(callback: CallbackQuery):
         rates_text = MessageService.generate_rates_message()
         
         is_admin = AdminRepository.is_admin(callback.from_user.id)
+        is_group = callback.message.chat.type in ['group', 'supergroup']
         
         await callback.message.edit_text(
             text=rates_text,
             parse_mode="MarkdownV2",
-            reply_markup=get_main_keyboard(user_id=callback.from_user.id, is_admin=is_admin)
+            reply_markup=get_main_keyboard(user_id=callback.from_user.id, is_admin=is_admin, is_group=is_group)
         )
         await callback.answer("費率信息已更新")
         
@@ -272,11 +279,12 @@ async def callback_statistics(callback: CallbackQuery):
         
         # Get admin status for keyboard
         is_admin = AdminRepository.is_admin(callback.from_user.id)
+        is_group = callback.message.chat.type in ['group', 'supergroup']
         
         await callback.message.edit_text(
             text=text,
             parse_mode="MarkdownV2",
-            reply_markup=get_main_keyboard(user_id=callback.from_user.id, is_admin=is_admin)
+            reply_markup=get_main_keyboard(user_id=callback.from_user.id, is_admin=is_admin, is_group=is_group)
         )
         await callback.answer()
         

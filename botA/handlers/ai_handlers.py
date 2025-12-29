@@ -97,11 +97,12 @@ async def handle_ai_message(message: Message):
             # Clear conversation history
             _conversation_history.pop(user_id, None)
             is_admin = AdminRepository.is_admin(user_id)
+            is_group = message.chat.type in ['group', 'supergroup']
             await message.answer(
                 "*🤖 AI 模式已退出*\n\n"
                 "您已退出 AI 智能助手模式。如有其他需要，请随时点击按钮。",
                 parse_mode="MarkdownV2",
-                reply_markup=get_main_keyboard(user_id=user_id, is_admin=is_admin)
+                reply_markup=get_main_keyboard(user_id=user_id, is_admin=is_admin, is_group=is_group)
             )
             logger.info(f"User {user_id} exited AI chat mode")
             return
