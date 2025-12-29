@@ -81,28 +81,50 @@ def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = Fals
     ]
     
     # Add admin buttons if admin (3 per row)
+    # IMPORTANT: WebApp buttons are NOT allowed in group chats by Telegram API
+    # So we only add them in private chats, or remove them in groups
     if user_id and is_admin(user_id):
         # Use different button labels based on chat type for clarity
         admin_button_text = "⚙️ 设置" if is_group else "⚙️ 管理"
         stats_button_text = "📈 统计" if is_group else "📊 数据"
-        keyboard.append([
-            KeyboardButton(admin_button_text),
-            KeyboardButton(stats_button_text),
-            KeyboardButton(
-                "💎 打开应用",
-                web_app=WebAppInfo(url=get_webapp_url())
-            )
-        ])
+        
+        if is_group:
+            # In groups, don't use WebApp button - Telegram API doesn't allow it
+            keyboard.append([
+                KeyboardButton(admin_button_text),
+                KeyboardButton(stats_button_text),
+                KeyboardButton("")  # Empty placeholder since WebApp button not allowed
+            ])
+        else:
+            # In private chats, WebApp button is allowed
+            keyboard.append([
+                KeyboardButton(admin_button_text),
+                KeyboardButton(stats_button_text),
+                KeyboardButton(
+                    "💎 打开应用",
+                    web_app=WebAppInfo(url=get_webapp_url())
+                )
+            ])
     else:
-        # If not admin, add "打开应用" button in a row of 3
-        keyboard.append([
-            KeyboardButton(
-                "💎 打开应用",
-                web_app=WebAppInfo(url=get_webapp_url())
-            ),
-            KeyboardButton(""),  # Empty button as placeholder
-            KeyboardButton("")   # Empty button as placeholder
-        ])
+        # If not admin, handle based on chat type
+        if is_group:
+            # In groups, don't add WebApp button - just add empty row or skip
+            # Or add a regular button as alternative
+            keyboard.append([
+                KeyboardButton(""),  # Empty button as placeholder
+                KeyboardButton(""),  # Empty button as placeholder
+                KeyboardButton("")   # Empty button as placeholder
+            ])
+        else:
+            # In private chats, WebApp button is allowed
+            keyboard.append([
+                KeyboardButton(
+                    "💎 打开应用",
+                    web_app=WebAppInfo(url=get_webapp_url())
+                ),
+                KeyboardButton(""),  # Empty button as placeholder
+                KeyboardButton("")   # Empty button as placeholder
+            ])
     
     return ReplyKeyboardMarkup(
         keyboard=keyboard,
