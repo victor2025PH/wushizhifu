@@ -26,21 +26,28 @@ def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = Fals
     # This helps when initData is not available from ReplyKeyboard WebApp buttons
     def get_webapp_url():
         base_url = Config.get_miniapp_url("dashboard")
-        if user_info:
+        if user_info and user_info.get('id'):
             # Add user info as URL parameters (as fallback when initData is missing)
             params = {
-                'user_id': str(user_info.get('id', '')),
-                'first_name': user_info.get('first_name', ''),
+                'user_id': str(user_info.get('id')),
+                'first_name': user_info.get('first_name', '') or '',
             }
             if user_info.get('username'):
                 params['user_name'] = user_info.get('username')
             if user_info.get('language_code'):
                 params['language_code'] = user_info.get('language_code')
             
-            # Only add params if we have user_id
-            if params.get('user_id'):
-                param_string = urlencode(params)
-                return f"{base_url}&{param_string}"
+            # Ensure we have user_id
+            if params.get('user_id') and params['user_id'] != 'None':
+                param_string = urlencode(params, safe='')
+                final_url = f"{base_url}&{param_string}"
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.info(f"Generated WebApp URL with user params: {final_url[:100]}...")
+                return final_url
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"WebApp URL generated without user_info. user_info={user_info}")
         return base_url
     
     if is_group:

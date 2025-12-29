@@ -117,6 +117,10 @@ export default function App() {
     // Check URL params immediately
     const urlUser = checkUrlParams();
     
+    // Log current URL for debugging
+    console.log("🔍 Current URL:", window.location.href);
+    console.log("🔍 URL Search:", window.location.search);
+    
     // Initialize Telegram WebApp and sync user data
     const initializeApp = async () => {
       // Wait for Telegram WebApp script to load
