@@ -44,6 +44,15 @@ async def send_group_message(update: Update, text: str, parse_mode: Optional[str
     # Use inline_keyboard parameter if provided, otherwise use reply_markup
     inline_markup = inline_keyboard or reply_markup
     
+    # Determine message target - handle both message and callback_query cases
+    if update.message:
+        message_target = update.message
+    elif update.callback_query and update.callback_query.message:
+        message_target = update.callback_query.message
+    else:
+        logger.error("No message target found in update for send_group_message")
+        return
+    
     # Get reply keyboard if in group (always show in groups)
     if is_group:
         from keyboards.reply_keyboard import get_main_reply_keyboard
@@ -60,24 +69,27 @@ async def send_group_message(update: Update, text: str, parse_mode: Optional[str
         # and ensure reply keyboard is always shown by sending it separately if needed
         if inline_markup:
             # Send message with inline keyboard first
-            await update.message.reply_text(
+            await message_target.reply_text(
                 text,
                 parse_mode=parse_mode,
                 reply_markup=inline_markup
             )
             # Then send a minimal message with reply keyboard to ensure it's shown
             # We'll use a zero-width space character to make it invisible
-            await update.message.reply_text("​", reply_markup=reply_keyboard)
+            try:
+                await message_target.reply_text("​", reply_markup=reply_keyboard)
+            except Exception as e:
+                logger.warning(f"Failed to send reply keyboard after message with inline keyboard: {e}")
         else:
             # No inline keyboard, just use reply keyboard
-            await update.message.reply_text(
+            await message_target.reply_text(
                 text,
                 parse_mode=parse_mode,
                 reply_markup=reply_keyboard
             )
     else:
         # Not a group, just send normally
-        await update.message.reply_text(
+        await message_target.reply_text(
             text,
             parse_mode=parse_mode,
             reply_markup=inline_markup
