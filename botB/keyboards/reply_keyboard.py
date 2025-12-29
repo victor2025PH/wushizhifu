@@ -65,42 +65,46 @@ def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = Fals
         logger.info(f"Using base URL without user params: {base_url}")
         return base_url
     
-    if is_group:
-        # Group layout - 3 buttons per row
-        keyboard = [
-            [
-                KeyboardButton("💱 汇率"),
-                KeyboardButton("📊 今日"),
-                KeyboardButton("📜 历史")
-            ],
-            [
-                KeyboardButton("💰 结算"),
-                KeyboardButton("🔗 地址"),
-                KeyboardButton("📞 客服")
-            ]
+    # Use the same layout for both group and private chat
+    # Group and private chat layout - 3 buttons per row (unified)
+    keyboard = [
+        [
+            KeyboardButton("💱 汇率"),
+            KeyboardButton("💰 结算"),
+            KeyboardButton("📜 我的账单")
+        ],
+        [
+            KeyboardButton("🔔 预警"),
+            KeyboardButton("🔗 地址"),
+            KeyboardButton("📞 客服")
         ]
-        
-        # Add admin buttons if admin (3 per row)
-        if user_id and is_admin(user_id):
-            keyboard.append([
-                KeyboardButton("⚙️ 设置"),
-                KeyboardButton("📈 统计"),
-                KeyboardButton(
-                    "💎 打开应用",
-                    web_app=WebAppInfo(url=get_webapp_url())
-                )
-            ])
-        else:
-            # If not admin, add "打开应用" button in a row of 3
-            keyboard.append([
-                KeyboardButton(
-                    "💎 打开应用",
-                    web_app=WebAppInfo(url=get_webapp_url())
-                ),
-                KeyboardButton(""),  # Empty button as placeholder
-                KeyboardButton("")   # Empty button as placeholder
-            ])
+    ]
+    
+    # Add admin buttons if admin (3 per row)
+    if user_id and is_admin(user_id):
+        # Use different button labels based on chat type for clarity
+        admin_button_text = "⚙️ 设置" if is_group else "⚙️ 管理"
+        stats_button_text = "📈 统计" if is_group else "📊 数据"
+        keyboard.append([
+            KeyboardButton(admin_button_text),
+            KeyboardButton(stats_button_text),
+            KeyboardButton(
+                "💎 打开应用",
+                web_app=WebAppInfo(url=get_webapp_url())
+            )
+        ])
     else:
+        # If not admin, add "打开应用" button in a row of 3
+        keyboard.append([
+            KeyboardButton(
+                "💎 打开应用",
+                web_app=WebAppInfo(url=get_webapp_url())
+            ),
+            KeyboardButton(""),  # Empty button as placeholder
+            KeyboardButton("")   # Empty button as placeholder
+        ])
+    
+    if False:  # Removed group-specific layout, keeping code structure
         # Private chat layout - 3 buttons per row
         keyboard = [
             [
