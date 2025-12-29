@@ -14,6 +14,7 @@ async def handle_admin_commands_help(update: Update, context: ContextTypes.DEFAU
     try:
         # Handle both message and callback query updates
         message_target = None
+        query = None
         if update.message:
             message_target = update.message
         elif update.callback_query and update.callback_query.message:
@@ -27,34 +28,73 @@ async def handle_admin_commands_help(update: Update, context: ContextTypes.DEFAU
         is_group = chat.type in ['group', 'supergroup']
         
         help_message = (
-            "⚡ <b>管理员快捷指令教程</b>\n\n"
+            "⚡ <b>管理员快捷指令完整教程</b>\n\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
-            "📋 <b>基础指令（w1-w9）</b>\n"
+            "📋 <b>基础指令（w0-w9）</b>\n"
             "━━━━━━━━━━━━━━━━━━━━\n\n"
         )
         
         if is_group:
             help_message += (
-                "<b>群组管理指令：</b>\n\n"
-                "• <code>w0</code> / <code>SZ</code> - 查看群组设置\n"
-                "• <code>w1</code> / <code>HL</code> - 查看价格详情（Binance P2P）\n"
-                "• <code>w2 [数字]</code> / <code>SJJ [数字]</code> - 设置群组加价\n"
-                "  示例：<code>w2 0.5</code> 或 <code>w2 -0.2</code>\n"
-                "• <code>w3 [地址]</code> / <code>SDZ [地址]</code> - 设置群组地址\n"
-                "  示例：<code>w3 TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t</code>\n"
-                "• <code>w8</code> / <code>CZSZ</code> - 重置群组设置\n"
-                "• <code>w9</code> / <code>SCSZ</code> - 删除群组配置\n\n"
+                "<b>🔹 群组管理指令：</b>\n\n"
+                "━━━━━━━━━━━━━━━━━━━━\n\n"
+                
+                "<b>w0 / SZ</b> - 查看群组设置\n"
+                "功能：查看当前群组的加价、地址等配置信息\n"
+                "示例：<code>w0</code> 或 <code>SZ</code>\n\n"
+                
+                "<b>w1 / HL</b> - 查看价格详情\n"
+                "功能：查看 Binance P2P 实时汇率、加价、最终价格\n"
+                "示例：<code>w1</code> 或 <code>HL</code>\n\n"
+                
+                "<b>w2 [数字] / SJJ [数字]</b> - 设置群组加价\n"
+                "功能：为当前群组设置独立的加价值（可以是正数或负数）\n"
+                "示例：<code>w2 0.5</code>（加价 0.5）或 <code>w2 -0.2</code>（降价 0.2）\n"
+                "说明：设置后，该群组的所有结算都会使用此加价\n\n"
+                
+                "<b>w3 [地址] / SDZ [地址]</b> - 设置群组地址\n"
+                "功能：为当前群组设置独立的 USDT 收款地址\n"
+                "示例：<code>w3 TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t</code>\n"
+                "说明：设置后，该群组的结算账单会显示此地址\n\n"
+                
+                "<b>w8 / CZSZ</b> - 重置群组设置\n"
+                "功能：将群组的加价和地址重置为全局默认值\n"
+                "示例：<code>w8</code> 或 <code>CZSZ</code>\n"
+                "说明：重置后，群组将使用全局默认设置\n\n"
+                
+                "<b>w9 / SCSZ</b> - 删除群组配置\n"
+                "功能：完全删除群组的独立配置，恢复使用全局默认\n"
+                "示例：<code>w9</code> 或 <code>SCSZ</code>\n"
+                "说明：删除后，群组配置将从数据库中移除\n\n"
             )
         else:
             help_message += (
-                "<b>全局管理指令：</b>\n\n"
-                "• <code>w1</code> / <code>HL</code> - 查看价格详情（Binance P2P）\n"
-                "• <code>w4</code> / <code>CKQJ</code> - 查看全局设置\n"
-                "• <code>w5 [数字]</code> / <code>SQJJ [数字]</code> - 设置全局加价\n"
-                "  示例：<code>w5 0.5</code> 或 <code>w5 -0.2</code>\n"
-                "• <code>w6 [地址]</code> / <code>SQJDZ [地址]</code> - 设置全局地址\n"
-                "  示例：<code>w6 TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t</code>\n"
-                "• <code>w7</code> / <code>CKQL</code> - 查看所有群组列表\n\n"
+                "<b>🔹 全局管理指令：</b>\n\n"
+                "━━━━━━━━━━━━━━━━━━━━\n\n"
+                
+                "<b>w1 / HL</b> - 查看价格详情\n"
+                "功能：查看 Binance P2P 实时汇率、全局加价、最终价格\n"
+                "示例：<code>w1</code> 或 <code>HL</code>\n\n"
+                
+                "<b>w4 / CKQJ</b> - 查看全局设置\n"
+                "功能：查看全局默认加价、全局默认地址等配置\n"
+                "示例：<code>w4</code> 或 <code>CKQJ</code>\n"
+                "说明：全局设置会影响所有未配置独立设置的群组\n\n"
+                
+                "<b>w5 [数字] / SQJJ [数字]</b> - 设置全局加价\n"
+                "功能：设置全局默认加价值（影响所有未配置的群组）\n"
+                "示例：<code>w5 0.5</code>（加价 0.5）或 <code>w5 -0.2</code>（降价 0.2）\n"
+                "说明：设置后，所有未配置独立加价的群组都会使用此值\n\n"
+                
+                "<b>w6 [地址] / SQJDZ [地址]</b> - 设置全局地址\n"
+                "功能：设置全局默认 USDT 收款地址\n"
+                "示例：<code>w6 TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t</code>\n"
+                "说明：设置后，所有未配置独立地址的群组都会使用此地址\n\n"
+                
+                "<b>w7 / CKQL</b> - 查看所有群组列表\n"
+                "功能：查看所有已配置的群组及其设置信息\n"
+                "示例：<code>w7</code> 或 <code>CKQL</code>\n"
+                "说明：显示所有群组的加价、地址、交易统计等信息\n\n"
             )
         
         help_message += (
