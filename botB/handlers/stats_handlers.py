@@ -179,7 +179,7 @@ async def handle_pending_transactions(update: Update, context: ContextTypes.DEFA
                 f"   用户: {user_name} | {time_str}\n\n"
             )
         
-        message += "<i>提示: 用户标记已支付后，交易将出现在"待确认"列表中。</i>"
+        message += "<i>提示: 用户标记已支付后，交易将出现在&quot;待确认&quot;列表中。</i>"
         
         from keyboards.inline_keyboard import get_pending_transactions_keyboard
         reply_markup = get_pending_transactions_keyboard(group_id)

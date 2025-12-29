@@ -1727,6 +1727,235 @@ class Database:
         cursor.execute(query, tuple(params))
         row = cursor.fetchone()
         return int(row['count']) if row else 0
+    
+    # ========== Price History Methods ==========
+    
+    def save_price_history(self, base_price: float, final_price: float, markup: float, source: str = 'binance_p2p') -> bool:
+        """
+        Save price to history table.
+        
+        Args:
+            base_price: Base price from API
+            final_price: Final price (base + markup)
+            markup: Markup applied
+            source: Price source (binance_p2p, coingecko, etc.)
+            
+        Returns:
+            True if successful
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT INTO price_history (base_price, final_price, markup, source)
+                VALUES (?, ?, ?, ?)
+            """, (base_price, final_price, markup, source))
+            
+            conn.commit()
+            logger.debug(f"Price history saved: {final_price} (base: {base_price}, markup: {markup})")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error saving price history: {e}", exc_info=True)
+            return False
+    
+    def get_price_history(self, hours: int = 24, limit: int = 100) -> list:
+        """
+        Get price history for the last N hours.
+        
+        Args:
+            hours: Number of hours to look back
+            limit: Maximum number of records
+            
+        Returns:
+            List of price history dictionaries
+        """
+        import datetime
+        
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        # Calculate start time
+        start_time = datetime.datetime.now() - datetime.timedelta(hours=hours)
+        start_str = start_time.strftime('%Y-%m-%d %H:%M:%S')
+        
+        cursor.execute("""
+            SELECT base_price, final_price, markup, source, created_at
+            FROM price_history
+            WHERE created_at >= ?
+            ORDER BY created_at DESC
+            LIMIT ?
+        """, (start_str, limit))
+        
+        rows = cursor.fetchall()
+        history = []
+        for row in rows:
+            history.append({
+                'base_price': float(row['base_price']),
+                'final_price': float(row['final_price']),
+                'markup': float(row['markup']) if row['markup'] else 0.0,
+                'source': row['source'],
+                'created_at': row['created_at']
+            })
+        
+        return history
+    
+    def get_price_stats(self, hours: int = 24) -> dict:
+        """
+        Get price statistics for the last N hours.
+        
+        Args:
+            hours: Number of hours to look back
+            
+        Returns:
+            Dictionary with statistics (count, min, max, avg)
+        """
+        import datetime
+        
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        # Calculate start time
+        start_time = datetime.datetime.now() - datetime.timedelta(hours=hours)
+        start_str = start_time.strftime('%Y-%m-%d %H:%M:%S')
+        
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as count,
+                MIN(final_price) as min_final,
+                MAX(final_price) as max_final,
+                AVG(final_price) as avg_final
+            FROM price_history
+            WHERE created_at >= ?
+        """, (start_str,))
+        
+        row = cursor.fetchone()
+        if row and row['count']:
+            return {
+                'count': int(row['count']),
+                'min_final': float(row['min_final']) if row['min_final'] else 0.0,
+                'max_final': float(row['max_final']) if row['max_final'] else 0.0,
+                'avg_final': float(row['avg_final']) if row['avg_final'] else 0.0
+            }
+        
+        return {'count': 0, 'min_final': 0.0, 'max_final': 0.0, 'avg_final': 0.0}
+    
+    # ========== Price Alert Methods ==========
+    
+    def get_user_alerts(self, user_id: int, active_only: bool = False) -> list:
+        """
+        Get price alerts for a user.
+        
+        Args:
+            user_id: Telegram user ID
+            active_only: If True, only return active alerts
+            
+        Returns:
+            List of alert dictionaries
+        """
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        if active_only:
+            cursor.execute("""
+                SELECT id, user_id, alert_type, threshold_value, comparison_operator,
+                       is_active, notification_count, last_notified_at, created_at
+                FROM price_alerts
+                WHERE user_id = ? AND is_active = 1
+                ORDER BY created_at DESC
+            """, (user_id,))
+        else:
+            cursor.execute("""
+                SELECT id, user_id, alert_type, threshold_value, comparison_operator,
+                       is_active, notification_count, last_notified_at, created_at
+                FROM price_alerts
+                WHERE user_id = ?
+                ORDER BY created_at DESC
+            """, (user_id,))
+        
+        rows = cursor.fetchall()
+        alerts = []
+        for row in rows:
+            alerts.append({
+                'id': row['id'],
+                'user_id': row['user_id'],
+                'alert_type': row['alert_type'],
+                'threshold_value': float(row['threshold_value']),
+                'comparison_operator': row['comparison_operator'],
+                'is_active': bool(row['is_active']),
+                'notification_count': int(row['notification_count']),
+                'last_notified_at': row['last_notified_at'],
+                'created_at': row['created_at']
+            })
+        
+        return alerts
+    
+    def get_active_alerts(self) -> list:
+        """
+        Get all active price alerts.
+        
+        Returns:
+            List of active alert dictionaries
+        """
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT id, user_id, alert_type, threshold_value, comparison_operator,
+                   is_active, notification_count, last_notified_at, created_at
+            FROM price_alerts
+            WHERE is_active = 1
+            ORDER BY created_at DESC
+        """)
+        
+        rows = cursor.fetchall()
+        alerts = []
+        for row in rows:
+            alerts.append({
+                'id': row['id'],
+                'user_id': row['user_id'],
+                'alert_type': row['alert_type'],
+                'threshold_value': float(row['threshold_value']),
+                'comparison_operator': row['comparison_operator'],
+                'is_active': bool(row['is_active']),
+                'notification_count': int(row['notification_count']),
+                'last_notified_at': row['last_notified_at'],
+                'created_at': row['created_at']
+            })
+        
+        return alerts
+    
+    def create_price_alert(self, user_id: int, alert_type: str, threshold_value: float, 
+                          comparison_operator: str = '>') -> bool:
+        """
+        Create a new price alert.
+        
+        Args:
+            user_id: Telegram user ID
+            alert_type: Alert type (price_above, price_below)
+            threshold_value: Price threshold
+            comparison_operator: Comparison operator (>, >=, <, <=)
+            
+        Returns:
+            True if successful
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT INTO price_alerts (user_id, alert_type, threshold_value, comparison_operator)
+                VALUES (?, ?, ?, ?)
+            """, (user_id, alert_type, threshold_value, comparison_operator))
+            
+            conn.commit()
+            logger.info(f"Price alert created for user {user_id}: {alert_type} {comparison_operator} {threshold_value}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error creating price alert: {e}", exc_info=True)
+            return False
 
 
 # Global database instance

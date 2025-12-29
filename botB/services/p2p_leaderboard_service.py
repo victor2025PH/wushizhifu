@@ -195,7 +195,7 @@ def format_p2p_leaderboard_html(leaderboard_data: Dict) -> str:
     message = f"🟢 <b>实时币价行情 (Live Market)</b>\n"
     message += f"📅 更新于: {time_str}\n"
     message += f"💳 渠道: <b>{payment_label}</b>\n"
-    message += f"{'─' * 35}\n\n"
+    message += f"{'─' * 35}\n\n"  # Unicode em dash, should be fine
     
     # Build body (loop through merchants)
     for merchant in merchants:
@@ -228,6 +228,7 @@ def format_p2p_leaderboard_html(leaderboard_data: Dict) -> str:
         
         # Build row
         message += f"{price_str} | <b>{merchant_name}</b> {credibility_icon} {rank_emoji}\n"
+        # Use hyphen-minus (regular dash) which is safe in HTML
         message += f"└ <i>限额: {min_str}-{max_str} CNY | 成单: {trade_count:,}</i>\n\n"
     
     # Build footer

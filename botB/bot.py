@@ -217,6 +217,25 @@ def main():
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("price", price_command))
     application.add_handler(CommandHandler("settings", settings_command))
+    # Register price alert command handlers
+    from handlers.price_alert_handlers import handle_list_alerts, handle_price_history
+    
+    async def alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /alerts command"""
+        await handle_list_alerts(update, context)
+    
+    async def price_history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /price_history command"""
+        hours = 24
+        if context.args and len(context.args) > 0:
+            try:
+                hours = int(context.args[0])
+                if hours not in [24, 168, 720]:
+                    hours = 24
+            except ValueError:
+                pass
+        await handle_price_history(update, context, hours=hours)
+    
     application.add_handler(CommandHandler("alerts", alerts_command))
     application.add_handler(CommandHandler("price_history", price_history_command))
     
