@@ -288,7 +288,7 @@ async def alerts_command_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def post_init(application: Application) -> None:
-    """Set up bot commands menu after application is initialized"""
+    """Set up bot commands menu and menu button after application is initialized"""
     # Define commands for menu button
     commands = [
         BotCommand("start", "启动机器人，显示欢迎信息"),
@@ -306,6 +306,18 @@ async def post_init(application: Application) -> None:
     
     await application.bot.set_my_commands(commands)
     logger.info("Bot commands menu has been set up")
+    
+    # Set up menu button (聊天界面右上角的按钮)
+    # This is important for MiniApp to correctly receive user initData
+    try:
+        menu_button = MenuButtonWebApp(
+            text="💎 打开应用",
+            web_app=WebAppInfo(url=Config.get_miniapp_url("dashboard"))
+        )
+        await application.bot.set_chat_menu_button(menu_button=menu_button)
+        logger.info(f"✅ Menu button set: '💎 打开应用' -> {Config.get_miniapp_url('dashboard')}")
+    except Exception as e:
+        logger.error(f"Failed to set menu button: {e}", exc_info=True)
 
 
 def main():
