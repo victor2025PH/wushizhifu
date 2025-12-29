@@ -32,12 +32,6 @@ def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = Fals
                 KeyboardButton("💰 结算"),
                 KeyboardButton("🔗 地址"),
                 KeyboardButton("📞 客服")
-            ],
-            [
-                KeyboardButton(
-                    "💎 打开应用",
-                    web_app=WebAppInfo(url=Config.get_miniapp_url("dashboard"))
-                )
             ]
         ]
         
@@ -45,7 +39,21 @@ def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = Fals
         if user_id and is_admin(user_id):
             keyboard.append([
                 KeyboardButton("⚙️ 设置"),
-                KeyboardButton("📈 统计")
+                KeyboardButton("📈 统计"),
+                KeyboardButton(
+                    "💎 打开应用",
+                    web_app=WebAppInfo(url=Config.get_miniapp_url("dashboard"))
+                )
+            ])
+        else:
+            # If not admin, add "打开应用" button in a row of 3
+            keyboard.append([
+                KeyboardButton(
+                    "💎 打开应用",
+                    web_app=WebAppInfo(url=Config.get_miniapp_url("dashboard"))
+                ),
+                KeyboardButton(""),  # Empty button as placeholder
+                KeyboardButton("")   # Empty button as placeholder
             ])
     else:
         # Private chat layout - 3 buttons per row
@@ -59,12 +67,6 @@ def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = Fals
                 KeyboardButton("🔔 预警"),
                 KeyboardButton("🔗 地址"),
                 KeyboardButton("📞 客服")
-            ],
-            [
-                KeyboardButton(
-                    "💎 打开应用",
-                    web_app=WebAppInfo(url=Config.get_miniapp_url("dashboard"))
-                )
             ]
         ]
         
@@ -72,7 +74,21 @@ def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = Fals
         if user_id and is_admin(user_id):
             keyboard.append([
                 KeyboardButton("⚙️ 管理"),
-                KeyboardButton("📊 数据")
+                KeyboardButton("📊 数据"),
+                KeyboardButton(
+                    "💎 打开应用",
+                    web_app=WebAppInfo(url=Config.get_miniapp_url("dashboard"))
+                )
+            ])
+        else:
+            # If not admin, add "打开应用" button in a row of 3
+            keyboard.append([
+                KeyboardButton(
+                    "💎 打开应用",
+                    web_app=WebAppInfo(url=Config.get_miniapp_url("dashboard"))
+                ),
+                KeyboardButton(""),  # Empty button as placeholder
+                KeyboardButton("")   # Empty button as placeholder
             ])
     
     return ReplyKeyboardMarkup(

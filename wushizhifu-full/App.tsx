@@ -63,30 +63,77 @@ export default function App() {
     
     // Initialize Telegram WebApp and sync user data
     const initializeApp = async () => {
-      if (window.Telegram?.WebApp) {
-        window.Telegram.WebApp.ready();
-        window.Telegram.WebApp.expand();
-        console.log("Telegram WebApp Initialized", window.Telegram.WebApp.initDataUnsafe);
-        
-        const tgUser = window.Telegram.WebApp.initDataUnsafe?.user;
-        if (tgUser) {
-          setUser(tgUser);
+      // Wait for Telegram WebApp script to load
+      const checkTelegramWebApp = () => {
+        if (window.Telegram?.WebApp) {
+          window.Telegram.WebApp.ready();
+          window.Telegram.WebApp.expand();
           
-          // Set language based on user preference
-          if (window.Telegram.WebApp.initDataUnsafe?.user?.language_code === 'en') {
-            setLang('en');
-          }
+          console.log("Telegram WebApp Initialized");
+          console.log("initData:", window.Telegram.WebApp.initData);
+          console.log("initDataUnsafe:", window.Telegram.WebApp.initDataUnsafe);
           
-          // Sync user data with backend
-          try {
-            const { apiClient } = await import('./api');
-            await apiClient.syncUser(tgUser);
-            console.log("User data synced with backend");
-          } catch (error) {
-            console.error("Failed to sync user data:", error);
-            // Continue even if sync fails
+          const tgUser = window.Telegram.WebApp.initDataUnsafe?.user;
+          if (tgUser) {
+            console.log("User data found:", tgUser);
+            setUser(tgUser);
+            
+            // Set language based on user preference
+            if (tgUser.language_code === 'en') {
+              setLang('en');
+            }
+            
+            // Sync user data with backend
+            try {
+              const { apiClient } = await import('./api');
+              apiClient.syncUser(tgUser).then(() => {
+                console.log("User data synced with backend");
+              }).catch((error) => {
+                console.error("Failed to sync user data:", error);
+              });
+            } catch (error) {
+              console.error("Failed to import apiClient:", error);
+            }
+          } else {
+            console.warn("⚠️ No user data found in initDataUnsafe");
+            console.warn("This usually means the app was opened outside Telegram or initData is missing");
+            
+            // Try to get user from initData directly
+            if (window.Telegram.WebApp.initData) {
+              console.log("Attempting to parse initData manually...");
+              try {
+                const urlParams = new URLSearchParams(window.Telegram.WebApp.initData);
+                const userStr = urlParams.get('user');
+                if (userStr) {
+                  const userData = JSON.parse(decodeURIComponent(userStr));
+                  console.log("Parsed user from initData:", userData);
+                  setUser(userData);
+                }
+              } catch (e) {
+                console.error("Failed to parse initData:", e);
+              }
+            }
           }
+          return true;
         }
+        return false;
+      };
+      
+      // Check immediately
+      if (!checkTelegramWebApp()) {
+        // If not available, wait a bit and retry (for script loading delay)
+        let retries = 0;
+        const maxRetries = 10;
+        const checkInterval = setInterval(() => {
+          retries++;
+          if (checkTelegramWebApp() || retries >= maxRetries) {
+            clearInterval(checkInterval);
+            if (retries >= maxRetries && !window.Telegram?.WebApp) {
+              console.error("❌ Telegram WebApp not available after retries");
+              console.error("Please ensure the app is opened from within Telegram");
+            }
+          }
+        }, 100);
       }
 
       // Parse URL parameters
