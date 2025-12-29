@@ -222,6 +222,81 @@ async def settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(message)
 
 
+async def settlement_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /settlement or /结算 command - open settlement menu"""
+    from handlers.template_handlers import handle_template_menu
+    await handle_template_menu(update, context)
+
+
+async def today_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /today or /今日 command - show today's bills"""
+    await handle_today_bills_button(update, context)
+
+
+async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /history or /历史 command - show history bills"""
+    from handlers.bills_handlers import handle_history_bills
+    await handle_history_bills(update, context, page=1)
+
+
+async def address_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /address or /地址 command - show USDT address"""
+    chat = update.effective_chat
+    group_id = chat.id if chat.type in ['group', 'supergroup'] else None
+    usdt_address = None
+    
+    if group_id:
+        group_setting = db.get_group_setting(group_id)
+        if group_setting and group_setting.get('usdt_address'):
+            usdt_address = group_setting['usdt_address']
+    
+    if not usdt_address:
+        usdt_address = db.get_usdt_address()
+    
+    if usdt_address:
+        address_display = usdt_address[:15] + "..." + usdt_address[-15:] if len(usdt_address) > 30 else usdt_address
+        message = f"🔗 USDT 收款地址:\n\n<code>{address_display}</code>"
+    else:
+        message = "⚠️ USDT 收款地址未设置"
+    
+    await update.message.reply_text(message, parse_mode="HTML")
+
+
+async def support_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /support or /客服 command - show support info"""
+    contact_message = (
+        "📞 <b>联系人工客服</b>\n\n"
+        "如有任何问题，请联系管理员：\n"
+        "@wushizhifu_jianglai\n\n"
+        "或使用以下方式：\n"
+        "• 工作时间：7×24小时\n"
+        "• 响应时间：通常在5分钟内"
+    )
+    await update.message.reply_text(contact_message, parse_mode="HTML")
+
+
+async def mybills_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /mybills or /我的账单 command - show personal bills (private chat only)"""
+    chat = update.effective_chat
+    if chat.type not in ['private']:
+        await update.message.reply_text("❌ 此功能仅在私聊中可用")
+        return
+    
+    from handlers.personal_handlers import handle_personal_bills
+    await handle_personal_bills(update, context, page=1)
+
+
+async def alerts_command_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /alerts or /预警 command - show price alerts menu (private chat only)"""
+    chat = update.effective_chat
+    if chat.type not in ['private']:
+        await update.message.reply_text("❌ 此功能仅在私聊中可用")
+        return
+    
+    from handlers.price_alert_handlers import handle_price_alert_menu
+    await handle_price_alert_menu(update, context)
+
+
 async def post_init(application: Application) -> None:
     """Set up bot commands menu after application is initialized"""
     # Define commands for menu button
