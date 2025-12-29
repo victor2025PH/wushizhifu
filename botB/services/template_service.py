@@ -25,9 +25,9 @@ def get_all_templates(user_id: int = None, limit: int = 10) -> Dict[str, List[Di
         'formula': []
     }
     
-    # Get preset templates (always include these first)
-    preset_amount = db.get_templates(user_id=None, template_type='amount')
-    preset_formula = db.get_templates(user_id=None, template_type='formula')
+    # Get preset templates (always include these first, limited to 'limit')
+    preset_amount = db.get_templates(user_id=None, template_type='amount', limit=limit)
+    preset_formula = db.get_templates(user_id=None, template_type='formula', limit=limit)
     
     # Add preset templates (they're already sorted by usage_count DESC in DB)
     templates['amount'].extend(preset_amount)
@@ -35,17 +35,16 @@ def get_all_templates(user_id: int = None, limit: int = 10) -> Dict[str, List[Di
     
     # Get user templates if user_id provided and we haven't reached limit
     if user_id:
-        user_amount = db.get_templates(user_id=user_id, template_type='amount')
-        user_formula = db.get_templates(user_id=user_id, template_type='formula')
-        
-        # Add user templates, but limit total to 'limit'
         remaining_amount_slots = limit - len(templates['amount'])
-        if remaining_amount_slots > 0:
-            templates['amount'].extend(user_amount[:remaining_amount_slots])
-        
         remaining_formula_slots = limit - len(templates['formula'])
+        
+        if remaining_amount_slots > 0:
+            user_amount = db.get_templates(user_id=user_id, template_type='amount', limit=remaining_amount_slots)
+            templates['amount'].extend(user_amount)
+        
         if remaining_formula_slots > 0:
-            templates['formula'].extend(user_formula[:remaining_formula_slots])
+            user_formula = db.get_templates(user_id=user_id, template_type='formula', limit=remaining_formula_slots)
+            templates['formula'].extend(user_formula)
     
     # Ensure we don't exceed limit (safety check)
     templates['amount'] = templates['amount'][:limit]

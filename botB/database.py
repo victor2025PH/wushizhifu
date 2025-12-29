@@ -2237,16 +2237,17 @@ class Database:
     
     # ========== Template Methods ==========
     
-    def get_templates(self, user_id: Optional[int] = None, template_type: str = None) -> list:
+    def get_templates(self, user_id: Optional[int] = None, template_type: str = None, limit: Optional[int] = None) -> list:
         """
         Get templates for a user or all preset templates.
         
         Args:
             user_id: Optional user ID (None for preset templates only)
             template_type: Optional template type filter ('amount' or 'formula')
+            limit: Optional limit on number of templates to return
             
         Returns:
-            List of template dictionaries
+            List of template dictionaries (sorted by is_preset DESC, usage_count DESC)
         """
         conn = self.connect()
         cursor = conn.cursor()
@@ -2266,7 +2267,13 @@ class Database:
             query += " AND template_type = ?"
             params.append(template_type)
         
+        # Order: preset first, then by usage count (most used first), then by creation time
         query += " ORDER BY is_preset DESC, usage_count DESC, created_at DESC"
+        
+        # Add limit if specified
+        if limit:
+            query += " LIMIT ?"
+            params.append(limit)
         
         cursor.execute(query, tuple(params))
         rows = cursor.fetchall()
