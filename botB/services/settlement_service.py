@@ -76,18 +76,37 @@ def calculate_settlement(amount_text: str, group_id: Optional[int] = None) -> Tu
         if cny_amount <= 0:
             return None, "金额必须大于 0"
         
-        # Get price with markup (USDT/CNY rate) - supports group-specific markup
-        final_price, price_error, base_price, markup = get_price_with_markup(group_id)
+        # Get base price (without markup) and markup separately
+        from database import db
         
-        if final_price is None:
+        # Get base price from Binance P2P (with CoinGecko fallback)
+        from services.price_service import get_usdt_cny_price
+        base_price, price_error = get_usdt_cny_price()
+        
+        if base_price is None:
             return None, f"无法获取价格: {price_error or '未知错误'}"
         
-        if final_price <= 0:
+        if base_price <= 0:
             return None, "汇率无效，无法计算"
         
-        # Calculate USDT amount: CNY / (USDT/CNY rate)
-        # Example: 19800 CNY / 7.25 (USDT/CNY) = 2731.03 USDT
-        usdt_amount = cny_amount / final_price
+        # Get markup (group-specific or global)
+        markup = 0.0
+        if group_id:
+            group_setting = db.get_group_setting(group_id)
+            if group_setting:
+                markup = group_setting.get('markup', 0.0)
+        
+        # Fallback to global markup if no group-specific markup
+        if markup == 0.0 or not group_id:
+            markup = db.get_admin_markup()
+        
+        # Calculate USDT amount: CNY / base_price, then add markup to USDT
+        # Example: 10000 CNY / 7.25 (USDT/CNY) = 1379.31 USDT, then 1379.31 + 0.5 = 1379.81 USDT
+        usdt_amount_base = cny_amount / base_price
+        usdt_amount = usdt_amount_base + markup
+        
+        # For backward compatibility, final_price = base_price (no markup in price)
+        final_price = base_price
         
         settlement_data = {
             'cny_amount': cny_amount,      # Input CNY amount
@@ -158,16 +177,17 @@ def format_settlement_bill(settlement_data: dict, usdt_address: str = None, tran
     # Input: CNY amount
     message += f"💰 应收人民币: <b><code>{cny_amount:,.2f} CNY</code></b>\n\n"
     
-    # Exchange rate breakdown
+    # Exchange rate (no markup in price display)
+    message += f"📊 汇率 (USDT/CNY): {base_price:.4f} (Binance P2P)\n"
+    
+    # Markup display (if any)
     if markup != 0:
         markup_sign = "+" if markup > 0 else ""
-        rate_breakdown = f"{final_price:.4f} (Binance P2P: {base_price:.4f} {markup_sign}{markup:.4f})"
-    else:
-        rate_breakdown = f"{final_price:.4f} (Binance P2P: {base_price:.4f})"
+        message += f"➕ 加价: {markup_sign}{markup:.4f} USDT\n"
     
-    message += f"📊 汇率 (USDT/CNY): {rate_breakdown}\n\n"
+    message += "\n"
     
-    # Output: USDT amount to settle
+    # Output: USDT amount to settle (already includes markup)
     message += f"💵 应结算 USDT: <b><code>{usdt_amount:,.2f} U</code></b>\n"
     
     message += "────────────────────────\n"
@@ -222,19 +242,38 @@ def calculate_batch_settlement(amounts_text: str, group_id: Optional[int] = None
         if len(amounts) > 20:  # Limit to 20 amounts per batch
             return None, "批量结算最多支持 20 笔金额"
         
-        # Get price once for all calculations (same rate for batch)
-        final_price, price_error, base_price, markup = get_price_with_markup(group_id)
+        # Get base price (without markup) and markup separately
+        from database import db
+        from services.price_service import get_usdt_cny_price
         
-        if final_price is None:
+        base_price, price_error = get_usdt_cny_price()
+        
+        if base_price is None:
             return None, f"无法获取价格: {price_error or '未知错误'}"
         
-        if final_price <= 0:
+        if base_price <= 0:
             return None, "汇率无效，无法计算"
+        
+        # Get markup (group-specific or global)
+        markup = 0.0
+        if group_id:
+            group_setting = db.get_group_setting(group_id)
+            if group_setting:
+                markup = group_setting.get('markup', 0.0)
+        
+        # Fallback to global markup if no group-specific markup
+        if markup == 0.0 or not group_id:
+            markup = db.get_admin_markup()
+        
+        # For backward compatibility, final_price = base_price (no markup in price)
+        final_price = base_price
         
         # Calculate settlement for each amount
         settlements = []
         for cny_amount in amounts:
-            usdt_amount = cny_amount / final_price
+            # Calculate USDT amount: CNY / base_price, then add markup to USDT
+            usdt_amount_base = cny_amount / base_price
+            usdt_amount = usdt_amount_base + markup
             
             settlement_data = {
                 'cny_amount': cny_amount,
@@ -284,14 +323,15 @@ def format_batch_settlement_bills(settlements: List[dict], usdt_address: str = N
     message += f"共 {len(settlements)} 笔交易\n"
     message += "────────────────────────\n\n"
     
-    # Rate info
+    # Rate info (no markup in price display)
+    message += f"📊 汇率 (USDT/CNY): {base_price:.4f} (Binance P2P)\n"
+    
+    # Markup display (if any)
     if markup != 0:
         markup_sign = "+" if markup > 0 else ""
-        rate_breakdown = f"{final_price:.4f} (Binance P2P: {base_price:.4f} {markup_sign}{markup:.4f})"
-    else:
-        rate_breakdown = f"{final_price:.4f} (Binance P2P: {base_price:.4f})"
+        message += f"➕ 加价: {markup_sign}{markup:.4f} USDT\n"
     
-    message += f"📊 汇率 (USDT/CNY): {rate_breakdown}\n\n"
+    message += "\n"
     
     # Individual bills
     message += "<b>📋 明细:</b>\n"

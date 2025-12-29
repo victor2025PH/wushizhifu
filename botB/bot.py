@@ -219,7 +219,7 @@ async def settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     message = (
         f"⚙️ 当前设置\n\n"
-        f"📈 管理员加价：{admin_markup:.4f} CNY\n"
+        f"📈 管理员加价：{admin_markup:.4f} USDT\n"
         f"💼 USDT 收款地址：{address_display}\n"
     )
     

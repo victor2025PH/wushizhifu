@@ -130,7 +130,7 @@ async def handle_admin_w0(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if group_setting:
             message += "<b>当前配置（群组独立）:</b>\n"
-            message += f"• 加价: {group_setting['markup']:.4f} CNY\n"
+            message += f"• 加价: {group_setting['markup']:.4f} USDT\n"
             address_display = group_setting['usdt_address'] if group_setting['usdt_address'] else "未设置"
             if group_setting['usdt_address'] and len(group_setting['usdt_address']) > 20:
                 address_display = f"{group_setting['usdt_address'][:10]}...{group_setting['usdt_address'][-10:]}"
@@ -139,7 +139,7 @@ async def handle_admin_w0(update: Update, context: ContextTypes.DEFAULT_TYPE):
             message += "<b>当前配置:</b> 使用全局默认设置\n\n"
         
         message += "<b>全局默认值:</b>\n"
-        message += f"• 加价: {global_markup:.4f} CNY\n"
+        message += f"• 加价: {global_markup:.4f} USDT\n"
         global_addr_display = global_address if global_address else "未设置"
         if global_address and len(global_address) > 20:
             global_addr_display = f"{global_address[:10]}...{global_address[-10:]}"
@@ -175,7 +175,7 @@ async def handle_admin_w1(update: Update, context: ContextTypes.DEFAULT_TYPE):
             message = (
                 f"💱 <b>USDT/CNY 价格信息</b>\n\n"
                 f"📊 Binance P2P 基础价格: {base_price:.4f} CNY\n"
-                f"➕ 加价（{markup_source}）: {markup:.4f} CNY\n"
+                f"➕ 加价（{markup_source}）: {markup:.4f} USDT\n"
                 f"💰 最终价格: {final_price:.4f} CNY\n"
             )
             if error_msg:
@@ -212,7 +212,7 @@ async def handle_admin_w2(update: Update, context: ContextTypes.DEFAULT_TYPE, ma
                 update,
                 target_type='group',
                 target_id=str(group_id),
-                description=f"设置群组加价: {markup_value:.4f} CNY",
+                description=f"设置群组加价: {markup_value:.4f} USDT",
                 old_value=str(old_markup) if old_markup is not None else None,
                 new_value=str(markup_value)
             )
@@ -291,7 +291,7 @@ async def handle_admin_w4(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         message = f"🌐 <b>全局设置</b>\n\n"
         message += "────────────────────────\n"
-        message += f"📈 全局默认加价: {global_markup:.4f} CNY\n"
+        message += f"📈 全局默认加价: {global_markup:.4f} USDT\n"
         
         if global_address:
             address_display = global_address[:15] + "..." + global_address[-15:] if len(global_address) > 30 else global_address
@@ -323,12 +323,12 @@ async def handle_admin_w5(update: Update, context: ContextTypes.DEFAULT_TYPE, ma
                 OperationType.SET_GLOBAL_MARKUP,
                 update,
                 target_type='global',
-                description=f"设置全局默认加价: {markup_value:.4f} CNY",
+                description=f"设置全局默认加价: {markup_value:.4f} USDT",
                 old_value=str(old_markup),
                 new_value=str(markup_value)
             )
             
-            message = f"✅ 全局默认加价已设置为: {markup_value:.4f} CNY\n\n"
+            message = f"✅ 全局默认加价已设置为: {markup_value:.4f} USDT\n\n"
             message += "ℹ️ 此设置将应用于所有未配置独立加价的群组"
         else:
             message = "❌ 设置失败"
@@ -436,7 +436,7 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
             message += f"   ID: <code>{group['group_id']}</code>\n"
             
             if is_configured:
-                message += f"   加价: {group['markup']:+.4f} CNY\n"
+                message += f"   加价: {group['markup']:+.4f} USDT\n"
                 if group.get('usdt_address'):
                     addr = group['usdt_address']
                     addr_display = addr[:10] + "..." + addr[-10:] if len(addr) > 20 else addr
