@@ -1191,9 +1191,9 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_group_message(update, contact_message, parse_mode="HTML")
         return
     
-    # Personal bills and stats (private chat only)
-    if chat.type == 'private':
-        if text == "📜 我的账单":
+    # Handle "📜 我的账单" button (both group and private)
+    if text == "📜 我的账单":
+        if chat.type == 'private':
             # Show help if needed
             if should_show_help(user_id, "📜 我的账单"):
                 help_message = format_button_help_message("📜 我的账单")
@@ -1203,9 +1203,22 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     mark_help_shown(user_id, "📜 我的账单", shown=True)
             from handlers.personal_handlers import handle_personal_bills
             await handle_personal_bills(update, context, page=1)
-            return
-        
-        if text == "🔔 预警":
+        else:
+            # In groups, show a message that this feature is only available in private chat
+            await send_group_message(update, 
+                "❌ <b>「📜 我的账单」功能</b>\n\n"
+                "此功能仅在私聊中可用。\n\n"
+                "请与机器人私聊后使用此功能，或使用以下方式：\n"
+                "• 在群组中查看「📊 今日」查看今日交易\n"
+                "• 在群组中使用「📜 历史」查看历史账单\n\n"
+                "💡 <i>点击机器人头像，选择「发送消息」进入私聊</i>",
+                parse_mode="HTML"
+            )
+        return
+    
+    # Handle "🔔 预警" button (both group and private)
+    if text == "🔔 预警":
+        if chat.type == 'private':
             # Show help if needed
             if should_show_help(user_id, "🔔 预警"):
                 help_message = format_button_help_message("🔔 预警")
@@ -1215,8 +1228,19 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     mark_help_shown(user_id, "🔔 预警", shown=True)
             from handlers.price_alert_handlers import handle_price_alert_menu
             await handle_price_alert_menu(update, context)
-            return
-        
+        else:
+            # In groups, show a message that this feature is only available in private chat
+            await send_group_message(update,
+                "❌ <b>「🔔 预警」功能</b>\n\n"
+                "此功能仅在私聊中可用。\n\n"
+                "价格预警功能需要在私聊中设置和管理。\n\n"
+                "💡 <i>点击机器人头像，选择「发送消息」进入私聊，然后设置价格预警</i>",
+                parse_mode="HTML"
+            )
+        return
+    
+    # Personal stats (private chat only)
+    if chat.type == 'private':
         if text == "📊 我的统计":
             from handlers.personal_handlers import handle_personal_stats
             await handle_personal_stats(update, context)
