@@ -130,31 +130,79 @@ async def handle_template_use(update: Update, context: ContextTypes.DEFAULT_TYPE
         # Use the template value for settlement
         template_value = template['template_value']
         
-        # Delete the template menu message
+        # Close the template menu message
         try:
             await query.message.delete()
         except:
             pass
         
-        # Create a message update from template value
-        # We'll simulate a message by directly calling the settlement handler
-        # But first, let's inform the user
         await query.answer(f"✅ 正在应用模板: {template_value}")
         
-        # Create a simple text message update simulation
-        # Actually, we can just send a message with the template value
-        # and let the normal message handler process it
-        from telegram import Message, Chat, User
+        # Directly call the settlement calculation and send result
+        # Import settlement service and handlers
+        from services.settlement_service import calculate_settlement, format_settlement_bill, get_settlement_address
+        from keyboards.inline_keyboard import get_settlement_bill_keyboard
+        from database import db
+        from admin_checker import is_admin
         
-        # Send the template value as if user typed it
-        # This will trigger the normal settlement flow
-        await query.message.chat.send_message(template_value)
+        # Get group_id if in a group
+        chat = query.message.chat
+        group_id = chat.id if chat.type in ['group', 'supergroup'] else None
         
-        logger.info(f"User {user_id} used template {template_id}: {template_value}")
+        # Calculate settlement
+        settlement_data, error_msg = calculate_settlement(template_value, group_id)
+        
+        if settlement_data is None:
+            await query.message.chat.send_message(f"❌ {error_msg}")
+            logger.error(f"Template settlement failed for user {user_id}: {error_msg}")
+            return
+        
+        # Get USDT address
+        usdt_address = get_settlement_address(group_id=group_id, strategy='default')
+        
+        # Create transaction record
+        transaction_id = db.create_transaction(
+            group_id=group_id,
+            user_id=user_id,
+            username=query.from_user.username,
+            first_name=query.from_user.first_name,
+            cny_amount=settlement_data['cny_amount'],
+            usdt_amount=settlement_data['usdt_amount'],
+            exchange_rate=settlement_data['final_price'],
+            markup=settlement_data['markup'],
+            usdt_address=usdt_address or ''
+        )
+        
+        # Format and send settlement bill
+        bill_message = format_settlement_bill(
+            settlement_data,
+            usdt_address,
+            transaction_id,
+            transaction_status='pending'
+        )
+        
+        # Add inline keyboard for confirmation
+        is_admin_user = is_admin(user_id)
+        reply_markup = get_settlement_bill_keyboard(transaction_id, 'pending', is_admin_user)
+        
+        await query.message.chat.send_message(
+            bill_message,
+            parse_mode="HTML",
+            reply_markup=reply_markup
+        )
+        
+        logger.info(f"User {user_id} used template {template_id}: {template_value}, transaction_id: {transaction_id}")
         
     except Exception as e:
         logger.error(f"Error in handle_template_use: {e}", exc_info=True)
-        await update.callback_query.answer("❌ 应用模板失败", show_alert=True)
+        try:
+            await query.answer("❌ 应用模板失败: " + str(e), show_alert=True)
+        except:
+            # If query is already answered or expired, send as message
+            try:
+                await query.message.chat.send_message(f"❌ 应用模板失败: {str(e)}")
+            except:
+                pass
 
 
 async def handle_template_create_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
