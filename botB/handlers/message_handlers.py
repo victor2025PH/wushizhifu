@@ -217,9 +217,9 @@ async def handle_admin_w2(update: Update, context: ContextTypes.DEFAULT_TYPE, ma
                 new_value=str(markup_value)
             )
             
-            message = f"✅ 群组加价已设置为: {markup_value:.4f} CNY\n\n"
+            message = f"✅ 群组加价已设置为: {markup_value:.4f} USDT\n\n"
             message += f"群组: {group_title}\n"
-            message += f"加价: {markup_value:+.4f} CNY"
+            message += f"加价: {markup_value:+.4f} USDT"
         else:
             message = "❌ 设置失败"
         
