@@ -4,11 +4,11 @@ Main entry point using python-telegram-bot (version 20+ async)
 """
 import logging
 import asyncio
-from telegram import Update
+from telegram import Update, BotCommand
 from telegram.ext import Application, CommandHandler, ContextTypes
 from config import Config
 from database import db
-from handlers.message_handlers import get_message_handler
+from handlers.message_handlers import get_message_handler, handle_price_button, handle_today_bills_button
 from handlers.callback_handlers import get_callback_handler
 from admin_checker import is_admin as check_admin
 
@@ -222,6 +222,27 @@ async def settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(message)
 
 
+async def post_init(application: Application) -> None:
+    """Set up bot commands menu after application is initialized"""
+    # Define commands for menu button
+    commands = [
+        BotCommand("start", "启动机器人，显示欢迎信息"),
+        BotCommand("price", "查看实时汇率（Binance P2P）"),
+        BotCommand("settlement", "结算计算（打开结算菜单）"),
+        BotCommand("today", "查看今日账单（群组）"),
+        BotCommand("history", "查看历史账单（群组）"),
+        BotCommand("address", "查看USDT收款地址"),
+        BotCommand("support", "联系人工客服"),
+        BotCommand("mybills", "我的账单（私聊）"),
+        BotCommand("alerts", "价格预警（私聊）"),
+        BotCommand("help", "查看详细帮助"),
+        BotCommand("settings", "查看当前设置"),
+    ]
+    
+    await application.bot.set_my_commands(commands)
+    logger.info("Bot commands menu has been set up")
+
+
 def main():
     """Main function to start the bot"""
     # Validate configuration
@@ -232,18 +253,34 @@ def main():
         return
     
     # Create application
-    application = Application.builder().token(Config.BOT_TOKEN).build()
+    application = Application.builder().token(Config.BOT_TOKEN).post_init(post_init).build()
     
     # Register command handlers
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("price", price_command))
     application.add_handler(CommandHandler("settings", settings_command))
+    
+    # Register common function commands
+    application.add_handler(CommandHandler("settlement", settlement_command))
+    application.add_handler(CommandHandler("结算", settlement_command))
+    application.add_handler(CommandHandler("today", today_command))
+    application.add_handler(CommandHandler("今日", today_command))
+    application.add_handler(CommandHandler("history", history_command))
+    application.add_handler(CommandHandler("历史", history_command))
+    application.add_handler(CommandHandler("address", address_command))
+    application.add_handler(CommandHandler("地址", address_command))
+    application.add_handler(CommandHandler("support", support_command))
+    application.add_handler(CommandHandler("客服", support_command))
+    application.add_handler(CommandHandler("mybills", mybills_command))
+    application.add_handler(CommandHandler("我的账单", mybills_command))
+    application.add_handler(CommandHandler("alerts", alerts_command_menu))
+    application.add_handler(CommandHandler("预警", alerts_command_menu))
     # Register price alert command handlers
     from handlers.price_alert_handlers import handle_list_alerts, handle_price_history
     
-    async def alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /alerts command"""
+    async def alerts_list_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /alerts_list command - show list of alerts"""
         await handle_list_alerts(update, context)
     
     async def price_history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -258,7 +295,7 @@ def main():
                 pass
         await handle_price_history(update, context, hours=hours)
     
-    application.add_handler(CommandHandler("alerts", alerts_command))
+    application.add_handler(CommandHandler("alerts_list", alerts_list_command))
     application.add_handler(CommandHandler("price_history", price_history_command))
     
     # Register chart command handlers (P5 feature)
