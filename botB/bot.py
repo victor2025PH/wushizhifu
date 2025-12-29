@@ -19,6 +19,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# 降低 httpx 日志级别，减少 getUpdates 轮询日志
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command - show welcome message with reply keyboard"""
