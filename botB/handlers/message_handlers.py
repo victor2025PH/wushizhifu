@@ -866,6 +866,79 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         return
     
+    # Handle text commands that look like commands (for Chinese command support)
+    # Telegram Bot API doesn't support Chinese commands, so we handle them as text messages
+    if text.startswith("/"):
+        # Extract command without the slash
+        command = text[1:].split()[0] if text[1:].split() else text[1:]
+        
+        # Map Chinese commands to handlers
+        command_map = {
+            "结算": "settlement",
+            "今日": "today",
+            "历史": "history",
+            "地址": "address",
+            "客服": "support",
+            "我的账单": "mybills",
+            "预警": "alerts"
+        }
+        
+        if command in command_map:
+            # Call the corresponding handler
+            if command == "结算":
+                from handlers.template_handlers import handle_template_menu
+                await handle_template_menu(update, context)
+            elif command == "今日":
+                await handle_today_bills_button(update, context)
+            elif command == "历史":
+                from handlers.bills_handlers import handle_history_bills
+                await handle_history_bills(update, context, page=1)
+            elif command == "地址":
+                # Show address (same logic as button handler)
+                chat = update.effective_chat
+                group_id = chat.id if chat.type in ['group', 'supergroup'] else None
+                usdt_address = None
+                
+                if group_id:
+                    group_setting = db.get_group_setting(group_id)
+                    if group_setting and group_setting.get('usdt_address'):
+                        usdt_address = group_setting['usdt_address']
+                
+                if not usdt_address:
+                    usdt_address = db.get_usdt_address()
+                
+                if usdt_address:
+                    address_display = usdt_address[:15] + "..." + usdt_address[-15:] if len(usdt_address) > 30 else usdt_address
+                    message = f"🔗 USDT 收款地址:\n\n<code>{address_display}</code>"
+                else:
+                    message = "⚠️ USDT 收款地址未设置"
+                
+                await update.message.reply_text(message, parse_mode="HTML")
+            elif command == "客服":
+                contact_message = (
+                    "📞 <b>联系人工客服</b>\n\n"
+                    "如有任何问题，请联系管理员：\n"
+                    "@wushizhifu_jianglai\n\n"
+                    "或使用以下方式：\n"
+                    "• 工作时间：7×24小时\n"
+                    "• 响应时间：通常在5分钟内"
+                )
+                await update.message.reply_text(contact_message, parse_mode="HTML")
+            elif command == "我的账单":
+                if chat.type == 'private':
+                    from handlers.personal_handlers import handle_personal_bills
+                    await handle_personal_bills(update, context, page=1)
+                else:
+                    await update.message.reply_text("❌ 此功能仅在私聊中可用")
+            elif command == "预警":
+                if chat.type == 'private':
+                    from handlers.price_alert_handlers import handle_price_alert_menu
+                    await handle_price_alert_menu(update, context)
+                else:
+                    await update.message.reply_text("❌ 此功能仅在私聊中可用")
+            
+            return
+    
     # Handle reply keyboard buttons with help system
     # Show help first if needed, then execute function
     from services.button_help_service import (

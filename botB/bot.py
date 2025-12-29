@@ -337,20 +337,15 @@ def main():
     application.add_handler(CommandHandler("settings", settings_command))
     
     # Register common function commands
+    # Note: Telegram Bot API only supports commands with letters, numbers, and underscores
+    # Chinese commands are handled in message_handler instead
     application.add_handler(CommandHandler("settlement", settlement_command))
-    application.add_handler(CommandHandler("结算", settlement_command))
     application.add_handler(CommandHandler("today", today_command))
-    application.add_handler(CommandHandler("今日", today_command))
     application.add_handler(CommandHandler("history", history_command))
-    application.add_handler(CommandHandler("历史", history_command))
     application.add_handler(CommandHandler("address", address_command))
-    application.add_handler(CommandHandler("地址", address_command))
     application.add_handler(CommandHandler("support", support_command))
-    application.add_handler(CommandHandler("客服", support_command))
     application.add_handler(CommandHandler("mybills", mybills_command))
-    application.add_handler(CommandHandler("我的账单", mybills_command))
     application.add_handler(CommandHandler("alerts", alerts_command_menu))
-    application.add_handler(CommandHandler("预警", alerts_command_menu))
     # Register price alert command handlers
     from handlers.price_alert_handlers import handle_list_alerts, handle_price_history
     
