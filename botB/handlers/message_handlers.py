@@ -1119,7 +1119,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await handle_global_stats(update, context)
         return
     
-        if text in ["🔗 收款地址", "🔗 地址"]:
+    if text in ["🔗 收款地址", "🔗 地址"]:
         # Show help if needed
         if should_show_help(user_id, "🔗 地址"):
             help_message = format_button_help_message("🔗 地址")
