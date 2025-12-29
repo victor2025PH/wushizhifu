@@ -615,33 +615,92 @@ class Database:
     
     def get_all_groups(self) -> list:
         """
-        Get all configured groups.
+        Get all groups with transactions (active groups).
+        Combines data from group_settings and transactions tables.
         
         Returns:
-            List of group dictionaries
+            List of group dictionaries with title, settings, and stats
         """
         conn = self.connect()
         cursor = conn.cursor()
         
+        # Get all unique group_ids from transactions
+        cursor.execute("""
+            SELECT DISTINCT group_id
+            FROM transactions
+            WHERE group_id IS NOT NULL
+            ORDER BY MAX(created_at) DESC
+        """)
+        
+        transaction_groups = cursor.fetchall()
+        group_ids = [row[0] for row in transaction_groups]
+        
+        # Get configured groups
         cursor.execute("""
             SELECT group_id, group_title, markup, usdt_address, is_active, updated_at
             FROM group_settings
             WHERE is_active = 1
-            ORDER BY updated_at DESC
         """)
         
-        rows = cursor.fetchall()
-        groups = []
-        for row in rows:
-            groups.append({
+        configured_groups = {}
+        for row in cursor.fetchall():
+            configured_groups[row['group_id']] = {
                 'group_id': row['group_id'],
                 'group_title': row['group_title'],
                 'markup': float(row['markup']) if row['markup'] else 0.0,
                 'usdt_address': row['usdt_address'] or '',
                 'is_active': bool(row['is_active']),
-                'updated_at': row['updated_at']
-            })
-        return groups
+                'updated_at': row['updated_at'],
+                'is_configured': True
+            }
+        
+        # Get transaction stats for each group
+        cursor.execute("""
+            SELECT 
+                group_id,
+                COUNT(*) as tx_count,
+                MAX(created_at) as last_active
+            FROM transactions
+            WHERE group_id IS NOT NULL
+            GROUP BY group_id
+        """)
+        
+        group_stats = {}
+        for row in cursor.fetchall():
+            group_stats[row['group_id']] = {
+                'tx_count': int(row['tx_count']),
+                'last_active': row['last_active']
+            }
+        
+        # Combine all groups
+        all_groups = []
+        
+        # Add configured groups
+        for group_id, group_data in configured_groups.items():
+            stats = group_stats.get(group_id, {'tx_count': 0, 'last_active': None})
+            group_data.update(stats)
+            all_groups.append(group_data)
+        
+        # Add groups with transactions but no configuration
+        for group_id in group_ids:
+            if group_id not in configured_groups:
+                stats = group_stats.get(group_id, {'tx_count': 0, 'last_active': None})
+                all_groups.append({
+                    'group_id': group_id,
+                    'group_title': None,  # Will try to get from Bot API
+                    'markup': 0.0,
+                    'usdt_address': '',
+                    'is_active': True,
+                    'updated_at': stats.get('last_active'),
+                    'is_configured': False,
+                    'tx_count': stats.get('tx_count', 0),
+                    'last_active': stats.get('last_active')
+                })
+        
+        # Sort by last_active (most recent first)
+        all_groups.sort(key=lambda x: x.get('last_active') or '', reverse=True)
+        
+        return all_groups
     
     # ========== Transaction Methods ==========
     

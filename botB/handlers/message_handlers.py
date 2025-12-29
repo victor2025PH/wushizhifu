@@ -310,13 +310,15 @@ async def handle_admin_w6(update: Update, context: ContextTypes.DEFAULT_TYPE, ad
 
 
 async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle w7/CKQL: View all configured groups"""
+    """Handle w7/CKQL: View all groups with transactions"""
     try:
         # Handle both message and callback query updates
         if update.message:
             message_target = update.message
+            bot = update.message.bot
         elif update.callback_query and update.callback_query.message:
             message_target = update.callback_query.message
+            bot = update.callback_query.message.bot
         else:
             logger.error("handle_admin_w7: No message target found")
             return
@@ -324,30 +326,81 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
         groups = db.get_all_groups()
         
         if not groups:
-            await message_target.reply_text("📭 暂无已配置的群组\n\n所有群组都在使用全局默认设置")
+            await message_target.reply_text("📭 暂无有交易记录的群组\n\n所有群组都在使用全局默认设置")
             return
         
-        message = f"📊 <b>所有已配置群组</b>\n\n"
-        message += f"共 {len(groups)} 个群组\n"
+        # Try to get group titles from Bot API
+        for group in groups[:20]:  # Limit to 20 groups for API calls
+            if not group.get('group_title'):
+                try:
+                    chat = await bot.get_chat(group['group_id'])
+                    group['group_title'] = chat.title
+                    # Update in database if we have it in group_settings
+                    if group.get('is_configured'):
+                        from database import db
+                        conn = db.connect()
+                        cursor = conn.cursor()
+                        cursor.execute("""
+                            UPDATE group_settings 
+                            SET group_title = ? 
+                            WHERE group_id = ?
+                        """, (chat.title, group['group_id']))
+                        conn.commit()
+                except Exception as e:
+                    logger.warning(f"Could not get chat info for group {group['group_id']}: {e}")
+                    group['group_title'] = f"群组 {group['group_id']}"
+        
+        message = f"📊 <b>所有活跃群组</b>\n\n"
+        message += f"共 {len(groups)} 个群组（显示前 20 个）\n"
+        message += "────────────────────────\n\n"
+        
+        configured_count = sum(1 for g in groups if g.get('is_configured'))
+        message += f"📈 <b>统计：</b>\n"
+        message += f"• 已配置: {configured_count} 个\n"
+        message += f"• 使用全局默认: {len(groups) - configured_count} 个\n\n"
         message += "────────────────────────\n\n"
         
         for idx, group in enumerate(groups[:20], 1):  # Limit to 20 groups
-            message += f"<b>{idx}. {group['group_title'] or '未知群组'}</b>\n"
+            group_title = group.get('group_title') or f"群组 {group['group_id']}"
+            is_configured = group.get('is_configured', False)
+            
+            # Status indicator
+            status_icon = "⚙️" if is_configured else "🌐"
+            
+            message += f"{status_icon} <b>{idx}. {group_title}</b>\n"
             message += f"   ID: <code>{group['group_id']}</code>\n"
-            message += f"   加价: {group['markup']:+.4f} CNY\n"
-            if group['usdt_address']:
-                addr = group['usdt_address']
-                addr_display = addr[:10] + "..." + addr[-10:] if len(addr) > 20 else addr
-                message += f"   地址: <code>{addr_display}</code>\n"
+            
+            if is_configured:
+                message += f"   加价: {group['markup']:+.4f} CNY\n"
+                if group.get('usdt_address'):
+                    addr = group['usdt_address']
+                    addr_display = addr[:10] + "..." + addr[-10:] if len(addr) > 20 else addr
+                    message += f"   地址: <code>{addr_display}</code>\n"
+                else:
+                    message += f"   地址: 未设置（使用全局）\n"
             else:
-                message += f"   地址: 未设置（使用全局）\n"
+                message += f"   配置: 使用全局默认设置\n"
+            
+            # Transaction stats
+            tx_count = group.get('tx_count', 0)
+            last_active = group.get('last_active', '')
+            if last_active:
+                last_active = last_active[:16] if len(last_active) > 16 else last_active
+                message += f"   交易: {tx_count} 笔 | 最后活跃: {last_active[-10:]}\n"
+            else:
+                message += f"   交易: {tx_count} 笔\n"
+            
             message += "\n"
         
         if len(groups) > 20:
             message += f"\n... 还有 {len(groups) - 20} 个群组未显示"
         
-        await message_target.reply_text(message, parse_mode="HTML")
-        logger.info(f"Admin {update.effective_user.id} executed w7/CKQL")
+        # Add inline keyboard for group management
+        from keyboards.inline_keyboard import get_groups_list_keyboard
+        reply_markup = get_groups_list_keyboard()
+        
+        await message_target.reply_text(message, parse_mode="HTML", reply_markup=reply_markup)
+        logger.info(f"Admin {update.effective_user.id} executed w7/CKQL, showing {len(groups)} groups")
         
     except Exception as e:
         logger.error(f"Error in handle_admin_w7: {e}", exc_info=True)

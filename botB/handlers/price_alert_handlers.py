@@ -12,6 +12,56 @@ from services.price_service import get_price_with_markup
 logger = logging.getLogger(__name__)
 
 
+async def handle_price_alert_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle price alert menu"""
+    try:
+        if update.message:
+            message_target = update.message
+        elif update.callback_query and update.callback_query.message:
+            message_target = update.callback_query.message
+            query = update.callback_query
+        else:
+            logger.error("handle_price_alert_menu: No message target found")
+            return
+        
+        user_id = update.effective_user.id
+        
+        message = (
+            "🔔 <b>价格预警管理</b>\n\n"
+            "请选择操作：\n\n"
+            "💡 <i>提示：当价格达到设定条件时，Bot 会自动通知您</i>"
+        )
+        
+        keyboard = [
+            [
+                InlineKeyboardButton("➕ 创建预警", callback_data="alert_create"),
+                InlineKeyboardButton("📋 我的预警", callback_data="alerts_list")
+            ],
+            [
+                InlineKeyboardButton("📊 价格历史", callback_data="price_history_24"),
+                InlineKeyboardButton("🔙 返回", callback_data="main_menu")
+            ]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if update.message:
+            await message_target.reply_text(message, parse_mode="HTML", reply_markup=reply_markup)
+        elif update.callback_query:
+            await query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
+            await query.answer()
+        
+    except Exception as e:
+        logger.error(f"Error in handle_price_alert_menu: {e}", exc_info=True)
+        try:
+            if update.message:
+                await update.message.reply_text("❌ 错误: " + str(e))
+            elif update.callback_query:
+                await update.callback_query.answer("❌ 错误: " + str(e), show_alert=True)
+        except:
+            pass
+
+
 async def handle_create_alert(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle alert creation menu"""
     try:

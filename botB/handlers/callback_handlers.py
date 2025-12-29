@@ -482,29 +482,79 @@ async def handle_global_management_menu(update: Update, context: ContextTypes.DE
     callback_data = query.data
     
     try:
+        # Show help for each button if needed
+        from services.button_help_service import (
+            format_button_help_message, 
+            should_show_help, 
+            mark_help_shown
+        )
+        from keyboards.inline_keyboard import get_button_help_keyboard
+        
         if callback_data == "global_settings_view":
+            # Show help if needed
+            if should_show_help(query.from_user.id, "查看全局设置"):
+                help_message = format_button_help_message("查看全局设置")
+                if help_message:
+                    help_keyboard = get_button_help_keyboard("查看全局设置")
+                    await query.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
+                    mark_help_shown(query.from_user.id, "查看全局设置", shown=True)
+            
             from handlers.message_handlers import handle_admin_w4
             await handle_admin_w4(update, context)
             await query.answer()
             return
         
         elif callback_data == "global_settings_markup":
+            # Show help if needed
+            if should_show_help(query.from_user.id, "设置全局加价"):
+                help_message = format_button_help_message("设置全局加价")
+                if help_message:
+                    help_keyboard = get_button_help_keyboard("设置全局加价")
+                    await query.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
+                    mark_help_shown(query.from_user.id, "设置全局加价", shown=True)
+            
             await query.message.reply_text("请输入全局默认加价值（例如：0.5）")
+            context.user_data['awaiting_global_markup'] = True
             await query.answer("💡 请在聊天中输入加价值")
             return
         
         elif callback_data == "global_settings_address":
+            # Show help if needed
+            if should_show_help(query.from_user.id, "设置全局地址"):
+                help_message = format_button_help_message("设置全局地址")
+                if help_message:
+                    help_keyboard = get_button_help_keyboard("设置全局地址")
+                    await query.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
+                    mark_help_shown(query.from_user.id, "设置全局地址", shown=True)
+            
             await query.message.reply_text("请输入全局默认 USDT 收款地址")
+            context.user_data['awaiting_global_address'] = True
             await query.answer("💡 请在聊天中输入地址")
             return
         
         elif callback_data == "global_groups_list":
+            # Show help if needed
+            if should_show_help(query.from_user.id, "所有群组列表"):
+                help_message = format_button_help_message("所有群组列表")
+                if help_message:
+                    help_keyboard = get_button_help_keyboard("所有群组列表")
+                    await query.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
+                    mark_help_shown(query.from_user.id, "所有群组列表", shown=True)
+            
             from handlers.message_handlers import handle_admin_w7
             await handle_admin_w7(update, context)
             await query.answer()
             return
         
         elif callback_data == "global_stats":
+            # Show help if needed
+            if should_show_help(query.from_user.id, "全局统计"):
+                help_message = format_button_help_message("全局统计")
+                if help_message:
+                    help_keyboard = get_button_help_keyboard("全局统计")
+                    await query.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
+                    mark_help_shown(query.from_user.id, "全局统计", shown=True)
+            
             await handle_global_stats(update, context)
             await query.answer()
             return

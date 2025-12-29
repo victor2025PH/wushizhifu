@@ -23,6 +23,21 @@ def get_button_help_keyboard(button_text: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
+def get_groups_list_keyboard() -> InlineKeyboardMarkup:
+    """
+    Get inline keyboard for groups list.
+    
+    Returns:
+        InlineKeyboardMarkup with refresh button
+    """
+    keyboard = [
+        [
+            InlineKeyboardButton("🔄 刷新列表", callback_data="global_groups_list")
+        ]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
 def get_settlement_bill_keyboard(transaction_id: str = None, transaction_status: str = None, 
                                 is_admin: bool = False) -> InlineKeyboardMarkup:
     """
