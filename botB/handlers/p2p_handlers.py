@@ -292,7 +292,7 @@ async def handle_p2p_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             "ali": "alipay",
             "wx": "wechat"
         }
-        payment_method = callback_method_map.get(payment_method_code, "alipay")
+        payment_method = payment_method_map.get(payment_method_code, "alipay")
         
         per_page = 5  # Show 5 merchants per page
         
