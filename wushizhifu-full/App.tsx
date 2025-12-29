@@ -120,6 +120,30 @@ export default function App() {
     // Log current URL for debugging
     console.log("🔍 Current URL:", window.location.href);
     console.log("🔍 URL Search:", window.location.search);
+    console.log("🔍 URL User from early check:", urlUser);
+    
+    // Also try reading from hash (Telegram sometimes uses hash for parameters)
+    try {
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      console.log("🔍 Hash params:", window.location.hash);
+      if (hashParams.has('user_id') && !urlUser) {
+        const userId = hashParams.get('user_id');
+        const userName = hashParams.get('user_name');
+        const firstName = hashParams.get('first_name');
+        if (userId) {
+          const userData = {
+            id: parseInt(userId),
+            first_name: firstName || userName || 'User',
+            username: userName || undefined,
+            language_code: hashParams.get('language_code') || 'zh'
+          };
+          console.log("✅ Found user info in hash params:", userData);
+          setUser(userData);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to parse hash params:", e);
+    }
     
     // Initialize Telegram WebApp and sync user data
     const initializeApp = async () => {
