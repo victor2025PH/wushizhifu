@@ -205,6 +205,15 @@ async def handle_admin_w3(update: Update, context: ContextTypes.DEFAULT_TYPE, ad
 async def handle_admin_w4(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle w4/CKQJ: View global settings"""
     try:
+        # Handle both message and callback query updates
+        if update.message:
+            message_target = update.message
+        elif update.callback_query and update.callback_query.message:
+            message_target = update.callback_query.message
+        else:
+            logger.error("handle_admin_w4: No message target found")
+            return
+        
         global_markup = db.get_admin_markup()
         global_address = db.get_usdt_address()
         
@@ -221,12 +230,19 @@ async def handle_admin_w4(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message += "────────────────────────\n"
         message += "ℹ️ 提示: 未配置独立设置的群组将使用此全局默认值"
         
-        await update.message.reply_text(message, parse_mode="HTML")
+        await message_target.reply_text(message, parse_mode="HTML")
         logger.info(f"Admin {update.effective_user.id} executed w4/CKQJ")
         
     except Exception as e:
         logger.error(f"Error in handle_admin_w4: {e}", exc_info=True)
-        await update.message.reply_text(f"❌ 错误: {str(e)}")
+        # Try to send error message
+        try:
+            if update.message:
+                await update.message.reply_text(f"❌ 错误: {str(e)}")
+            elif update.callback_query and update.callback_query.message:
+                await update.callback_query.message.reply_text(f"❌ 错误: {str(e)}")
+        except:
+            pass
 
 
 async def handle_admin_w5(update: Update, context: ContextTypes.DEFAULT_TYPE, markup_value: float):
