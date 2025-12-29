@@ -76,11 +76,14 @@ async def handle_group_stats(update: Update, context: ContextTypes.DEFAULT_TYPE)
             last_active = month_stats['last_active'][:16] if len(month_stats['last_active']) > 16 else month_stats['last_active']
             message += f"📅 最近活跃: {last_active}"
         
-        await update.message.reply_text(message, parse_mode="HTML")
+        # Use send_with_reply_keyboard to ensure reply keyboard is shown in groups
+        from utils.message_utils import send_with_reply_keyboard
+        await send_with_reply_keyboard(update, message, parse_mode="HTML")
         
     except Exception as e:
         logger.error(f"Error in handle_group_stats: {e}", exc_info=True)
-        await update.message.reply_text(f"❌ 错误: {str(e)}")
+        from utils.message_utils import send_with_reply_keyboard
+        await send_with_reply_keyboard(update, f"❌ 错误: {str(e)}")
 
 
 async def handle_global_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -129,11 +132,14 @@ async def handle_global_stats(update: Update, context: ContextTypes.DEFAULT_TYPE
         message += f"• 使用全局设置: {len(all_groups) - groups_with_custom_settings} 个\n"
         message += f"• 使用独立设置: {groups_with_custom_settings} 个"
         
-        await update.message.reply_text(message, parse_mode="HTML")
+        # Use send_with_reply_keyboard to ensure reply keyboard is shown in groups
+        from utils.message_utils import send_with_reply_keyboard
+        await send_with_reply_keyboard(update, message, parse_mode="HTML")
         
     except Exception as e:
         logger.error(f"Error in handle_global_stats: {e}", exc_info=True)
-        await update.message.reply_text(f"❌ 错误: {str(e)}")
+        from utils.message_utils import send_with_reply_keyboard
+        await send_with_reply_keyboard(update, f"❌ 错误: {str(e)}")
 
 
 async def handle_pending_transactions(update: Update, context: ContextTypes.DEFAULT_TYPE, group_id: Optional[int] = None):

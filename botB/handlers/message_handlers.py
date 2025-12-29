@@ -645,17 +645,14 @@ async def handle_math_settlement(update: Update, context: ContextTypes.DEFAULT_T
         from keyboards.inline_keyboard import get_settlement_bill_keyboard
         reply_markup = get_settlement_bill_keyboard(transaction_id, 'pending', False)
         
-        await update.message.reply_text(
-            bill_message,
-            parse_mode="HTML",
-            reply_markup=reply_markup
-        )
+        # Use send_group_message to ensure reply keyboard is shown in groups
+        await send_group_message(update, bill_message, parse_mode="HTML", inline_keyboard=reply_markup)
         
         logger.info(f"User {user.id} calculated settlement: {amount_text}, transaction_id: {transaction_id}")
         
     except Exception as e:
         logger.error(f"Error in handle_math_settlement: {e}", exc_info=True)
-        await update.message.reply_text(f"❌ 计算错误: {str(e)}")
+        await send_group_message(update, f"❌ 计算错误: {str(e)}")
 
 
 # ========== Button Handlers ==========
@@ -679,7 +676,7 @@ async def handle_today_bills_button(update: Update, context: ContextTypes.DEFAUL
         stats = db.get_transaction_stats_by_group(group_id)
         
         if not transactions:
-            await update.message.reply_text("📭 今日暂无交易记录")
+            await send_group_message(update, "📭 今日暂无交易记录")
             return
         
         message = f"📊 <b>今日账单统计</b>\n\n"
@@ -701,11 +698,11 @@ async def handle_today_bills_button(update: Update, context: ContextTypes.DEFAUL
                 message += f" - {tx['first_name']}"
             message += "\n"
         
-        await update.message.reply_text(message, parse_mode="HTML")
+        await send_group_message(update, message, parse_mode="HTML")
         
     except Exception as e:
         logger.error(f"Error in handle_today_bills_button: {e}", exc_info=True)
-        await update.message.reply_text(f"❌ 错误: {str(e)}")
+        await send_group_message(update, f"❌ 错误: {str(e)}")
 
 
 # ========== Main Message Handler ==========

@@ -249,14 +249,28 @@ async def handle_p2p_price_command(update: Update, context: ContextTypes.DEFAULT
             reply_markup=reply_markup
         )
         
+        # Also send reply keyboard if in group (after edit, keyboard may not show)
+        chat = update.effective_chat
+        if chat.type in ['group', 'supergroup']:
+            from utils.message_utils import send_with_reply_keyboard
+            try:
+                await send_with_reply_keyboard(update, "​")  # Zero-width space to show keyboard
+            except Exception as e:
+                logger.warning(f"Failed to send reply keyboard after P2P leaderboard: {e}")
+        
         logger.info(f"Sent P2P leaderboard ({payment_method}, page {current_page}/{total_pages}, {len(all_merchants)} total merchants) to {update.effective_user.id}")
         
     except Exception as e:
         logger.error(f"Error in handle_p2p_price_command: {e}", exc_info=True)
+        from utils.message_utils import send_with_reply_keyboard
         try:
             await loading_msg.edit_text(f"❌ 获取币价行情时出错: {str(e)}")
+            # Also send reply keyboard if in group
+            chat = update.effective_chat
+            if chat.type in ['group', 'supergroup']:
+                await send_with_reply_keyboard(update, "​")
         except:
-            await update.message.reply_text(f"❌ 获取币价行情时出错: {str(e)}")
+            await send_with_reply_keyboard(update, f"❌ 获取币价行情时出错: {str(e)}")
 
 
 async def handle_p2p_callback(update: Update, context: ContextTypes.DEFAULT_TYPE, callback_data: str):
@@ -351,6 +365,15 @@ async def handle_p2p_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             parse_mode="HTML",
             reply_markup=reply_markup
         )
+        
+        # Also send reply keyboard if in group (after edit, keyboard may not show)
+        chat = update.effective_chat
+        if chat.type in ['group', 'supergroup']:
+            from utils.message_utils import send_with_reply_keyboard
+            try:
+                await send_with_reply_keyboard(update, "​")  # Zero-width space to show keyboard
+            except Exception as e:
+                logger.warning(f"Failed to send reply keyboard after P2P callback: {e}")
         
         logger.info(f"Updated P2P leaderboard ({payment_method}, page {current_page}/{total_pages}, {len(all_merchants)} total merchants) for {update.effective_user.id}")
         

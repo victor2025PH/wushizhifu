@@ -80,10 +80,15 @@ async def handle_history_bills(update: Update, context: ContextTypes.DEFAULT_TYP
         
         if not transactions:
             no_data_msg = "📭 暂无符合条件的交易记录"
+            # Use send_with_reply_keyboard to ensure reply keyboard is shown in groups
+            from utils.message_utils import send_with_reply_keyboard
             if edit_message and update.callback_query:
                 await update.callback_query.edit_message_text(no_data_msg)
+                # Also send reply keyboard if in group
+                if chat.type in ['group', 'supergroup']:
+                    await send_with_reply_keyboard(update, "​")  # Zero-width space
             else:
-                await (update.callback_query or update.message).reply_text(no_data_msg)
+                await send_with_reply_keyboard(update, no_data_msg)
             return
         
         total_pages = max(1, (total_count + limit - 1) // limit)
@@ -154,15 +159,21 @@ async def handle_history_bills(update: Update, context: ContextTypes.DEFAULT_TYP
         # Add keyboard
         reply_markup = get_bills_history_keyboard(group_id, page, start_date, end_date)
         
+        # Use send_with_reply_keyboard to ensure reply keyboard is shown in groups
+        from utils.message_utils import send_with_reply_keyboard
         if edit_message and update.callback_query:
             await update.callback_query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
             await update.callback_query.answer()
+            # Also send reply keyboard if in group
+            if chat.type in ['group', 'supergroup']:
+                await send_with_reply_keyboard(update, "​")  # Zero-width space to show keyboard
         else:
-            await (update.callback_query or update.message).reply_text(message, parse_mode="HTML", reply_markup=reply_markup)
+            await send_with_reply_keyboard(update, message, parse_mode="HTML", inline_keyboard=reply_markup)
         
     except Exception as e:
         logger.error(f"Error in handle_history_bills: {e}", exc_info=True)
-        await (update.callback_query or update.message).reply_text(f"❌ 错误: {str(e)}")
+        from utils.message_utils import send_with_reply_keyboard
+        await send_with_reply_keyboard(update, f"❌ 错误: {str(e)}")
 
 
 async def handle_export_transactions(update: Update, context: ContextTypes.DEFAULT_TYPE,

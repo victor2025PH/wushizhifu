@@ -7,6 +7,23 @@ sudo systemctl status wushipay-bot
 # 查看實時日誌
 sudo journalctl -u wushizhifu-bot.service -f
 
+# 实时查看 Bot B 日志（跟随最新输出）
+sudo journalctl -u otc-bot -f
+
+# 查看最近 100 行日志
+sudo journalctl -u otc-bot -n 100
+
+# 查看服务状态
+sudo systemctl status otc-bot
+
+# 实时查看包含 "P2P" 的日志
+sudo journalctl -u otc-bot -f | grep -i p2p
+
+# 实时查看价格查询相关日志
+sudo journalctl -u otc-bot -f | grep -i "price\|leaderboard"
+
+# 重启服务（如果需要）
+sudo systemctl restart otc-bot
 
 # 重啟服務
 sudo systemctl restart wushipay-bot
@@ -38,3 +55,15 @@ sudo tail -f /var/log/nginx/error.log
 
 # Nginx 訪問日誌
 sudo tail -f /var/log/nginx/access.log
+
+# 检查服务是否运行
+sudo systemctl status wushizhifu-bot.service
+
+# 如果没有运行，查看错误日志
+sudo journalctl -u wushizhifu-bot.service -n 50 --no-pager
+
+# 启动服务
+sudo systemctl start wushizhifu-bot.service
+
+# 然后查看实时日志
+sudo journalctl -u wushizhifu-bot.service -f
