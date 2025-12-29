@@ -45,6 +45,38 @@ def get_exchange_direction_keyboard() -> InlineKeyboardMarkup:
     ])
 
 
+def get_p2p_exchange_keyboard(payment_method: str, page: int = 1, total_pages: int = 1) -> InlineKeyboardMarkup:
+    """Keyboard for P2P exchange rate leaderboard with payment method and pagination"""
+    keyboard = []
+    
+    # Payment method buttons
+    keyboard.append([
+        InlineKeyboardButton("💳 银行卡", callback_data=f"p2p_exchange_bank_1"),
+        InlineKeyboardButton("🔵 支付宝", callback_data=f"p2p_exchange_ali_1"),
+        InlineKeyboardButton("🟢 微信", callback_data=f"p2p_exchange_wx_1")
+    ])
+    
+    # Pagination buttons (only show if more than one page)
+    if total_pages > 1:
+        pagination_row = []
+        if page > 1:
+            # Map payment method to callback code
+            pm_code = "bank" if payment_method == "bank" else "ali" if payment_method == "alipay" else "wx"
+            pagination_row.append(InlineKeyboardButton("◀️ 上一页", callback_data=f"p2p_exchange_{pm_code}_{page - 1}"))
+        if page < total_pages:
+            pm_code = "bank" if payment_method == "bank" else "ali" if payment_method == "alipay" else "wx"
+            pagination_row.append(InlineKeyboardButton("下一页 ▶️", callback_data=f"p2p_exchange_{pm_code}_{page + 1}"))
+        if pagination_row:
+            keyboard.append(pagination_row)
+    
+    # Back button
+    keyboard.append([
+        InlineKeyboardButton("🔙 返回计算器", callback_data="calculator")
+    ])
+    
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
 def get_calculator_result_keyboard(use_for_order: bool = False) -> InlineKeyboardMarkup:
     """Keyboard after calculator result"""
     buttons = []
