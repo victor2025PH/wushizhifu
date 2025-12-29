@@ -3,22 +3,45 @@ Reply keyboard layouts for Bot B
 """
 from telegram import ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
 from typing import Optional
+from urllib.parse import urlencode
 from admin_checker import is_admin
 from config import Config
 
 
-def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = False) -> ReplyKeyboardMarkup:
+def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = False, user_info: Optional[dict] = None) -> ReplyKeyboardMarkup:
     """
     Get main reply keyboard with three buttons per row.
     
     Args:
         user_id: Optional user ID to check admin status
         is_group: Whether this is a group chat
+        user_info: Optional user info dict with id, first_name, username, etc.
     
     Returns:
         ReplyKeyboardMarkup with main menu buttons (3 per row)
     """
     keyboard = []
+    
+    # Generate WebApp URL with user info as fallback (for ReplyKeyboard buttons)
+    # This helps when initData is not available from ReplyKeyboard WebApp buttons
+    def get_webapp_url():
+        base_url = Config.get_miniapp_url("dashboard")
+        if user_info:
+            # Add user info as URL parameters (as fallback when initData is missing)
+            params = {
+                'user_id': str(user_info.get('id', '')),
+                'first_name': user_info.get('first_name', ''),
+            }
+            if user_info.get('username'):
+                params['user_name'] = user_info.get('username')
+            if user_info.get('language_code'):
+                params['language_code'] = user_info.get('language_code')
+            
+            # Only add params if we have user_id
+            if params.get('user_id'):
+                param_string = urlencode(params)
+                return f"{base_url}&{param_string}"
+        return base_url
     
     if is_group:
         # Group layout - 3 buttons per row
@@ -42,7 +65,7 @@ def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = Fals
                 KeyboardButton("📈 统计"),
                 KeyboardButton(
                     "💎 打开应用",
-                    web_app=WebAppInfo(url=Config.get_miniapp_url("dashboard"))
+                    web_app=WebAppInfo(url=get_webapp_url())
                 )
             ])
         else:
@@ -50,7 +73,7 @@ def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = Fals
             keyboard.append([
                 KeyboardButton(
                     "💎 打开应用",
-                    web_app=WebAppInfo(url=Config.get_miniapp_url("dashboard"))
+                    web_app=WebAppInfo(url=get_webapp_url())
                 ),
                 KeyboardButton(""),  # Empty button as placeholder
                 KeyboardButton("")   # Empty button as placeholder
@@ -77,7 +100,7 @@ def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = Fals
                 KeyboardButton("📊 数据"),
                 KeyboardButton(
                     "💎 打开应用",
-                    web_app=WebAppInfo(url=Config.get_miniapp_url("dashboard"))
+                    web_app=WebAppInfo(url=get_webapp_url())
                 )
             ])
         else:
@@ -85,7 +108,7 @@ def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = Fals
             keyboard.append([
                 KeyboardButton(
                     "💎 打开应用",
-                    web_app=WebAppInfo(url=Config.get_miniapp_url("dashboard"))
+                    web_app=WebAppInfo(url=get_webapp_url())
                 ),
                 KeyboardButton(""),  # Empty button as placeholder
                 KeyboardButton("")   # Empty button as placeholder

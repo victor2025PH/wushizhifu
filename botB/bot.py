@@ -92,7 +92,14 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_message += "祝您使用愉快！✨"
     
     is_group = update.effective_chat.type in ['group', 'supergroup']
-    reply_markup = get_main_reply_keyboard(user.id, is_group)
+    # Pass user info to keyboard so it can be included in WebApp URL
+    user_info = {
+        'id': user.id,
+        'first_name': user.first_name or '',
+        'username': user.username,
+        'language_code': user.language_code
+    }
+    reply_markup = get_main_reply_keyboard(user.id, is_group, user_info)
     
     # Add inline keyboard for resetting help
     from telegram import InlineKeyboardMarkup, InlineKeyboardButton
@@ -178,7 +185,14 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     
     is_group = update.effective_chat.type in ['group', 'supergroup']
-    reply_markup = get_main_reply_keyboard(user.id, is_group)
+    # Pass user info to keyboard so it can be included in WebApp URL
+    user_info = {
+        'id': user.id,
+        'first_name': user.first_name or '',
+        'username': user.username,
+        'language_code': user.language_code
+    }
+    reply_markup = get_main_reply_keyboard(user.id, is_group, user_info)
     await update.message.reply_text(
         help_text,
         parse_mode="HTML",
