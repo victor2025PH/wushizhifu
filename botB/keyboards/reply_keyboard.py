@@ -104,42 +104,6 @@ def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = Fals
             KeyboardButton("")   # Empty button as placeholder
         ])
     
-    if False:  # Removed group-specific layout, keeping code structure
-        # Private chat layout - 3 buttons per row
-        keyboard = [
-            [
-                KeyboardButton("💱 汇率"),
-                KeyboardButton("💰 结算"),
-                KeyboardButton("📜 我的账单")
-            ],
-            [
-                KeyboardButton("🔔 预警"),
-                KeyboardButton("🔗 地址"),
-                KeyboardButton("📞 客服")
-            ]
-        ]
-        
-        # Add admin buttons if admin (3 per row)
-        if user_id and is_admin(user_id):
-            keyboard.append([
-                KeyboardButton("⚙️ 管理"),
-                KeyboardButton("📊 数据"),
-                KeyboardButton(
-                    "💎 打开应用",
-                    web_app=WebAppInfo(url=get_webapp_url())
-                )
-            ])
-        else:
-            # If not admin, add "打开应用" button in a row of 3
-            keyboard.append([
-                KeyboardButton(
-                    "💎 打开应用",
-                    web_app=WebAppInfo(url=get_webapp_url())
-                ),
-                KeyboardButton(""),  # Empty button as placeholder
-                KeyboardButton("")   # Empty button as placeholder
-            ])
-    
     return ReplyKeyboardMarkup(
         keyboard=keyboard,
         resize_keyboard=True,
