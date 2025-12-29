@@ -98,20 +98,90 @@ export default function App() {
             console.warn("⚠️ No user data found in initDataUnsafe");
             console.warn("This usually means the app was opened outside Telegram or initData is missing");
             
-            // Try to get user from initData directly
+            // Try multiple methods to get user information
+            let userFound = false;
+            
+            // Method 1: Try to get user from initData directly (raw string parsing)
             if (window.Telegram.WebApp.initData) {
-              console.log("Attempting to parse initData manually...");
+              console.log("Method 1: Attempting to parse initData manually...");
               try {
                 const urlParams = new URLSearchParams(window.Telegram.WebApp.initData);
                 const userStr = urlParams.get('user');
                 if (userStr) {
                   const userData = JSON.parse(decodeURIComponent(userStr));
-                  console.log("Parsed user from initData:", userData);
+                  console.log("✅ Parsed user from initData:", userData);
                   setUser(userData);
+                  userFound = true;
+                  
+                  // Sync with backend
+                  try {
+                    const { apiClient } = await import('./api');
+                    apiClient.syncUser(userData).then(() => {
+                      console.log("User data synced with backend");
+                    }).catch((error) => {
+                      console.error("Failed to sync user data:", error);
+                    });
+                  } catch (error) {
+                    console.error("Failed to import apiClient:", error);
+                  }
                 }
               } catch (e) {
                 console.error("Failed to parse initData:", e);
               }
+            }
+            
+            // Method 2: Try to get user from query string (if Bot passed it)
+            if (!userFound) {
+              console.log("Method 2: Checking URL parameters for user info...");
+              try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const userId = urlParams.get('user_id');
+                const userName = urlParams.get('user_name');
+                const firstName = urlParams.get('first_name');
+                
+                if (userId) {
+                  const userData = {
+                    id: parseInt(userId),
+                    first_name: firstName || userName || 'User',
+                    username: userName || undefined,
+                    language_code: urlParams.get('language_code') || 'zh'
+                  };
+                  console.log("✅ Found user info in URL params:", userData);
+                  setUser(userData);
+                  userFound = true;
+                }
+              } catch (e) {
+                console.error("Failed to parse URL params:", e);
+              }
+            }
+            
+            // Method 3: Try to get user via backend API (using initData if available)
+            if (!userFound && window.Telegram.WebApp.initData) {
+              console.log("Method 3: Attempting to get user via backend API...");
+              try {
+                const { apiClient } = await import('./api');
+                const response = await apiClient.getCurrentUser();
+                if (response && response.user_id) {
+                  // Convert UserResponse to TelegramUser format
+                  const userData = {
+                    id: response.user_id,
+                    first_name: response.first_name || 'User',
+                    last_name: response.last_name,
+                    username: response.username,
+                    language_code: response.language_code || 'zh'
+                  };
+                  console.log("✅ Got user from backend API:", userData);
+                  setUser(userData);
+                  userFound = true;
+                }
+              } catch (error) {
+                console.error("Failed to get user from backend:", error);
+              }
+            }
+            
+            if (!userFound) {
+              console.error("❌ Could not retrieve user information from any source");
+              console.error("Please ensure the app is opened from within Telegram using a WebApp button");
             }
           }
           return true;

@@ -111,9 +111,22 @@ class ApiClient {
 
   /**
    * Get current user information
+   * Returns null if initData is not available (e.g., opened from ReplyKeyboard)
    */
-  async getCurrentUser(): Promise<UserResponse> {
-    return this.request<UserResponse>('/user/me');
+  async getCurrentUser(): Promise<UserResponse | null> {
+    // Only try if we have initData
+    const initData = this.getInitData();
+    if (!initData) {
+      console.warn("No initData available, cannot get user from backend");
+      return null;
+    }
+    
+    try {
+      return await this.request<UserResponse>('/user/me');
+    } catch (error) {
+      console.error("Failed to get current user:", error);
+      return null;
+    }
   }
 
   /**
