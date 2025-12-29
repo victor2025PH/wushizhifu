@@ -39,13 +39,13 @@ PAYMENT_METHOD_LABELS = {
 RANK_EMOJIS = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
 
 
-def get_p2p_leaderboard(payment_method: str = "alipay", rows: int = 20, page: int = 1) -> Optional[Dict]:
+def get_p2p_leaderboard(payment_method: str = "alipay", rows: int = 10, page: int = 1) -> Optional[Dict]:
     """
     Fetch P2P merchant leaderboard from Binance API.
     
     Args:
         payment_method: Payment method code ("bank", "alipay", "wechat")
-        rows: Number of merchants to fetch per page (default: 20, fetch more for pagination)
+        rows: Number of merchants to fetch per request (default: 10, API limit)
         page: Page number (default: 1)
         
     Returns:
