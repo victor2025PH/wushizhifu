@@ -55,18 +55,22 @@ async def handle_template_menu(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 async def handle_template_list(update: Update, context: ContextTypes.DEFAULT_TYPE, template_type: str):
-    """Handle template list display"""
+    """Handle template list display - shows max 10 templates"""
     try:
         query = update.callback_query
         user_id = query.from_user.id
         
-        templates = get_all_templates(user_id=user_id)
+        # Get templates with limit of 10 per type
+        templates = get_all_templates(user_id=user_id, limit=10)
         template_list = templates.get(template_type, [])
         
         if not template_list:
             type_name = "金额" if template_type == 'amount' else "算式"
             await query.answer(f"暂无{type_name}模板", show_alert=True)
             return
+        
+        # Limit to 10 templates maximum
+        template_list = template_list[:10]
         
         # Build keyboard with templates
         keyboard = []

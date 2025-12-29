@@ -9,35 +9,47 @@ from database import db
 logger = logging.getLogger(__name__)
 
 
-def get_all_templates(user_id: int = None) -> Dict[str, List[Dict]]:
+def get_all_templates(user_id: int = None, limit: int = 10) -> Dict[str, List[Dict]]:
     """
-    Get all available templates (preset + user templates).
+    Get all available templates (preset + user templates), limited to top N.
     
     Args:
         user_id: Optional user ID to include user templates
+        limit: Maximum number of templates per type (default: 10)
         
     Returns:
-        Dictionary with 'amount' and 'formula' template lists
+        Dictionary with 'amount' and 'formula' template lists (max limit each)
     """
     templates = {
         'amount': [],
         'formula': []
     }
     
-    # Get preset templates
+    # Get preset templates (always include these first)
     preset_amount = db.get_templates(user_id=None, template_type='amount')
     preset_formula = db.get_templates(user_id=None, template_type='formula')
     
+    # Add preset templates (they're already sorted by usage_count DESC in DB)
     templates['amount'].extend(preset_amount)
     templates['formula'].extend(preset_formula)
     
-    # Get user templates if user_id provided
+    # Get user templates if user_id provided and we haven't reached limit
     if user_id:
         user_amount = db.get_templates(user_id=user_id, template_type='amount')
         user_formula = db.get_templates(user_id=user_id, template_type='formula')
         
-        templates['amount'].extend(user_amount)
-        templates['formula'].extend(user_formula)
+        # Add user templates, but limit total to 'limit'
+        remaining_amount_slots = limit - len(templates['amount'])
+        if remaining_amount_slots > 0:
+            templates['amount'].extend(user_amount[:remaining_amount_slots])
+        
+        remaining_formula_slots = limit - len(templates['formula'])
+        if remaining_formula_slots > 0:
+            templates['formula'].extend(user_formula[:remaining_formula_slots])
+    
+    # Ensure we don't exceed limit (safety check)
+    templates['amount'] = templates['amount'][:limit]
+    templates['formula'] = templates['formula'][:limit]
     
     return templates
 
