@@ -55,6 +55,17 @@ class Config:
     # Default fallback price (USDT/CNY) if CoinGecko API fails
     DEFAULT_FALLBACK_PRICE: float = 7.20
     
+    # MiniApp URL
+    MINIAPP_URL: str = os.getenv("MINIAPP_URL", "https://50zf.usdt2026.cc")
+    
+    @classmethod
+    def get_miniapp_url(cls, view: str = "dashboard", provider: str = None) -> str:
+        """Generate MiniApp URL with parameters"""
+        url = f"{cls.MINIAPP_URL}?view={view}"
+        if provider:
+            url += f"&provider={provider}"
+        return url
+    
     @classmethod
     def validate(cls) -> bool:
         """Validate that required configuration is present"""

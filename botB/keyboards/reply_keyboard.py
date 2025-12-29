@@ -1,9 +1,10 @@
 """
 Reply keyboard layouts for Bot B
 """
-from telegram import ReplyKeyboardMarkup, KeyboardButton
+from telegram import ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
 from typing import Optional
 from admin_checker import is_admin
+from config import Config
 
 
 def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = False) -> ReplyKeyboardMarkup:
@@ -31,6 +32,12 @@ def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = Fals
                 KeyboardButton("💰 结算"),
                 KeyboardButton("🔗 地址"),
                 KeyboardButton("📞 客服")
+            ],
+            [
+                KeyboardButton(
+                    "💎 打开应用",
+                    web_app=WebAppInfo(url=Config.get_miniapp_url("dashboard"))
+                )
             ]
         ]
         
@@ -52,6 +59,12 @@ def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = Fals
                 KeyboardButton("🔔 预警"),
                 KeyboardButton("🔗 地址"),
                 KeyboardButton("📞 客服")
+            ],
+            [
+                KeyboardButton(
+                    "💎 打开应用",
+                    web_app=WebAppInfo(url=Config.get_miniapp_url("dashboard"))
+                )
             ]
         ]
         
