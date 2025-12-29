@@ -6,7 +6,7 @@ from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message
 from keyboards.calculator_kb import (
     get_calculator_type_keyboard, get_calculator_channel_keyboard,
-    get_calculator_result_keyboard, get_exchange_direction_keyboard
+    get_calculator_result_keyboard
 )
 from keyboards.main_kb import get_main_keyboard
 from services.calculator_service import CalculatorService
