@@ -90,10 +90,10 @@ def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = Fals
         
         if is_group:
             # In groups, don't use WebApp button - Telegram API doesn't allow it
+            # Just add two buttons (don't add empty button - Telegram may not display keyboard with empty buttons)
             keyboard.append([
                 KeyboardButton(admin_button_text),
-                KeyboardButton(stats_button_text),
-                KeyboardButton("")  # Empty placeholder since WebApp button not allowed
+                KeyboardButton(stats_button_text)
             ])
         else:
             # In private chats, WebApp button is allowed
@@ -108,13 +108,9 @@ def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = Fals
     else:
         # If not admin, handle based on chat type
         if is_group:
-            # In groups, don't add WebApp button - just add empty row or skip
-            # Or add a regular button as alternative
-            keyboard.append([
-                KeyboardButton(""),  # Empty button as placeholder
-                KeyboardButton(""),  # Empty button as placeholder
-                KeyboardButton("")   # Empty button as placeholder
-            ])
+            # In groups, don't add WebApp button - just skip the row entirely
+            # Telegram may not display keyboards with empty buttons, so we skip adding a row
+            pass  # Don't add any row for non-admin users in groups
         else:
             # In private chats, WebApp button is allowed
             keyboard.append([

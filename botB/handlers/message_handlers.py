@@ -266,12 +266,12 @@ async def handle_admin_w3(update: Update, context: ContextTypes.DEFAULT_TYPE, ad
         else:
             message = "❌ 设置失败"
         
-        await update.message.reply_text(message, parse_mode="HTML")
+        await send_group_message(update, message, parse_mode="HTML")
         logger.info(f"Admin {update.effective_user.id} set group {group_id} address")
         
     except Exception as e:
         logger.error(f"Error in handle_admin_w3: {e}", exc_info=True)
-        await update.message.reply_text(f"❌ 错误: {str(e)}")
+        await send_group_message(update, f"❌ 错误: {str(e)}")
 
 
 async def handle_admin_w4(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -302,19 +302,12 @@ async def handle_admin_w4(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message += "────────────────────────\n"
         message += "ℹ️ 提示: 未配置独立设置的群组将使用此全局默认值"
         
-        await message_target.reply_text(message, parse_mode="HTML")
+        await send_group_message(update, message, parse_mode="HTML")
         logger.info(f"Admin {update.effective_user.id} executed w4/CKQJ")
         
     except Exception as e:
         logger.error(f"Error in handle_admin_w4: {e}", exc_info=True)
-        # Try to send error message
-        try:
-            if update.message:
-                await update.message.reply_text(f"❌ 错误: {str(e)}")
-            elif update.callback_query and update.callback_query.message:
-                await update.callback_query.message.reply_text(f"❌ 错误: {str(e)}")
-        except:
-            pass
+        await send_group_message(update, f"❌ 错误: {str(e)}")
 
 
 async def handle_admin_w5(update: Update, context: ContextTypes.DEFAULT_TYPE, markup_value: float):
@@ -340,12 +333,12 @@ async def handle_admin_w5(update: Update, context: ContextTypes.DEFAULT_TYPE, ma
         else:
             message = "❌ 设置失败"
         
-        await update.message.reply_text(message)
+        await send_group_message(update, message)
         logger.info(f"Admin {update.effective_user.id} set global markup to {markup_value}")
         
     except Exception as e:
         logger.error(f"Error in handle_admin_w5: {e}", exc_info=True)
-        await update.message.reply_text(f"❌ 错误: {str(e)}")
+        await send_group_message(update, f"❌ 错误: {str(e)}")
 
 
 async def handle_admin_w6(update: Update, context: ContextTypes.DEFAULT_TYPE, address: str):
@@ -373,12 +366,12 @@ async def handle_admin_w6(update: Update, context: ContextTypes.DEFAULT_TYPE, ad
         else:
             message = "❌ 设置失败"
         
-        await update.message.reply_text(message, parse_mode="HTML")
+        await send_group_message(update, message, parse_mode="HTML")
         logger.info(f"Admin {update.effective_user.id} set global address")
         
     except Exception as e:
         logger.error(f"Error in handle_admin_w6: {e}", exc_info=True)
-        await update.message.reply_text(f"❌ 错误: {str(e)}")
+        await send_group_message(update, f"❌ 错误: {str(e)}")
 
 
 async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -398,7 +391,7 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
         groups = db.get_all_groups()
         
         if not groups:
-            await message_target.reply_text("📭 暂无有交易记录的群组\n\n所有群组都在使用全局默认设置")
+            await send_group_message(update, "📭 暂无有交易记录的群组\n\n所有群组都在使用全局默认设置")
             return
         
         # Try to get group titles from Bot API
@@ -471,19 +464,12 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from keyboards.inline_keyboard import get_groups_list_keyboard
         reply_markup = get_groups_list_keyboard()
         
-        await message_target.reply_text(message, parse_mode="HTML", reply_markup=reply_markup)
+        await send_group_message(update, message, parse_mode="HTML", inline_keyboard=reply_markup)
         logger.info(f"Admin {update.effective_user.id} executed w7/CKQL, showing {len(groups)} groups")
         
     except Exception as e:
         logger.error(f"Error in handle_admin_w7: {e}", exc_info=True)
-        # Try to send error message
-        try:
-            if update.message:
-                await update.message.reply_text(f"❌ 错误: {str(e)}")
-            elif update.callback_query and update.callback_query.message:
-                await update.callback_query.message.reply_text(f"❌ 错误: {str(e)}")
-        except:
-            pass
+        await send_group_message(update, f"❌ 错误: {str(e)}")
 
 
 async def handle_admin_w8(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -512,12 +498,12 @@ async def handle_admin_w8(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             message = "❌ 重置失败（可能群组未配置独立设置）"
         
-        await update.message.reply_text(message)
+        await send_group_message(update, message)
         logger.info(f"Admin {update.effective_user.id} reset group {group_id} settings")
         
     except Exception as e:
         logger.error(f"Error in handle_admin_w8: {e}", exc_info=True)
-        await update.message.reply_text(f"❌ 错误: {str(e)}")
+        await send_group_message(update, f"❌ 错误: {str(e)}")
 
 
 async def handle_admin_w9(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -546,12 +532,12 @@ async def handle_admin_w9(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             message = "❌ 删除失败（可能群组未配置独立设置）"
         
-        await update.message.reply_text(message)
+        await send_group_message(update, message)
         logger.info(f"Admin {update.effective_user.id} deleted group {group_id} settings")
         
     except Exception as e:
         logger.error(f"Error in handle_admin_w9: {e}", exc_info=True)
-        await update.message.reply_text(f"❌ 错误: {str(e)}")
+        await send_group_message(update, f"❌ 错误: {str(e)}")
 
 
 # ========== Settlement Handler ==========
@@ -602,10 +588,7 @@ async def handle_math_settlement(update: Update, context: ContextTypes.DEFAULT_T
             # Format and send batch settlement bill
             bill_message = format_batch_settlement_bills(settlements, usdt_address)
             
-            await update.message.reply_text(
-                bill_message,
-                parse_mode="HTML"
-            )
+            await send_group_message(update, bill_message, parse_mode="HTML")
             
             logger.info(f"User {user.id} calculated batch settlement: {len(settlements)} bills, transaction_ids: {transaction_ids}")
             
@@ -625,7 +608,7 @@ async def handle_math_settlement(update: Update, context: ContextTypes.DEFAULT_T
                 from handlers.help_handlers import show_error_help
                 await show_error_help(update, 'no_price', error_msg)
             else:
-                await update.message.reply_text(f"❌ {error_msg}")
+                await send_group_message(update, f"❌ {error_msg}")
             return
         
         # Get USDT address (using address management or legacy)
@@ -982,7 +965,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 else:
                     message = "⚠️ USDT 收款地址未设置"
                 
-                await update.message.reply_text(message, parse_mode="HTML")
+                await send_group_message(update, message, parse_mode="HTML")
             elif command == "客服":
                 contact_message = (
                     "📞 <b>联系人工客服</b>\n\n"
@@ -992,7 +975,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "• 工作时间：7×24小时\n"
                     "• 响应时间：通常在5分钟内"
                 )
-                await update.message.reply_text(contact_message, parse_mode="HTML")
+                await send_group_message(update, contact_message, parse_mode="HTML")
             elif command == "我的账单":
                 if chat.type == 'private':
                     from handlers.personal_handlers import handle_personal_bills
