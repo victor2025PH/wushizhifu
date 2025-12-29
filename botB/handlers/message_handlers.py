@@ -23,6 +23,66 @@ logger = logging.getLogger(__name__)
 
 # ========== Helper Functions ==========
 
+async def send_group_message(update: Update, text: str, parse_mode: Optional[str] = None, reply_markup=None, inline_keyboard=None):
+    """
+    Send a message in a group with reply keyboard attached.
+    This ensures the bottom keyboard is always shown in group messages.
+    
+    Args:
+        update: Telegram Update object
+        text: Message text
+        parse_mode: Parse mode (HTML, Markdown, etc.)
+        reply_markup: Optional inline keyboard (InlineKeyboardMarkup)
+        inline_keyboard: Alias for reply_markup (for clarity)
+    """
+    chat = update.effective_chat
+    user = update.effective_user
+    
+    # Determine if this is a group
+    is_group = chat.type in ['group', 'supergroup']
+    
+    # Use inline_keyboard parameter if provided, otherwise use reply_markup
+    inline_markup = inline_keyboard or reply_markup
+    
+    # Get reply keyboard if in group (always show in groups)
+    if is_group:
+        from keyboards.reply_keyboard import get_main_reply_keyboard
+        user_info = {
+            'id': user.id,
+            'first_name': user.first_name or '',
+            'username': user.username,
+            'language_code': user.language_code
+        }
+        reply_keyboard = get_main_reply_keyboard(user.id, is_group=True, user_info=user_info)
+        
+        # If we have an inline keyboard, we need to handle both
+        # Telegram allows both inline and reply keyboards, but we'll prioritize inline
+        # and ensure reply keyboard is always shown by sending it separately if needed
+        if inline_markup:
+            # Send message with inline keyboard first
+            await update.message.reply_text(
+                text,
+                parse_mode=parse_mode,
+                reply_markup=inline_markup
+            )
+            # Then send a minimal message with reply keyboard to ensure it's shown
+            # We'll use a zero-width space character to make it invisible
+            await update.message.reply_text("​", reply_markup=reply_keyboard)
+        else:
+            # No inline keyboard, just use reply keyboard
+            await update.message.reply_text(
+                text,
+                parse_mode=parse_mode,
+                reply_markup=reply_keyboard
+            )
+    else:
+        # Not a group, just send normally
+        await update.message.reply_text(
+            text,
+            parse_mode=parse_mode,
+            reply_markup=inline_markup
+        )
+
 def normalize_command(text: str) -> str:
     """Normalize command (case-insensitive)"""
     return text.strip().lower()
@@ -80,12 +140,12 @@ async def handle_admin_w0(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             message += "ℹ️ 状态: 使用全局默认设置"
         
-        await update.message.reply_text(message, parse_mode="HTML")
+        await send_group_message(update, message, parse_mode="HTML")
         logger.info(f"Admin {update.effective_user.id} executed w0/SZ in group {group_id}")
         
     except Exception as e:
         logger.error(f"Error in handle_admin_w0: {e}", exc_info=True)
-        await update.message.reply_text(f"❌ 错误: {str(e)}")
+        await send_group_message(update, f"❌ 错误: {str(e)}")
 
 
 async def handle_admin_w1(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -109,12 +169,12 @@ async def handle_admin_w1(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if error_msg:
                 message += f"\n⚠️ 注意: {error_msg}"
         
-        await update.message.reply_text(message, parse_mode="HTML")
+        await send_group_message(update, message, parse_mode="HTML")
         logger.info(f"User {update.effective_user.id} executed w1/HL")
         
     except Exception as e:
         logger.error(f"Error in handle_admin_w1: {e}", exc_info=True)
-        await update.message.reply_text(f"❌ 错误: {str(e)}")
+        await send_group_message(update, f"❌ 错误: {str(e)}")
 
 
 async def handle_admin_w2(update: Update, context: ContextTypes.DEFAULT_TYPE, markup_value: float):
@@ -151,12 +211,12 @@ async def handle_admin_w2(update: Update, context: ContextTypes.DEFAULT_TYPE, ma
         else:
             message = "❌ 设置失败"
         
-        await update.message.reply_text(message)
+        await send_group_message(update, message)
         logger.info(f"Admin {update.effective_user.id} set group {group_id} markup to {markup_value}")
         
     except Exception as e:
         logger.error(f"Error in handle_admin_w2: {e}", exc_info=True)
-        await update.message.reply_text(f"❌ 错误: {str(e)}")
+        await send_group_message(update, f"❌ 错误: {str(e)}")
 
 
 async def handle_admin_w3(update: Update, context: ContextTypes.DEFAULT_TYPE, address: str):
@@ -1032,7 +1092,8 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "💡 <i>提示：上方已显示完整指令教程，也可以点击「⚡ 管理员指令教程」再次查看</i>"
             )
         
-        await update.message.reply_text(message, parse_mode="HTML", reply_markup=reply_markup)
+        # Use send_group_message to ensure reply keyboard is shown in groups
+        await send_group_message(update, message, parse_mode="HTML", inline_keyboard=reply_markup)
         return
     
     if text in ["📈 统计", "📊 数据"]:
@@ -1058,13 +1119,28 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await handle_global_stats(update, context)
         return
     
-    if text in ["🔗 收款地址", "🔗 地址"]:
+        if text in ["🔗 收款地址", "🔗 地址"]:
         # Show help if needed
         if should_show_help(user_id, "🔗 地址"):
             help_message = format_button_help_message("🔗 地址")
             if help_message:
                 help_keyboard = get_button_help_keyboard("🔗 地址")
-                await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
+                # For help message, keep inline keyboard but also add reply keyboard in groups
+                if chat.type in ['group', 'supergroup']:
+                    from keyboards.reply_keyboard import get_main_reply_keyboard
+                    user_info_dict = {
+                        'id': user.id,
+                        'first_name': user.first_name or '',
+                        'username': user.username,
+                        'language_code': user.language_code
+                    }
+                    reply_keyboard = get_main_reply_keyboard(user.id, is_group=True, user_info=user_info_dict)
+                    # Combine inline and reply keyboards - use inline for help close button
+                    await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
+                    # Also send a hidden message with reply keyboard to ensure it's shown
+                    await update.message.reply_text("💡", reply_markup=reply_keyboard)
+                else:
+                    await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
                 mark_help_shown(user_id, "🔗 地址", shown=True)
         
         # Show address (group-specific or global)
@@ -1086,7 +1162,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             message = "⚠️ USDT 收款地址未设置"
         
-        await update.message.reply_text(message, parse_mode="HTML")
+        await send_group_message(update, message, parse_mode="HTML")
         return
     
     if text in ["📞 联系客服", "📞 客服"]:
@@ -1095,7 +1171,19 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             help_message = format_button_help_message("📞 客服")
             if help_message:
                 help_keyboard = get_button_help_keyboard("📞 客服")
-                await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
+                if chat.type in ['group', 'supergroup']:
+                    from keyboards.reply_keyboard import get_main_reply_keyboard
+                    user_info_dict = {
+                        'id': user.id,
+                        'first_name': user.first_name or '',
+                        'username': user.username,
+                        'language_code': user.language_code
+                    }
+                    reply_keyboard = get_main_reply_keyboard(user.id, is_group=True, user_info=user_info_dict)
+                    await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
+                    await update.message.reply_text("💡", reply_markup=reply_keyboard)
+                else:
+                    await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
                 mark_help_shown(user_id, "📞 客服", shown=True)
         
         contact_message = (
@@ -1106,7 +1194,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• 工作时间：7×24小时\n"
             "• 响应时间：通常在5分钟内"
         )
-        await update.message.reply_text(contact_message, parse_mode="HTML")
+        await send_group_message(update, contact_message, parse_mode="HTML")
         return
     
     # Personal bills and stats (private chat only)
