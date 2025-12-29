@@ -684,6 +684,23 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_address_input(update, context, text)
         return
     
+    # Handle global markup input (after admin clicks set global markup)
+    if 'awaiting_global_markup' in context.user_data:
+        del context.user_data['awaiting_global_markup']
+        try:
+            markup_value = float(text.strip())
+            await handle_admin_w5(update, context, markup_value)
+        except ValueError:
+            await update.message.reply_text("❌ 格式错误，请输入数字（例如：0.5）")
+        return
+    
+    # Handle global address input (after admin clicks set global address)
+    if 'awaiting_global_address' in context.user_data:
+        del context.user_data['awaiting_global_address']
+        address = text.strip()
+        await handle_admin_w6(update, context, address)
+        return
+    
     # Handle filter input (after user clicks filter button)
     if 'awaiting_filter' in context.user_data:
         filter_type = context.user_data['awaiting_filter']
