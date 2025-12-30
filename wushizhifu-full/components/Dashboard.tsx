@@ -276,6 +276,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
         onConfirm={handleWeChatConfirm}
         lang={lang}
       />
+
+      {/* Binance Rate Modal */}
+      <BinanceRateModal
+        isOpen={showBinanceRate}
+        onClose={() => setShowBinanceRate(false)}
+        lang={lang}
+      />
     </motion.div>
   );
 };
