@@ -4,6 +4,9 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
+    // Generate version based on build time (format: YYYYMMDDHHmmss)
+    // This ensures each build has a unique version, forcing cache clear in Telegram WebView
+    const buildVersion = new Date().toISOString().replace(/[-:T]/g, '').split('.')[0];
     return {
       // Explicitly set public directory
       publicDir: 'public',
@@ -15,8 +18,8 @@ export default defineConfig(({ mode }) => {
       define: {
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
         'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        // Add version for cache busting
-        'process.env.APP_VERSION': JSON.stringify('1.0.1')
+        // Add version for cache busting - uses build timestamp to ensure unique version per build
+        'process.env.APP_VERSION': JSON.stringify(buildVersion)
       },
       resolve: {
         alias: {

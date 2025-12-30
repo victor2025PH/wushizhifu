@@ -37,6 +37,13 @@ declare global {
       }
     }
   }
+  
+  // Type declaration for process.env.APP_VERSION (injected by Vite define at build time)
+  const process: {
+    env: {
+      APP_VERSION?: string;
+    };
+  };
 }
 
 export default function App() {
@@ -74,7 +81,9 @@ export default function App() {
     sessionStorage.setItem('miniapp_instance_time', Date.now().toString());
     
     // Clear old cache on version change (for Telegram MiniApp cache busting)
-    const APP_VERSION = '1.0.2'; // Update this when deploying new features
+    // Use version from build-time environment variable (automatically updates on each build)
+    // Note: process.env.APP_VERSION is replaced at build time by Vite's define config
+    const APP_VERSION = process.env.APP_VERSION || '1.0.0';
     const cachedVersion = localStorage.getItem('app_version');
     if (cachedVersion && cachedVersion !== APP_VERSION) {
       // Clear old cache
