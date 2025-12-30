@@ -697,7 +697,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             del context.user_data[key]
             try:
                 markup_value = float(text.strip())
-                from admin_checker import is_admin
                 if not is_admin(user_id):
                     await update.message.reply_text("❌ 仅管理员可以设置群组加价")
                     return
@@ -733,7 +732,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if key.startswith('awaiting_group_address_'):
             group_id = int(key.split('_')[3])
             del context.user_data[key]
-            from admin_checker import is_admin
             if not is_admin(user_id):
                 await update.message.reply_text("❌ 仅管理员可以设置群组地址")
                 return
