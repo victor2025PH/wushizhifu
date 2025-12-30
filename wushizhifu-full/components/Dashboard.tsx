@@ -35,6 +35,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 }) => {
   const [showAlipayGuide, setShowAlipayGuide] = useState(false);
   const [showWeChatGuide, setShowWeChatGuide] = useState(false);
+  const [showBinanceRate, setShowBinanceRate] = useState(false);
   const [showScrollHint, setShowScrollHint] = useState(true);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const t = TRANSLATIONS[lang];
