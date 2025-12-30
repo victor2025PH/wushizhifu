@@ -509,6 +509,153 @@ async def get_alipay_video_url():
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
+@app.get("/api/binance/p2p")
+async def get_binance_p2p_data(
+    payment_method: str = "alipay",
+    rows: int = 10,
+    page: int = 1,
+    user_data: dict = Depends(verify_auth)
+):
+    """
+    Get Binance P2P merchant leaderboard data.
+    
+    Args:
+        payment_method: Payment method ("alipay", "wechat", "bank")
+        rows: Number of merchants per page (default: 10)
+        page: Page number (default: 1)
+        user_data: Authenticated user data (from verify_auth dependency)
+        
+    Returns:
+        Dictionary with merchant leaderboard data
+    """
+    try:
+        # Import P2P service (try botB first, then botA)
+        try:
+            import sys
+            from pathlib import Path
+            botb_path = Path(__file__).parent / "botB" / "services"
+            if botb_path.exists():
+                sys.path.insert(0, str(botb_path.parent))
+                from services.p2p_leaderboard_service import get_p2p_leaderboard
+            else:
+                # Fallback to botA
+                bota_path = Path(__file__).parent / "botA" / "services"
+                if bota_path.exists():
+                    sys.path.insert(0, str(bota_path.parent))
+                    from services.p2p_leaderboard_service import get_p2p_leaderboard
+                else:
+                    raise ImportError("Cannot find p2p_leaderboard_service")
+        except ImportError:
+            # If import fails, implement inline
+            logger.warning("Could not import p2p_leaderboard_service, using inline implementation")
+            leaderboard_data = get_p2p_leaderboard_inline(payment_method, rows, page)
+        else:
+            # Call the service function
+            leaderboard_data = get_p2p_leaderboard(payment_method=payment_method, rows=rows, page=page)
+        
+        if not leaderboard_data:
+            raise HTTPException(status_code=500, detail="Failed to fetch Binance P2P data")
+        
+        return leaderboard_data
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching Binance P2P data: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+def get_p2p_leaderboard_inline(payment_method: str = "alipay", rows: int = 10, page: int = 1):
+    """
+    Inline implementation of Binance P2P leaderboard fetch (fallback if service import fails).
+    """
+    BINANCE_P2P_URL = "https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search"
+    PAYMENT_METHOD_MAP = {
+        "bank": ["BANK"],
+        "alipay": ["ALIPAY"],
+        "wechat": ["WECHAT"],
+    }
+    PAYMENT_METHOD_LABELS = {
+        "bank": "银行卡",
+        "alipay": "支付宝",
+        "wechat": "微信",
+    }
+    
+    try:
+        pay_types = PAYMENT_METHOD_MAP.get(payment_method.lower(), ["ALIPAY"])
+        payload = {
+            "page": page,
+            "rows": rows,
+            "payTypes": pay_types,
+            "asset": "USDT",
+            "tradeType": "BUY",
+            "fiat": "CNY",
+            "countries": [],
+            "proMerchantAds": False,
+            "shieldMerchantAds": False
+        }
+        
+        response = requests.post(
+            BINANCE_P2P_URL,
+            json=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=10
+        )
+        response.raise_for_status()
+        data = response.json()
+        
+        if data.get("code") != "000000":
+            logger.error(f"Binance P2P API error: {data}")
+            return None
+        
+        merchants_data = data.get("data", [])
+        merchants = []
+        
+        for idx, item in enumerate(merchants_data, 1):
+            adv = item.get("advertiser", {}).get("nickName", "Unknown")
+            price_str = item.get("adv", {}).get("price", "0")
+            price = float(price_str) if price_str else 0.0
+            
+            min_amount_str = item.get("adv", {}).get("minSingleTransAmount", "0")
+            max_amount_str = item.get("adv", {}).get("maxSingleTransAmount", "0")
+            min_amount = float(min_amount_str) if min_amount_str else 0.0
+            max_amount = float(max_amount_str) if max_amount_str else 0.0
+            
+            merchants.append({
+                "rank": idx,
+                "price": price,
+                "min_amount": min_amount,
+                "max_amount": max_amount,
+                "merchant_name": adv,
+                "trade_count": item.get("advertiser", {}).get("monthFinishRate", 0),
+                "finish_rate": item.get("advertiser", {}).get("monthFinishRate", 0.0),
+            })
+        
+        # Calculate market stats
+        prices = [m["price"] for m in merchants if m["price"] > 0]
+        market_stats = {
+            "min_price": min(prices) if prices else 0.0,
+            "max_price": max(prices) if prices else 0.0,
+            "avg_price": sum(prices) / len(prices) if prices else 0.0,
+            "total_trades": len(merchants),
+            "merchant_count": len(merchants),
+        }
+        
+        return {
+            "merchants": merchants,
+            "payment_method": payment_method,
+            "payment_label": PAYMENT_METHOD_LABELS.get(payment_method, payment_method),
+            "total": len(merchants),
+            "page": page,
+            "market_stats": market_stats,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching Binance P2P data (inline): {e}", exc_info=True)
+        return None
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Global exception handler"""
