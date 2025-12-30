@@ -254,9 +254,7 @@ def get_global_management_menu() -> InlineKeyboardMarkup:
             InlineKeyboardButton("📈 全局统计", callback_data="global_stats")
         ],
         [
-            InlineKeyboardButton("👥 客服管理", callback_data="customer_service_management")
-        ],
-        [
+            InlineKeyboardButton("👥 客服管理", callback_data="customer_service_management"),
             InlineKeyboardButton("⚡ 管理员指令教程", callback_data="admin_commands_help")
         ],
         [
@@ -276,15 +274,11 @@ def get_customer_service_management_menu() -> InlineKeyboardMarkup:
     """
     keyboard = [
         [
-            InlineKeyboardButton("📋 客服账号列表", callback_data="customer_service_list")
-        ],
-        [
+            InlineKeyboardButton("📋 客服账号列表", callback_data="customer_service_list"),
             InlineKeyboardButton("➕ 添加客服账号", callback_data="customer_service_add")
         ],
         [
-            InlineKeyboardButton("⚙️ 分配策略设置", callback_data="customer_service_strategy")
-        ],
-        [
+            InlineKeyboardButton("⚙️ 分配策略设置", callback_data="customer_service_strategy"),
             InlineKeyboardButton("📊 客服统计报表", callback_data="customer_service_stats")
         ],
         [
