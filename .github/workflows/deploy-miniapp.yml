@@ -168,40 +168,16 @@ jobs:
                   UVICORN_CMD="python3 -m uvicorn"
                 fi
                 
-                # 创建 systemd 服务文件（使用 cat 避免 heredoc 在 YAML 中的问题）
-                sudo bash -c "cat > /etc/systemd/system/${SERVICE_NAME}.service <<'EOFSERVICE'
-[Unit]
-Description=WuShiPay API Service (FastAPI)
-After=network.target
-
-[Service]
-Type=simple
-User=ubuntu
-Group=ubuntu
-WorkingDirectory=$PROJECT_ROOT
-Environment=\"PATH=$PROJECT_ROOT/venv/bin:/usr/local/bin:/usr/bin:/bin\"
-Environment=\"PYTHONUNBUFFERED=1\"
-Environment=\"PYTHONPATH=$PROJECT_ROOT\"
-EnvironmentFile=-$PROJECT_ROOT/.env
-
-ExecStart=$UVICORN_CMD api_server:app --host 127.0.0.1 --port 8000
-
-Restart=always
-RestartSec=10
-
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=wushipay-api
-
-NoNewPrivileges=true
-PrivateTmp=true
-LimitNOFILE=65536
-
-[Install]
-WantedBy=multi-user.target
-EOFSERVICE"
-                sudo systemctl daemon-reload
-                echo "✅ Systemd 服务已创建"
+                # 创建 systemd 服务文件（如果模板存在则使用，否则跳过）
+                if [ -f "$PROJECT_ROOT/deploy/systemd/wushipay-api.service" ]; then
+                  sudo cp "$PROJECT_ROOT/deploy/systemd/wushipay-api.service" "/etc/systemd/system/${SERVICE_NAME}.service"
+                  sudo sed -i "s|/home/ubuntu/wushizhifu|$PROJECT_ROOT|g" "/etc/systemd/system/${SERVICE_NAME}.service"
+                  sudo systemctl daemon-reload
+                  echo "✅ Systemd 服务已创建"
+                else
+                  echo "⚠️  服务模板文件不存在，跳过自动创建"
+                  echo "   请手动创建服务文件或确保服务已存在"
+                fi
               fi
               
               # 安装 Python 依赖（如果需要）
