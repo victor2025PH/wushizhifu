@@ -148,10 +148,91 @@ jobs:
               echo "⚠️  Nginx 重载失败，请检查配置"
             }
             
-            # 重启 API 服务（如果存在）
-            if [ -f "/home/ubuntu/wushizhifu/api_server.py" ]; then
-              echo "🔄 重启 API 服务..."
-              sudo systemctl restart wushipay-api.service || true
+            # 启动/重启 API 服务
+            echo "🔄 启动/重启 API 服务..."
+            API_FILE="/home/ubuntu/wushizhifu/api_server.py"
+            SERVICE_NAME="wushipay-api"
+            
+            if [ -f "$API_FILE" ]; then
+              # 检查服务是否存在
+              if [ ! -f "/etc/systemd/system/${SERVICE_NAME}.service" ]; then
+                echo "创建 Systemd 服务..."
+                PROJECT_ROOT="/home/ubuntu/wushizhifu"
+                
+                # 确定 Python 和 uvicorn 路径
+                if [ -f "$PROJECT_ROOT/venv/bin/uvicorn" ]; then
+                  UVICORN_CMD="$PROJECT_ROOT/venv/bin/uvicorn"
+                elif [ -f "$PROJECT_ROOT/venv/bin/python3" ]; then
+                  UVICORN_CMD="$PROJECT_ROOT/venv/bin/python3 -m uvicorn"
+                else
+                  UVICORN_CMD="python3 -m uvicorn"
+                fi
+                
+                sudo tee /etc/systemd/system/${SERVICE_NAME}.service > /dev/null <<EOF
+[Unit]
+Description=WuShiPay API Service (FastAPI)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=$PROJECT_ROOT
+Environment="PATH=$PROJECT_ROOT/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+Environment="PYTHONPATH=$PROJECT_ROOT"
+EnvironmentFile=-$PROJECT_ROOT/.env
+
+ExecStart=$UVICORN_CMD api_server:app --host 127.0.0.1 --port 8000
+
+Restart=always
+RestartSec=10
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=wushipay-api
+
+NoNewPrivileges=true
+PrivateTmp=true
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+EOF
+                sudo systemctl daemon-reload
+                echo "✅ Systemd 服务已创建"
+              fi
+              
+              # 安装 Python 依赖（如果需要）
+              if [ -f "$PROJECT_ROOT/requirements.txt" ]; then
+                if [ -f "$PROJECT_ROOT/venv/bin/pip" ]; then
+                  $PROJECT_ROOT/venv/bin/pip install -q fastapi uvicorn python-multipart httpx requests || true
+                else
+                  pip3 install --user -q fastapi uvicorn python-multipart httpx requests || true
+                fi
+              fi
+              
+              # 停止占用端口的进程
+              if lsof -i:8000 > /dev/null 2>&1; then
+                sudo kill -9 $(lsof -t -i:8000) 2>/dev/null || true
+                sleep 1
+              fi
+              
+              # 启用并启动服务
+              sudo systemctl enable ${SERVICE_NAME} || true
+              sudo systemctl restart ${SERVICE_NAME} || sudo systemctl start ${SERVICE_NAME}
+              
+              sleep 2
+              
+              # 验证服务
+              if systemctl is-active --quiet ${SERVICE_NAME}; then
+                echo "✅ API 服务已启动"
+              else
+                echo "⚠️  API 服务启动失败，查看日志:"
+                sudo journalctl -u ${SERVICE_NAME} -n 10 --no-pager || true
+              fi
+            else
+              echo "⚠️  API 文件不存在，跳过 API 服务启动"
             fi
             
             echo "✅ 部署完成"
