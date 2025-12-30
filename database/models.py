@@ -259,6 +259,338 @@ def init_database():
             """, (admin_id,))
             logger.info(f"Initialized admin: {admin_id}")
         
+        # ========== BotB Tables (OTC Group Management) ==========
+        
+        # Settings table for admin_markup and usdt_address
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                key TEXT UNIQUE NOT NULL,
+                value TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Initialize default values if not exists
+        cursor.execute("""
+            INSERT OR IGNORE INTO settings (key, value) 
+            VALUES ('admin_markup', '0.0')
+        """)
+        
+        cursor.execute("""
+            INSERT OR IGNORE INTO settings (key, value) 
+            VALUES ('usdt_address', '')
+        """)
+        
+        # Group settings table for group-level markup and address
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS group_settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                group_id BIGINT NOT NULL UNIQUE,
+                group_title TEXT,
+                markup REAL DEFAULT 0.0,
+                usdt_address TEXT,
+                is_active INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_by BIGINT
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_group_settings_group_id 
+            ON group_settings(group_id)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_group_settings_active 
+            ON group_settings(is_active)
+        """)
+        
+        # User settings table for user preferences and onboarding
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_settings (
+                user_id BIGINT PRIMARY KEY,
+                onboarding_completed BOOLEAN DEFAULT 0,
+                last_active_at TIMESTAMP,
+                preferences TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Price history table for price tracking
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS price_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                base_price REAL NOT NULL,
+                final_price REAL NOT NULL,
+                markup REAL DEFAULT 0.0,
+                source TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_price_history_created_at 
+            ON price_history(created_at)
+        """)
+        
+        # Price alerts table for user price alerts
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS price_alerts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id BIGINT NOT NULL,
+                alert_type TEXT NOT NULL,
+                threshold_value REAL NOT NULL,
+                comparison_operator TEXT NOT NULL,
+                is_active BOOLEAN DEFAULT 1,
+                notification_count INTEGER DEFAULT 0,
+                last_notified_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_price_alerts_user_id 
+            ON price_alerts(user_id)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_price_alerts_active 
+            ON price_alerts(is_active)
+        """)
+        
+        # Settlement templates table for quick settlement templates
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS settlement_templates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id BIGINT,
+                template_name TEXT NOT NULL,
+                template_value TEXT NOT NULL,
+                template_type TEXT NOT NULL,
+                is_preset BOOLEAN DEFAULT 0,
+                usage_count INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, template_name)
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_settlement_templates_user_id 
+            ON settlement_templates(user_id)
+        """)
+        
+        # Insert default preset templates if not exists
+        default_templates = [
+            ('1000', 'amount', '常用金额模板'),
+            ('5000', 'amount', '常用金额模板'),
+            ('10000', 'amount', '常用金额模板'),
+            ('20000', 'amount', '常用金额模板'),
+            ('50000', 'amount', '常用金额模板'),
+            ('20000-200', 'formula', '常用算式模板'),
+            ('50000-500', 'formula', '常用算式模板'),
+            ('100000-1000', 'formula', '常用算式模板')
+        ]
+        
+        for value, t_type, name in default_templates:
+            cursor.execute("""
+                INSERT OR IGNORE INTO settlement_templates 
+                (user_id, template_name, template_value, template_type, is_preset)
+                VALUES (NULL, ?, ?, ?, 1)
+            """, (name, value, t_type))
+        
+        # USDT addresses table for multiple address management
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS usdt_addresses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                group_id BIGINT,
+                address TEXT NOT NULL,
+                label TEXT,
+                is_default BOOLEAN DEFAULT 0,
+                is_active BOOLEAN DEFAULT 1,
+                usage_count INTEGER DEFAULT 0,
+                last_used_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_by BIGINT
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_usdt_addresses_group_id 
+            ON usdt_addresses(group_id)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_usdt_addresses_active 
+            ON usdt_addresses(is_active)
+        """)
+        
+        # Operation logs table for audit trail
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS operation_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                operation_type TEXT NOT NULL,
+                user_id BIGINT NOT NULL,
+                username TEXT,
+                first_name TEXT,
+                target_type TEXT,
+                target_id TEXT,
+                description TEXT,
+                old_value TEXT,
+                new_value TEXT,
+                ip_address TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_operation_logs_user_id 
+            ON operation_logs(user_id)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_operation_logs_type 
+            ON operation_logs(operation_type)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_operation_logs_created_at 
+            ON operation_logs(created_at)
+        """)
+        
+        # OTC Transactions table (BotB's transaction format - renamed to avoid conflict with BotA's transactions)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS otc_transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                transaction_id TEXT UNIQUE,
+                group_id BIGINT,
+                user_id BIGINT NOT NULL,
+                username TEXT,
+                first_name TEXT,
+                cny_amount REAL NOT NULL,
+                usdt_amount REAL NOT NULL,
+                exchange_rate REAL NOT NULL,
+                markup REAL,
+                usdt_address TEXT,
+                status TEXT DEFAULT 'pending',
+                payment_hash TEXT,
+                paid_at TIMESTAMP,
+                confirmed_at TIMESTAMP,
+                cancelled_at TIMESTAMP,
+                cancelled_by BIGINT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Add columns if they don't exist (migration for existing databases)
+        cursor.execute("PRAGMA table_info(otc_transactions)")
+        columns = [col[1] for col in cursor.fetchall()]
+        if 'paid_at' not in columns:
+            cursor.execute("ALTER TABLE otc_transactions ADD COLUMN paid_at TIMESTAMP")
+        if 'cancelled_at' not in columns:
+            cursor.execute("ALTER TABLE otc_transactions ADD COLUMN cancelled_at TIMESTAMP")
+        if 'cancelled_by' not in columns:
+            cursor.execute("ALTER TABLE otc_transactions ADD COLUMN cancelled_by BIGINT")
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_otc_transactions_group_id 
+            ON otc_transactions(group_id)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_otc_transactions_user_id 
+            ON otc_transactions(user_id)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_otc_transactions_created_at 
+            ON otc_transactions(created_at)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_otc_transactions_group_date 
+            ON otc_transactions(group_id, DATE(created_at))
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_otc_transactions_status 
+            ON otc_transactions(status)
+        """)
+        
+        # Customer service accounts table for managing customer service accounts
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS customer_service_accounts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL UNIQUE,
+                display_name TEXT,
+                status TEXT DEFAULT 'available',
+                weight INTEGER DEFAULT 5,
+                max_concurrent INTEGER DEFAULT 50,
+                current_count INTEGER DEFAULT 0,
+                total_served INTEGER DEFAULT 0,
+                is_active INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_customer_service_accounts_username 
+            ON customer_service_accounts(username)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_customer_service_accounts_status 
+            ON customer_service_accounts(status)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_customer_service_accounts_active 
+            ON customer_service_accounts(is_active)
+        """)
+        
+        # Customer service assignments table for tracking assignments
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS customer_service_assignments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                username TEXT,
+                service_account TEXT NOT NULL,
+                assignment_method TEXT,
+                assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                status TEXT DEFAULT 'active',
+                completed_at TIMESTAMP
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_customer_service_assignments_user_id 
+            ON customer_service_assignments(user_id)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_customer_service_assignments_service_account 
+            ON customer_service_assignments(service_account)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_customer_service_assignments_status 
+            ON customer_service_assignments(status)
+        """)
+        
+        # Initialize default customer service account if none exists
+        cursor.execute("SELECT COUNT(*) FROM customer_service_accounts")
+        count = cursor.fetchone()[0]
+        if count == 0:
+            cursor.execute("""
+                INSERT INTO customer_service_accounts (username, display_name, status, weight, max_concurrent, is_active)
+                VALUES ('wushizhifu_jianglai', '客服账号1', 'available', 5, 50, 1)
+            """)
+        
         conn.commit()
         logger.info("Database tables initialized successfully")
         

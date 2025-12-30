@@ -63,7 +63,7 @@ def generate_transaction_trend_chart(
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT created_at, cny_amount, usdt_amount
-                FROM transactions
+                FROM otc_transactions
                 WHERE created_at >= ? AND created_at <= ?
                 ORDER BY created_at
             """, (start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d')))
@@ -185,7 +185,7 @@ def generate_transaction_volume_chart(
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT created_at, cny_amount, usdt_amount
-                FROM transactions
+                FROM otc_transactions
                 WHERE created_at >= ? AND created_at <= ?
                 ORDER BY created_at
             """, (start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d')))
@@ -287,7 +287,7 @@ def generate_user_distribution_chart(
         if group_id:
             cursor.execute("""
                 SELECT user_id, first_name, username, COUNT(*) as count
-                FROM transactions
+                FROM otc_transactions
                 WHERE group_id = ?
                 GROUP BY user_id
                 ORDER BY count DESC
@@ -296,7 +296,7 @@ def generate_user_distribution_chart(
         else:
             cursor.execute("""
                 SELECT user_id, first_name, username, COUNT(*) as count
-                FROM transactions
+                FROM otc_transactions
                 GROUP BY user_id
                 ORDER BY count DESC
                 LIMIT ?

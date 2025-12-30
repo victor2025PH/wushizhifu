@@ -19,12 +19,23 @@ class Database:
         Initialize database connection.
         
         Args:
-            db_path: Path to SQLite database file. If None, uses default location.
+            db_path: Path to SQLite database file. If None, uses shared database (wushipay.db).
         """
         if db_path is None:
-            # Default: use current directory or create in bot directory
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            db_path = os.path.join(current_dir, "otc_bot.db")
+            # Use shared database (same as BotA and Miniapp)
+            # Default to root wushipay.db, or botA/wushipay.db if exists
+            root_dir = Path(__file__).parent.parent
+            root_db = root_dir / "wushipay.db"
+            botA_db = root_dir / "botA" / "wushipay.db"
+            
+            if root_db.exists():
+                db_path = str(root_db)
+            elif botA_db.exists():
+                db_path = str(botA_db)
+            else:
+                # Default to root for new installations
+                db_path = str(root_db)
+                logger.info(f"Using shared database: {db_path}")
         self.db_path = db_path
         self.conn: Optional[sqlite3.Connection] = None
         self._init_database()
@@ -235,9 +246,9 @@ class Database:
             ON operation_logs(created_at)
         """)
         
-        # Create transactions table for settlement records
+        # Create otc_transactions table for settlement records (renamed to avoid conflict with BotA's transactions)
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS transactions (
+            CREATE TABLE IF NOT EXISTS otc_transactions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 transaction_id TEXT UNIQUE,
                 group_id BIGINT,
@@ -260,38 +271,38 @@ class Database:
         """)
         
         # Add paid_at column if it doesn't exist (migration for existing databases)
-        cursor.execute("PRAGMA table_info(transactions)")
+        cursor.execute("PRAGMA table_info(otc_transactions)")
         columns = [col[1] for col in cursor.fetchall()]
         if 'paid_at' not in columns:
-            cursor.execute("ALTER TABLE transactions ADD COLUMN paid_at TIMESTAMP")
+            cursor.execute("ALTER TABLE otc_transactions ADD COLUMN paid_at TIMESTAMP")
         if 'cancelled_at' not in columns:
-            cursor.execute("ALTER TABLE transactions ADD COLUMN cancelled_at TIMESTAMP")
+            cursor.execute("ALTER TABLE otc_transactions ADD COLUMN cancelled_at TIMESTAMP")
         if 'cancelled_by' not in columns:
-            cursor.execute("ALTER TABLE transactions ADD COLUMN cancelled_by BIGINT")
+            cursor.execute("ALTER TABLE otc_transactions ADD COLUMN cancelled_by BIGINT")
         
         cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_transactions_group_id 
-            ON transactions(group_id)
+            CREATE INDEX IF NOT EXISTS idx_otc_transactions_group_id 
+            ON otc_transactions(group_id)
         """)
         
         cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_transactions_user_id 
-            ON transactions(user_id)
+            CREATE INDEX IF NOT EXISTS idx_otc_transactions_user_id 
+            ON otc_transactions(user_id)
         """)
         
         cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_transactions_created_at 
-            ON transactions(created_at)
+            CREATE INDEX IF NOT EXISTS idx_otc_transactions_created_at 
+            ON otc_transactions(created_at)
         """)
         
         cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_transactions_group_date 
-            ON transactions(group_id, DATE(created_at))
+            CREATE INDEX IF NOT EXISTS idx_otc_transactions_group_date 
+            ON otc_transactions(group_id, DATE(created_at))
         """)
         
         cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_transactions_status 
-            ON transactions(status)
+            CREATE INDEX IF NOT EXISTS idx_otc_transactions_status 
+            ON otc_transactions(status)
         """)
         
         # Create customer_service_accounts table for managing customer service accounts
@@ -697,7 +708,7 @@ class Database:
         # Get all unique group_ids from transactions, ordered by latest transaction time
         cursor.execute("""
             SELECT group_id
-            FROM transactions
+            FROM otc_transactions
             WHERE group_id IS NOT NULL
             GROUP BY group_id
             ORDER BY MAX(created_at) DESC
@@ -731,7 +742,7 @@ class Database:
                 group_id,
                 COUNT(*) as tx_count,
                 MAX(created_at) as last_active
-            FROM transactions
+            FROM otc_transactions
             WHERE group_id IS NOT NULL
             GROUP BY group_id
         """)
@@ -805,7 +816,7 @@ class Database:
             transaction_id = f"T{timestamp.strftime('%Y%m%d%H%M%S')}{user_id % 10000:04d}"
             
             cursor.execute("""
-                INSERT INTO transactions (
+                INSERT INTO otc_transactions (
                     transaction_id, group_id, user_id, username, first_name,
                     cny_amount, usdt_amount, exchange_rate, markup, usdt_address, status
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
@@ -851,7 +862,7 @@ class Database:
                    cny_amount, usdt_amount, exchange_rate, markup,
                    usdt_address, status, payment_hash, paid_at, confirmed_at,
                    cancelled_at, created_at
-            FROM transactions
+            FROM otc_transactions
             WHERE group_id = ?
         """
         params = [group_id]
@@ -949,7 +960,7 @@ class Database:
                     AVG(cny_amount) as avg_cny,
                     COUNT(DISTINCT user_id) as unique_users,
                     MAX(created_at) as last_active
-                FROM transactions
+                FROM otc_transactions
                 WHERE group_id = ? AND DATE(created_at) = ?
             """, (group_id, date))
         elif start_date and end_date:
@@ -961,7 +972,7 @@ class Database:
                     AVG(cny_amount) as avg_cny,
                     COUNT(DISTINCT user_id) as unique_users,
                     MAX(created_at) as last_active
-                FROM transactions
+                FROM otc_transactions
                 WHERE group_id = ? AND DATE(created_at) >= ? AND DATE(created_at) <= ?
             """, (group_id, start_date, end_date))
         else:
@@ -973,7 +984,7 @@ class Database:
                     AVG(cny_amount) as avg_cny,
                     COUNT(DISTINCT user_id) as unique_users,
                     MAX(created_at) as last_active
-                FROM transactions
+                FROM otc_transactions
                 WHERE group_id = ?
             """, (group_id,))
         
@@ -1010,7 +1021,7 @@ class Database:
         conn = self.connect()
         cursor = conn.cursor()
         
-        query = "SELECT COUNT(*) as count FROM transactions WHERE group_id = ?"
+        query = "SELECT COUNT(*) as count FROM otc_transactions WHERE group_id = ?"
         params = [group_id]
         
         if start_date and end_date:
@@ -1059,7 +1070,7 @@ class Database:
                     SUM(usdt_amount) as total_usdt,
                     COUNT(DISTINCT group_id) as active_groups,
                     COUNT(DISTINCT user_id) as unique_users
-                FROM transactions
+                FROM otc_transactions
                 WHERE DATE(created_at) >= ? AND DATE(created_at) <= ?
             """, (start_date, end_date))
         else:
@@ -1070,7 +1081,7 @@ class Database:
                     SUM(usdt_amount) as total_usdt,
                     COUNT(DISTINCT group_id) as active_groups,
                     COUNT(DISTINCT user_id) as unique_users
-                FROM transactions
+                FROM otc_transactions
             """)
         
         row = cursor.fetchone()
@@ -1102,7 +1113,7 @@ class Database:
                    cny_amount, usdt_amount, exchange_rate, markup,
                    usdt_address, status, payment_hash, paid_at, confirmed_at, 
                    cancelled_at, cancelled_by, created_at
-            FROM transactions
+            FROM otc_transactions
             WHERE transaction_id = ?
         """, (transaction_id,))
         
@@ -1150,28 +1161,28 @@ class Database:
             if status == 'paid':
                 # Mark as paid
                 cursor.execute("""
-                    UPDATE transactions
+                    UPDATE otc_transactions
                     SET status = ?, payment_hash = ?, paid_at = CURRENT_TIMESTAMP
                     WHERE transaction_id = ?
                 """, (status, payment_hash, transaction_id))
             elif status == 'confirmed':
                 # Confirm transaction
                 cursor.execute("""
-                    UPDATE transactions
+                    UPDATE otc_transactions
                     SET status = ?, confirmed_at = CURRENT_TIMESTAMP
                     WHERE transaction_id = ?
                 """, (status, transaction_id))
             elif status == 'cancelled':
                 # Cancel transaction
                 cursor.execute("""
-                    UPDATE transactions
+                    UPDATE otc_transactions
                     SET status = ?, cancelled_at = CURRENT_TIMESTAMP, cancelled_by = ?
                     WHERE transaction_id = ?
                 """, (status, cancelled_by, transaction_id))
             else:
                 # Other status updates
                 cursor.execute("""
-                    UPDATE transactions
+                    UPDATE otc_transactions
                     SET status = ?, payment_hash = ?
                     WHERE transaction_id = ?
                 """, (status, payment_hash, transaction_id))
@@ -1241,7 +1252,7 @@ class Database:
                 SELECT transaction_id, group_id, user_id, username, first_name,
                        cny_amount, usdt_amount, exchange_rate, markup,
                        usdt_address, status, created_at
-                FROM transactions
+                FROM otc_transactions
                 WHERE group_id = ? AND status = 'pending'
                 ORDER BY created_at DESC
                 LIMIT ?
@@ -1251,7 +1262,7 @@ class Database:
                 SELECT transaction_id, group_id, user_id, username, first_name,
                        cny_amount, usdt_amount, exchange_rate, markup,
                        usdt_address, status, created_at
-                FROM transactions
+                FROM otc_transactions
                 WHERE status = 'pending'
                 ORDER BY created_at DESC
                 LIMIT ?
@@ -1295,7 +1306,7 @@ class Database:
                 SELECT transaction_id, group_id, user_id, username, first_name,
                        cny_amount, usdt_amount, exchange_rate, markup,
                        usdt_address, status, payment_hash, paid_at, created_at
-                FROM transactions
+                FROM otc_transactions
                 WHERE group_id = ? AND status = 'paid'
                 ORDER BY paid_at DESC
                 LIMIT ?
@@ -1305,7 +1316,7 @@ class Database:
                 SELECT transaction_id, group_id, user_id, username, first_name,
                        cny_amount, usdt_amount, exchange_rate, markup,
                        usdt_address, status, payment_hash, paid_at, created_at
-                FROM transactions
+                FROM otc_transactions
                 WHERE status = 'paid'
                 ORDER BY paid_at DESC
                 LIMIT ?
@@ -1353,7 +1364,7 @@ class Database:
                        cny_amount, usdt_amount, exchange_rate, markup,
                        usdt_address, status, payment_hash, paid_at, confirmed_at, 
                        cancelled_at, created_at
-                FROM transactions
+                FROM otc_transactions
                 WHERE group_id = ? AND status = ?
                 ORDER BY created_at DESC
                 LIMIT ?
@@ -1364,7 +1375,7 @@ class Database:
                        cny_amount, usdt_amount, exchange_rate, markup,
                        usdt_address, status, payment_hash, paid_at, confirmed_at,
                        cancelled_at, created_at
-                FROM transactions
+                FROM otc_transactions
                 WHERE status = ?
                 ORDER BY created_at DESC
                 LIMIT ?
@@ -1418,7 +1429,7 @@ class Database:
                 SELECT transaction_id, group_id, user_id, username, first_name,
                        cny_amount, usdt_amount, exchange_rate, markup,
                        usdt_address, status, created_at
-                FROM transactions
+                FROM otc_transactions
                 WHERE user_id = ? AND DATE(created_at) >= ? AND DATE(created_at) <= ?
                 ORDER BY created_at DESC
                 LIMIT ? OFFSET ?
@@ -1428,7 +1439,7 @@ class Database:
                 SELECT transaction_id, group_id, user_id, username, first_name,
                        cny_amount, usdt_amount, exchange_rate, markup,
                        usdt_address, status, created_at
-                FROM transactions
+                FROM otc_transactions
                 WHERE user_id = ?
                 ORDER BY created_at DESC
                 LIMIT ? OFFSET ?
@@ -1471,13 +1482,13 @@ class Database:
         if start_date and end_date:
             cursor.execute("""
                 SELECT COUNT(*) as count
-                FROM transactions
+                FROM otc_transactions
                 WHERE user_id = ? AND DATE(created_at) >= ? AND DATE(created_at) <= ?
             """, (user_id, start_date, end_date))
         else:
             cursor.execute("""
                 SELECT COUNT(*) as count
-                FROM transactions
+                FROM otc_transactions
                 WHERE user_id = ?
             """, (user_id,))
         
@@ -1509,7 +1520,7 @@ class Database:
                     SUM(usdt_amount) as total_usdt,
                     AVG(cny_amount) as avg_cny,
                     MAX(created_at) as last_active
-                FROM transactions
+                FROM otc_transactions
                 WHERE user_id = ? AND DATE(created_at) = ?
             """, (user_id, date))
         elif start_date and end_date:
@@ -1520,7 +1531,7 @@ class Database:
                     SUM(usdt_amount) as total_usdt,
                     AVG(cny_amount) as avg_cny,
                     MAX(created_at) as last_active
-                FROM transactions
+                FROM otc_transactions
                 WHERE user_id = ? AND DATE(created_at) >= ? AND DATE(created_at) <= ?
             """, (user_id, start_date, end_date))
         else:
@@ -1531,7 +1542,7 @@ class Database:
                     SUM(usdt_amount) as total_usdt,
                     AVG(cny_amount) as avg_cny,
                     MAX(created_at) as last_active
-                FROM transactions
+                FROM otc_transactions
                 WHERE user_id = ?
             """, (user_id,))
         
