@@ -13,7 +13,9 @@ from keyboards.inline_keyboard import (
     get_group_settings_menu, get_global_management_menu,
     get_bills_history_keyboard, get_confirmation_keyboard,
     get_settlement_bill_keyboard, get_payment_hash_input_keyboard,
-    get_paid_transactions_keyboard
+    get_paid_transactions_keyboard,
+    get_customer_service_management_menu, get_customer_service_list_keyboard,
+    get_customer_service_edit_keyboard, get_customer_service_strategy_keyboard
 )
 from handlers.bills_handlers import handle_transaction_detail
 from handlers.stats_handlers import handle_group_stats, handle_global_stats
@@ -517,6 +519,12 @@ async def handle_global_management_menu(update: Update, context: ContextTypes.DE
             await query.answer()
             return
         
+        elif callback_data == "customer_service_management":
+            from handlers.customer_service_handlers import handle_customer_service_management
+            await handle_customer_service_management(update, context)
+            await query.answer()
+            return
+        
     except Exception as e:
         logger.error(f"Error in handle_global_management_menu: {e}", exc_info=True)
         await query.answer("❌ 错误: " + str(e), show_alert=True)
@@ -798,6 +806,12 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Global management menu
     if callback_data.startswith("global_settings") or callback_data == "global_groups_list" or callback_data == "global_stats":
         await handle_global_management_menu(update, context)
+        return
+    
+    # Customer service management
+    if callback_data.startswith("customer_service"):
+        from handlers.customer_service_handlers import handle_customer_service_management
+        await handle_customer_service_management(update, context)
         return
     
     # Bills pagination

@@ -254,10 +254,169 @@ def get_global_management_menu() -> InlineKeyboardMarkup:
             InlineKeyboardButton("📈 全局统计", callback_data="global_stats")
         ],
         [
+            InlineKeyboardButton("👥 客服管理", callback_data="customer_service_management")
+        ],
+        [
             InlineKeyboardButton("⚡ 管理员指令教程", callback_data="admin_commands_help")
         ],
         [
             InlineKeyboardButton("🔙 返回主菜单", callback_data="main_menu")
+        ]
+    ]
+    
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+def get_customer_service_management_menu() -> InlineKeyboardMarkup:
+    """
+    Get inline keyboard for customer service management menu.
+    
+    Returns:
+        InlineKeyboardMarkup with customer service management options
+    """
+    keyboard = [
+        [
+            InlineKeyboardButton("📋 客服账号列表", callback_data="customer_service_list")
+        ],
+        [
+            InlineKeyboardButton("➕ 添加客服账号", callback_data="customer_service_add")
+        ],
+        [
+            InlineKeyboardButton("⚙️ 分配策略设置", callback_data="customer_service_strategy")
+        ],
+        [
+            InlineKeyboardButton("📊 客服统计报表", callback_data="customer_service_stats")
+        ],
+        [
+            InlineKeyboardButton("🔙 返回", callback_data="global_management_menu")
+        ]
+    ]
+    
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+def get_customer_service_list_keyboard(accounts: list, page: int = 0, per_page: int = 10) -> InlineKeyboardMarkup:
+    """
+    Get inline keyboard for customer service account list.
+    
+    Args:
+        accounts: List of account dictionaries
+        page: Current page (0-indexed)
+        per_page: Items per page
+        
+    Returns:
+        InlineKeyboardMarkup with account buttons and navigation
+    """
+    keyboard = []
+    
+    # Calculate pagination
+    start_idx = page * per_page
+    end_idx = start_idx + per_page
+    page_accounts = accounts[start_idx:end_idx]
+    
+    # Add account buttons (max 10 per page)
+    for account in page_accounts:
+        account_id = account['id']
+        display_name = account['display_name']
+        is_active = account['is_active']
+        
+        # Truncate display name if too long
+        if len(display_name) > 20:
+            display_name = display_name[:17] + "..."
+        
+        status_icon = "✅" if is_active else "❌"
+        button_text = f"{status_icon} {display_name}"
+        
+        keyboard.append([
+            InlineKeyboardButton(
+                button_text,
+                callback_data=f"customer_service_edit_{account_id}"
+            )
+        ])
+    
+    # Pagination buttons
+    nav_row = []
+    if page > 0:
+        nav_row.append(InlineKeyboardButton("⬅️ 上一页", callback_data=f"customer_service_list_page_{page-1}"))
+    if end_idx < len(accounts):
+        nav_row.append(InlineKeyboardButton("下一页 ➡️", callback_data=f"customer_service_list_page_{page+1}"))
+    if nav_row:
+        keyboard.append(nav_row)
+    
+    # Action buttons
+    keyboard.append([
+        InlineKeyboardButton("➕ 添加客服", callback_data="customer_service_add"),
+        InlineKeyboardButton("🔙 返回", callback_data="customer_service_management")
+    ])
+    
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+def get_customer_service_edit_keyboard(account_id: int) -> InlineKeyboardMarkup:
+    """
+    Get inline keyboard for editing a customer service account.
+    
+    Args:
+        account_id: Account ID
+        
+    Returns:
+        InlineKeyboardMarkup with edit options
+    """
+    keyboard = [
+        [
+            InlineKeyboardButton("✏️ 编辑信息", callback_data=f"customer_service_edit_info_{account_id}")
+        ],
+        [
+            InlineKeyboardButton("🔄 启用/禁用", callback_data=f"customer_service_toggle_{account_id}")
+        ],
+        [
+            InlineKeyboardButton("🗑️ 删除账号", callback_data=f"customer_service_delete_{account_id}")
+        ],
+        [
+            InlineKeyboardButton("🔙 返回列表", callback_data="customer_service_list")
+        ]
+    ]
+    
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+def get_customer_service_strategy_keyboard(current_method: str = 'smart') -> InlineKeyboardMarkup:
+    """
+    Get inline keyboard for assignment strategy settings.
+    
+    Args:
+        current_method: Current assignment method
+        
+    Returns:
+        InlineKeyboardMarkup with strategy options
+    """
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                f"{'✅' if current_method == 'smart' else '○'} 智能混合分配",
+                callback_data="customer_service_strategy_set_smart"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                f"{'✅' if current_method == 'round_robin' else '○'} 简单轮询",
+                callback_data="customer_service_strategy_set_round_robin"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                f"{'✅' if current_method == 'least_busy' else '○'} 最少任务优先",
+                callback_data="customer_service_strategy_set_least_busy"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                f"{'✅' if current_method == 'weighted' else '○'} 权重分配",
+                callback_data="customer_service_strategy_set_weighted"
+            )
+        ],
+        [
+            InlineKeyboardButton("🔙 返回", callback_data="customer_service_management")
         ]
     ]
     

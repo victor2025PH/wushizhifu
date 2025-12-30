@@ -294,6 +294,76 @@ class Database:
             ON transactions(status)
         """)
         
+        # Create customer_service_accounts table for managing customer service accounts
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS customer_service_accounts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL UNIQUE,
+                display_name TEXT,
+                status TEXT DEFAULT 'available',
+                weight INTEGER DEFAULT 5,
+                max_concurrent INTEGER DEFAULT 50,
+                current_count INTEGER DEFAULT 0,
+                total_served INTEGER DEFAULT 0,
+                is_active INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_customer_service_accounts_username 
+            ON customer_service_accounts(username)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_customer_service_accounts_status 
+            ON customer_service_accounts(status)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_customer_service_accounts_active 
+            ON customer_service_accounts(is_active)
+        """)
+        
+        # Create customer_service_assignments table for tracking assignments
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS customer_service_assignments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                username TEXT,
+                service_account TEXT NOT NULL,
+                assignment_method TEXT,
+                assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                status TEXT DEFAULT 'active',
+                completed_at TIMESTAMP
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_customer_service_assignments_user_id 
+            ON customer_service_assignments(user_id)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_customer_service_assignments_service_account 
+            ON customer_service_assignments(service_account)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_customer_service_assignments_status 
+            ON customer_service_assignments(status)
+        """)
+        
+        # Initialize default customer service account if none exists
+        cursor.execute("SELECT COUNT(*) FROM customer_service_accounts")
+        count = cursor.fetchone()[0]
+        if count == 0:
+            cursor.execute("""
+                INSERT INTO customer_service_accounts (username, display_name, status, weight, max_concurrent, is_active)
+                VALUES ('wushizhifu_jianglai', '客服账号1', 'available', 5, 50, 1)
+            """)
+        
         conn.commit()
         logger.info("Database initialized successfully")
     
@@ -2518,6 +2588,403 @@ class Database:
                 'updated_at': row['updated_at']
             }
         return None
+    
+    # ========== Customer Service Management Methods ==========
+    
+    def add_customer_service_account(self, username: str, display_name: str = None, 
+                                     weight: int = 5, max_concurrent: int = 50) -> bool:
+        """
+        Add a new customer service account.
+        
+        Args:
+            username: Service account username (without @)
+            display_name: Display name (optional)
+            weight: Weight for assignment (1-10, default 5)
+            max_concurrent: Maximum concurrent customers (default 50)
+            
+        Returns:
+            True if successful
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT INTO customer_service_accounts 
+                (username, display_name, status, weight, max_concurrent, is_active)
+                VALUES (?, ?, 'available', ?, ?, 1)
+            """, (username, display_name or username, weight, max_concurrent))
+            
+            conn.commit()
+            logger.info(f"Customer service account added: {username}")
+            return True
+            
+        except sqlite3.IntegrityError:
+            logger.warning(f"Customer service account already exists: {username}")
+            return False
+        except Exception as e:
+            logger.error(f"Error adding customer service account: {e}", exc_info=True)
+            return False
+    
+    def get_customer_service_accounts(self, active_only: bool = True) -> list:
+        """
+        Get all customer service accounts.
+        
+        Args:
+            active_only: Only return active accounts
+            
+        Returns:
+            List of account dictionaries
+        """
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        if active_only:
+            cursor.execute("""
+                SELECT * FROM customer_service_accounts 
+                WHERE is_active = 1
+                ORDER BY weight DESC, current_count ASC, created_at ASC
+            """)
+        else:
+            cursor.execute("""
+                SELECT * FROM customer_service_accounts 
+                ORDER BY is_active DESC, weight DESC, current_count ASC
+            """)
+        
+        accounts = []
+        for row in cursor.fetchall():
+            accounts.append({
+                'id': row['id'],
+                'username': row['username'],
+                'display_name': row['display_name'] or row['username'],
+                'status': row['status'],
+                'weight': int(row['weight']),
+                'max_concurrent': int(row['max_concurrent']),
+                'current_count': int(row['current_count']),
+                'total_served': int(row['total_served']),
+                'is_active': bool(row['is_active']),
+                'created_at': row['created_at'],
+                'updated_at': row['updated_at']
+            })
+        
+        return accounts
+    
+    def get_customer_service_account(self, account_id: int = None, username: str = None) -> Optional[dict]:
+        """
+        Get customer service account by ID or username.
+        
+        Args:
+            account_id: Account ID
+            username: Account username
+            
+        Returns:
+            Account dictionary or None
+        """
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        if account_id:
+            cursor.execute("SELECT * FROM customer_service_accounts WHERE id = ?", (account_id,))
+        elif username:
+            cursor.execute("SELECT * FROM customer_service_accounts WHERE username = ?", (username,))
+        else:
+            return None
+        
+        row = cursor.fetchone()
+        if row:
+            return {
+                'id': row['id'],
+                'username': row['username'],
+                'display_name': row['display_name'] or row['username'],
+                'status': row['status'],
+                'weight': int(row['weight']),
+                'max_concurrent': int(row['max_concurrent']),
+                'current_count': int(row['current_count']),
+                'total_served': int(row['total_served']),
+                'is_active': bool(row['is_active']),
+                'created_at': row['created_at'],
+                'updated_at': row['updated_at']
+            }
+        return None
+    
+    def update_customer_service_account(self, account_id: int, display_name: str = None,
+                                        weight: int = None, max_concurrent: int = None,
+                                        status: str = None) -> bool:
+        """
+        Update customer service account.
+        
+        Args:
+            account_id: Account ID
+            display_name: New display name
+            weight: New weight
+            max_concurrent: New max concurrent
+            status: New status (available/offline/busy/disabled)
+            
+        Returns:
+            True if successful
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            updates = []
+            params = []
+            
+            if display_name is not None:
+                updates.append("display_name = ?")
+                params.append(display_name)
+            if weight is not None:
+                updates.append("weight = ?")
+                params.append(weight)
+            if max_concurrent is not None:
+                updates.append("max_concurrent = ?")
+                params.append(max_concurrent)
+            if status is not None:
+                updates.append("status = ?")
+                params.append(status)
+            
+            if not updates:
+                return False
+            
+            updates.append("updated_at = CURRENT_TIMESTAMP")
+            params.append(account_id)
+            
+            cursor.execute(f"""
+                UPDATE customer_service_accounts 
+                SET {', '.join(updates)}
+                WHERE id = ?
+            """, params)
+            
+            conn.commit()
+            logger.info(f"Customer service account {account_id} updated")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error updating customer service account: {e}", exc_info=True)
+            return False
+    
+    def toggle_customer_service_account(self, account_id: int) -> bool:
+        """
+        Toggle customer service account active status.
+        
+        Args:
+            account_id: Account ID
+            
+        Returns:
+            True if successful
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                UPDATE customer_service_accounts 
+                SET is_active = NOT is_active,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (account_id,))
+            
+            conn.commit()
+            
+            # Get new status
+            cursor.execute("SELECT is_active FROM customer_service_accounts WHERE id = ?", (account_id,))
+            is_active = bool(cursor.fetchone()['is_active'])
+            logger.info(f"Customer service account {account_id} toggled to {'active' if is_active else 'inactive'}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error toggling customer service account: {e}", exc_info=True)
+            return False
+    
+    def delete_customer_service_account(self, account_id: int) -> bool:
+        """
+        Delete customer service account.
+        
+        Args:
+            account_id: Account ID
+            
+        Returns:
+            True if successful
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            cursor.execute("DELETE FROM customer_service_accounts WHERE id = ?", (account_id,))
+            
+            conn.commit()
+            logger.info(f"Customer service account {account_id} deleted")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error deleting customer service account: {e}", exc_info=True)
+            return False
+    
+    def assign_customer_service(self, user_id: int, username: str, assignment_method: str = 'smart') -> Optional[str]:
+        """
+        Assign a customer service account to a user.
+        
+        Args:
+            user_id: User ID
+            username: Username
+            assignment_method: Assignment method (smart/round_robin/least_busy/weighted)
+            
+        Returns:
+            Service account username or None
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            # Get available accounts based on method
+            if assignment_method == 'smart':
+                # Smart hybrid: available + online + not maxed out, then least busy, then by weight
+                cursor.execute("""
+                    SELECT * FROM customer_service_accounts 
+                    WHERE is_active = 1 
+                    AND status IN ('available', 'busy')
+                    AND current_count < max_concurrent
+                    ORDER BY current_count ASC, weight DESC, created_at ASC
+                    LIMIT 1
+                """)
+                row = cursor.fetchone()
+                
+                # Fallback to round-robin if no available account
+                if not row:
+                    cursor.execute("""
+                        SELECT * FROM customer_service_accounts 
+                        WHERE is_active = 1
+                        ORDER BY created_at ASC
+                        LIMIT 1
+                    """)
+                    row = cursor.fetchone()
+                    
+            elif assignment_method == 'least_busy':
+                cursor.execute("""
+                    SELECT * FROM customer_service_accounts 
+                    WHERE is_active = 1 
+                    AND status IN ('available', 'busy')
+                    AND current_count < max_concurrent
+                    ORDER BY current_count ASC
+                    LIMIT 1
+                """)
+                row = cursor.fetchone()
+                
+            elif assignment_method == 'weighted':
+                cursor.execute("""
+                    SELECT * FROM customer_service_accounts 
+                    WHERE is_active = 1 
+                    AND status IN ('available', 'busy')
+                    AND current_count < max_concurrent
+                    ORDER BY weight DESC, current_count ASC
+                    LIMIT 1
+                """)
+                row = cursor.fetchone()
+                
+            else:  # round_robin (default)
+                # Simple round-robin: get account with least recent assignment
+                cursor.execute("""
+                    SELECT csa.* FROM customer_service_accounts csa
+                    LEFT JOIN (
+                        SELECT service_account, MAX(assigned_at) as last_assigned
+                        FROM customer_service_assignments
+                        WHERE status = 'active'
+                        GROUP BY service_account
+                    ) last_assign ON csa.username = last_assign.service_account
+                    WHERE csa.is_active = 1
+                    ORDER BY last_assign.last_assigned ASC NULLS FIRST, csa.created_at ASC
+                    LIMIT 1
+                """)
+                row = cursor.fetchone()
+            
+            if not row:
+                logger.warning("No customer service account available for assignment")
+                return None
+            
+            service_account = row['username']
+            
+            # Update current_count
+            cursor.execute("""
+                UPDATE customer_service_accounts 
+                SET current_count = current_count + 1,
+                    total_served = total_served + 1,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE username = ?
+            """, (service_account,))
+            
+            # Record assignment
+            cursor.execute("""
+                INSERT INTO customer_service_assignments 
+                (user_id, username, service_account, assignment_method, status)
+                VALUES (?, ?, ?, ?, 'active')
+            """, (user_id, username, service_account, assignment_method))
+            
+            conn.commit()
+            logger.info(f"Assigned customer service {service_account} to user {user_id}")
+            return service_account
+            
+        except Exception as e:
+            logger.error(f"Error assigning customer service: {e}", exc_info=True)
+            return None
+    
+    def get_customer_service_stats(self) -> dict:
+        """
+        Get customer service statistics.
+        
+        Returns:
+            Dictionary with statistics
+        """
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        # Total accounts
+        cursor.execute("SELECT COUNT(*) FROM customer_service_accounts")
+        total_accounts = cursor.fetchone()[0]
+        
+        # Active accounts
+        cursor.execute("SELECT COUNT(*) FROM customer_service_accounts WHERE is_active = 1")
+        active_accounts = cursor.fetchone()[0]
+        
+        # Total served
+        cursor.execute("SELECT SUM(total_served) FROM customer_service_accounts")
+        total_served = cursor.fetchone()[0] or 0
+        
+        # Today's assignments
+        cursor.execute("""
+            SELECT COUNT(*) FROM customer_service_assignments 
+            WHERE DATE(assigned_at) = DATE('now')
+        """)
+        today_served = cursor.fetchone()[0]
+        
+        # Accounts with stats
+        cursor.execute("""
+            SELECT id, username, display_name, status, weight, max_concurrent, 
+                   current_count, total_served, is_active
+            FROM customer_service_accounts
+            ORDER BY total_served DESC
+        """)
+        
+        accounts = []
+        for row in cursor.fetchall():
+            accounts.append({
+                'id': row['id'],
+                'username': row['username'],
+                'display_name': row['display_name'] or row['username'],
+                'status': row['status'],
+                'weight': int(row['weight']),
+                'max_concurrent': int(row['max_concurrent']),
+                'current_count': int(row['current_count']),
+                'total_served': int(row['total_served']),
+                'is_active': bool(row['is_active'])
+            })
+        
+        return {
+            'total_accounts': total_accounts,
+            'active_accounts': active_accounts,
+            'total_served': total_served,
+            'today_served': today_served,
+            'accounts': accounts
+        }
 
 
 # Global database instance

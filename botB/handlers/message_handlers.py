@@ -690,6 +690,30 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_address_input(update, context, text)
         return
     
+    # Handle customer service username input (after admin clicks add customer service)
+    if 'waiting_for' in context.user_data and context.user_data['waiting_for'] == 'customer_service_username':
+        from services.customer_service_service import customer_service
+        from keyboards.inline_keyboard import get_customer_service_list_keyboard
+        del context.user_data['waiting_for']
+        
+        if not is_admin(user_id):
+            await update.message.reply_text("❌ 仅管理员可以添加客服账号")
+            return
+        
+        username = text.strip().lstrip('@')
+        if not username or len(username) < 3:
+            await update.message.reply_text("❌ 用户名格式错误，请输入有效的Telegram用户名（至少3个字符）")
+            return
+        
+        # Add customer service account
+        success = customer_service.add_account(username=username, display_name=username)
+        if success:
+            await update.message.reply_text(f"✅ 客服账号已添加：@{username}")
+            logger.info(f"Admin {user_id} added customer service account: {username}")
+        else:
+            await update.message.reply_text(f"❌ 添加失败，账号可能已存在：@{username}")
+        return
+    
     # Handle group markup input (after admin clicks edit group markup)
     for key in list(context.user_data.keys()):
         if key.startswith('awaiting_group_markup_'):

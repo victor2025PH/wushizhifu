@@ -1,5 +1,10 @@
 python bot.py
 
+# BotB
+sudo journalctl -u otc-bot.service -f
+
+# BotA  
+sudo journalctl -u wushizhifu-bot.service -f
 
 # 查看狀態
 sudo systemctl status wushipay-bot
