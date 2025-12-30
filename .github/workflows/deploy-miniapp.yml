@@ -79,6 +79,15 @@ jobs:
           script: |
             cd /home/ubuntu/wushizhifu
             
+            # 清理旧的 repo 目录（历史遗留，现在不再需要）
+            if [ -d "repo" ]; then
+              echo "🧹 清理旧的 repo 目录（历史遗留，现在不再需要）..."
+              REPO_BACKUP="repo.backup.$(date +%Y%m%d_%H%M%S)"
+              mv repo "$REPO_BACKUP" 2>/dev/null || sudo mv repo "$REPO_BACKUP" || true
+              echo "✅ repo 目录已备份到: $REPO_BACKUP"
+              echo "   如果一切正常，可以稍后删除备份: rm -rf $REPO_BACKUP"
+            fi
+            
             # 确定源目录和目标目录（统一使用 wushizhifu-full）
             SOURCE_DIR="/home/ubuntu/wushizhifu/wushizhifu-full/dist"
             if [ ! -d "$SOURCE_DIR" ]; then
