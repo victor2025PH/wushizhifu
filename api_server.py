@@ -529,29 +529,32 @@ async def get_binance_p2p_data(
         Dictionary with merchant leaderboard data
     """
     try:
-        # Import P2P service (try botB first, then botA)
+        # Try to import P2P service from botB or botA
+        leaderboard_data = None
         try:
             import sys
             from pathlib import Path
-            botb_path = Path(__file__).parent / "botB" / "services"
+            project_root = Path(__file__).parent
+            
+            # Try botB first
+            botb_path = project_root / "botB" / "services" / "p2p_leaderboard_service.py"
             if botb_path.exists():
-                sys.path.insert(0, str(botb_path.parent))
+                sys.path.insert(0, str(project_root / "botB"))
                 from services.p2p_leaderboard_service import get_p2p_leaderboard
+                leaderboard_data = get_p2p_leaderboard(payment_method=payment_method, rows=rows, page=page)
             else:
                 # Fallback to botA
-                bota_path = Path(__file__).parent / "botA" / "services"
+                bota_path = project_root / "botA" / "services" / "p2p_leaderboard_service.py"
                 if bota_path.exists():
-                    sys.path.insert(0, str(bota_path.parent))
+                    sys.path.insert(0, str(project_root / "botA"))
                     from services.p2p_leaderboard_service import get_p2p_leaderboard
-                else:
-                    raise ImportError("Cannot find p2p_leaderboard_service")
-        except ImportError:
-            # If import fails, implement inline
-            logger.warning("Could not import p2p_leaderboard_service, using inline implementation")
+                    leaderboard_data = get_p2p_leaderboard(payment_method=payment_method, rows=rows, page=page)
+        except (ImportError, Exception) as e:
+            logger.warning(f"Could not import p2p_leaderboard_service: {e}, using inline implementation")
+        
+        # If import failed or returned None, use inline implementation
+        if not leaderboard_data:
             leaderboard_data = get_p2p_leaderboard_inline(payment_method, rows, page)
-        else:
-            # Call the service function
-            leaderboard_data = get_p2p_leaderboard(payment_method=payment_method, rows=rows, page=page)
         
         if not leaderboard_data:
             raise HTTPException(status_code=500, detail="Failed to fetch Binance P2P data")
