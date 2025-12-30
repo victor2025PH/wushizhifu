@@ -168,7 +168,8 @@ jobs:
                   UVICORN_CMD="python3 -m uvicorn"
                 fi
                 
-                sudo tee /etc/systemd/system/${SERVICE_NAME}.service > /dev/null <<EOF
+                # 创建 systemd 服务文件（使用 cat 避免 heredoc 在 YAML 中的问题）
+                sudo bash -c "cat > /etc/systemd/system/${SERVICE_NAME}.service <<'EOFSERVICE'
 [Unit]
 Description=WuShiPay API Service (FastAPI)
 After=network.target
@@ -178,9 +179,9 @@ Type=simple
 User=ubuntu
 Group=ubuntu
 WorkingDirectory=$PROJECT_ROOT
-Environment="PATH=$PROJECT_ROOT/venv/bin:/usr/local/bin:/usr/bin:/bin"
-Environment="PYTHONUNBUFFERED=1"
-Environment="PYTHONPATH=$PROJECT_ROOT"
+Environment=\"PATH=$PROJECT_ROOT/venv/bin:/usr/local/bin:/usr/bin:/bin\"
+Environment=\"PYTHONUNBUFFERED=1\"
+Environment=\"PYTHONPATH=$PROJECT_ROOT\"
 EnvironmentFile=-$PROJECT_ROOT/.env
 
 ExecStart=$UVICORN_CMD api_server:app --host 127.0.0.1 --port 8000
@@ -198,7 +199,7 @@ LimitNOFILE=65536
 
 [Install]
 WantedBy=multi-user.target
-EOF
+EOFSERVICE"
                 sudo systemctl daemon-reload
                 echo "✅ Systemd 服务已创建"
               fi
