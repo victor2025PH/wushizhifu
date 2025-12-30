@@ -624,11 +624,12 @@ class Database:
         conn = self.connect()
         cursor = conn.cursor()
         
-        # Get all unique group_ids from transactions
+        # Get all unique group_ids from transactions, ordered by latest transaction time
         cursor.execute("""
-            SELECT DISTINCT group_id
+            SELECT group_id
             FROM transactions
             WHERE group_id IS NOT NULL
+            GROUP BY group_id
             ORDER BY MAX(created_at) DESC
         """)
         
