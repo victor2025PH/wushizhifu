@@ -1,0 +1,37 @@
+[Unit]
+Description=WuShiPay API Service (FastAPI)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/wushizhifu
+Environment="PATH=/home/ubuntu/wushizhifu/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+Environment="PYTHONPATH=/home/ubuntu/wushizhifu"
+EnvironmentFile=-/home/ubuntu/wushizhifu/.env
+
+# 检查是否有虚拟环境，如果没有则使用系统 Python
+# 如果有 venv，使用 venv 中的 uvicorn
+# 如果没有，使用系统 Python
+ExecStart=/bin/bash -c 'if [ -f /home/ubuntu/wushizhifu/venv/bin/uvicorn ]; then /home/ubuntu/wushizhifu/venv/bin/uvicorn api_server:app --host 127.0.0.1 --port 8000; else /usr/bin/python3 -m uvicorn api_server:app --host 127.0.0.1 --port 8000; fi'
+
+# 重启策略
+Restart=always
+RestartSec=10
+
+# 日志配置
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=wushipay-api
+
+# 安全设置
+NoNewPrivileges=true
+PrivateTmp=true
+
+# 资源限制
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
