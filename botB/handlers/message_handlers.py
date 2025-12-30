@@ -1146,6 +1146,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # For help message, keep inline keyboard but also add reply keyboard in groups
                 if chat.type in ['group', 'supergroup']:
                     from keyboards.reply_keyboard import get_main_reply_keyboard
+                    user = update.effective_user
                     user_info_dict = {
                         'id': user.id,
                         'first_name': user.first_name or '',
@@ -1192,6 +1193,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 help_keyboard = get_button_help_keyboard("📞 客服")
                 if chat.type in ['group', 'supergroup']:
                     from keyboards.reply_keyboard import get_main_reply_keyboard
+                    user = update.effective_user
                     user_info_dict = {
                         'id': user.id,
                         'first_name': user.first_name or '',
