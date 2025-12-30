@@ -31,14 +31,17 @@ jobs:
             git stash || true
             git pull origin main
             
-            # 进入 wushizhifu-full 目录
-            if [ -d "repo/wushizhifu-full" ]; then
-              cd repo/wushizhifu-full
-            elif [ -d "wushizhifu-full" ]; then
-              cd wushizhifu-full
-            else
+            # 进入 wushizhifu-full 目录（统一使用 wushizhifu-full，不再使用 repo/wushizhifu-full）
+            if [ ! -d "wushizhifu-full" ]; then
               echo "❌ 错误: 找不到 wushizhifu-full 目录"
               exit 1
+            fi
+            cd wushizhifu-full
+            
+            # 如果是 Git 子模块，确保更新
+            if [ -f ".git" ] || [ -d ".git" ]; then
+              echo "📥 更新 Git 子模块..."
+              git pull origin main || true
             fi
             
             # 安装依赖
@@ -76,13 +79,10 @@ jobs:
           script: |
             cd /home/ubuntu/wushizhifu
             
-            # 确定源目录和目标目录
-            if [ -d "repo/wushizhifu-full/dist" ]; then
-              SOURCE_DIR="repo/wushizhifu-full/dist"
-            elif [ -d "wushizhifu-full/dist" ]; then
-              SOURCE_DIR="wushizhifu-full/dist"
-            else
-              echo "❌ 错误: 找不到构建后的 dist 目录"
+            # 确定源目录和目标目录（统一使用 wushizhifu-full）
+            SOURCE_DIR="/home/ubuntu/wushizhifu/wushizhifu-full/dist"
+            if [ ! -d "$SOURCE_DIR" ]; then
+              echo "❌ 错误: 找不到构建后的 dist 目录: $SOURCE_DIR"
               exit 1
             fi
             
