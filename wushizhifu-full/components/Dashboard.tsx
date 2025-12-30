@@ -7,6 +7,7 @@ import { AlipayGuideModal } from './AlipayGuideModal';
 import { WeChatGuideModal } from './WeChatGuideModal';
 import { BinanceRateModal } from './BinanceRateModal';
 import { openSupportChat } from '../utils/supportService';
+import { apiClient } from '../api';
 
 interface DashboardProps {
   onSelectProvider: (provider: PaymentProvider) => void;
@@ -27,6 +28,12 @@ const WeChatIcon = () => (
   </svg>
 );
 
+interface MarketStats {
+  min_price: number;
+  max_price: number;
+  avg_price: number;
+}
+
 export const Dashboard: React.FC<DashboardProps> = ({ 
   onSelectProvider, 
   onOpenProfile,
@@ -37,10 +44,51 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [showWeChatGuide, setShowWeChatGuide] = useState(false);
   const [showBinanceRate, setShowBinanceRate] = useState(false);
   const [showScrollHint, setShowScrollHint] = useState(true);
+  const [marketStats, setMarketStats] = useState<MarketStats | null>(null);
+  const [loadingMarketStats, setLoadingMarketStats] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const t = TRANSLATIONS[lang];
   const displayName = user?.first_name || t.guest;
   const username = user?.username ? `@${user.username}` : '';
+
+  // Fetch market stats
+  const fetchMarketStats = async () => {
+    setLoadingMarketStats(true);
+    try {
+      const data = await apiClient.getBinanceP2P({
+        payment_method: 'alipay',
+        rows: 10,
+        page: 1
+      });
+      if (data && data.market_stats) {
+        setMarketStats({
+          min_price: data.market_stats.min_price,
+          max_price: data.market_stats.max_price,
+          avg_price: data.market_stats.avg_price
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch market stats:', error);
+      // Don't set error state, just keep showing existing data or fallback
+    } finally {
+      setLoadingMarketStats(false);
+    }
+  };
+
+  // Initial fetch and 60 second auto-refresh
+  useEffect(() => {
+    // Initial fetch
+    fetchMarketStats();
+
+    // Set up 60 second interval
+    const intervalId = setInterval(() => {
+      fetchMarketStats();
+    }, 60000); // 60 seconds
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, []);
 
   // Hide scroll hint after 5 seconds or when user scrolls
   useEffect(() => {
@@ -142,28 +190,57 @@ export const Dashboard: React.FC<DashboardProps> = ({
       >
         <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-champagne-200/20 to-tech-primary/10 rounded-full blur-2xl -translate-y-10 translate-x-10" />
         
-        <div className="flex justify-between items-center relative z-10 h-full w-full">
-          <div className="flex items-center space-x-4 flex-shrink-0">
-            <div className="bg-gradient-to-br from-champagne-400 to-champagne-600 p-3 rounded-2xl shadow-gold text-white flex-shrink-0">
-              <TrendingUp className="w-5 h-5" strokeWidth={2.5} />
+        <div className="relative z-10 h-full w-full">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center space-x-4 flex-shrink-0">
+              <div className="bg-gradient-to-br from-champagne-400 to-champagne-600 p-3 rounded-2xl shadow-gold text-white flex-shrink-0">
+                <TrendingUp className="w-5 h-5" strokeWidth={2.5} />
+              </div>
+              <div className="flex flex-col justify-center">
+                <div className="text-xs text-tech-sub font-medium mb-0.5">{t.exchangeRate}</div>
+                <div className="text-sm font-bold text-tech-text whitespace-nowrap">{t.cnyToUsdt}</div>
+              </div>
             </div>
-            <div className="flex flex-col justify-center">
-              <div className="text-xs text-tech-sub font-medium mb-0.5">{t.exchangeRate}</div>
-              <div className="text-sm font-bold text-tech-text whitespace-nowrap">{t.cnyToUsdt}</div>
+            <div className="flex items-center space-x-1 text-champagne-600">
+              <Zap className="w-3 h-3 fill-current" />
+              <span className="text-[10px] font-medium whitespace-nowrap">
+                {t.liveUpdate}
+              </span>
             </div>
           </div>
           
-          <div className="text-right flex flex-col justify-center flex-shrink-0">
-             <div className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-gold leading-tight">
-               ¥{EXCHANGE_RATE_CNY_USDT.toFixed(2)}
-             </div>
-             <div className="flex items-center justify-end mt-1 space-x-1">
-               <Zap className="w-3 h-3 fill-current text-champagne-600" />
-               <span className="text-[10px] text-champagne-600 font-medium whitespace-nowrap">
-                 {t.liveUpdate}
-               </span>
-             </div>
-          </div>
+          {/* Market Overview Stats */}
+          {marketStats ? (
+            <div className="grid grid-cols-3 gap-3">
+              <div className="text-center">
+                <p className="text-[10px] text-tech-sub mb-1">{t.lowest}</p>
+                <p className="text-sm font-bold text-tech-text">¥{marketStats.min_price.toFixed(2)}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] text-tech-sub mb-1">{t.highest}</p>
+                <p className="text-sm font-bold text-tech-text">¥{marketStats.max_price.toFixed(2)}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] text-tech-sub mb-1">{t.averagePrice}</p>
+                <p className="text-sm font-bold text-transparent bg-clip-text bg-gradient-gold">¥{marketStats.avg_price.toFixed(2)}</p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-3">
+              <div className="text-center">
+                <p className="text-[10px] text-tech-sub mb-1">{t.lowest}</p>
+                <p className="text-sm font-bold text-tech-text">--</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] text-tech-sub mb-1">{t.highest}</p>
+                <p className="text-sm font-bold text-tech-text">--</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] text-tech-sub mb-1">{t.averagePrice}</p>
+                <p className="text-sm font-bold text-tech-text">--</p>
+              </div>
+            </div>
+          )}
         </div>
       </button>
 
