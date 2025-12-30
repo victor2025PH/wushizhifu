@@ -86,7 +86,7 @@ jobs:
               exit 1
             fi
             
-            TARGET_DIR="$HOME/wushizhifu/frontend"
+            TARGET_DIR="$HOME/wushizhifu/frontend/dist"
             
             # 备份现有目录
             if [ -d "$TARGET_DIR" ]; then
@@ -96,8 +96,10 @@ jobs:
             
             # 复制构建结果到 frontend/dist
             echo "📋 复制构建结果..."
-            mkdir -p "$TARGET_DIR/dist"
-            cp -r "$SOURCE_DIR"/* "$TARGET_DIR/dist/"
+            echo "源目录: $SOURCE_DIR"
+            echo "目标目录: $TARGET_DIR"
+            mkdir -p "$(dirname "$TARGET_DIR")"
+            cp -r "$SOURCE_DIR" "$TARGET_DIR"
             echo "✅ 文件复制完成"
             
             # 设置文件权限
