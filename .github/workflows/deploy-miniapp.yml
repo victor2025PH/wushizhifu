@@ -1,0 +1,140 @@
+name: Deploy Miniapp
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'wushizhifu-full/**'
+      - 'api_server.py'
+      - '.github/workflows/deploy-miniapp.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      
+      - name: Pull Code and Build
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          timeout: 600s
+          script: |
+            cd /home/ubuntu/wushizhifu
+            git stash || true
+            git pull origin main
+            
+            # 更新子模块
+            if [ -d "wushizhifu-full" ] && [ -f ".gitmodules" ]; then
+              git submodule update --init --recursive || true
+            fi
+            
+            # 进入 wushizhifu-full 目录
+            if [ -d "repo/wushizhifu-full" ]; then
+              cd repo/wushizhifu-full
+            elif [ -d "wushizhifu-full" ]; then
+              cd wushizhifu-full
+            else
+              echo "❌ 错误: 找不到 wushizhifu-full 目录"
+              exit 1
+            fi
+            
+            # 安装依赖
+            echo "📦 安装依赖..."
+            npm install --production=false || {
+              echo "⚠️  npm install 失败，尝试清理后重试..."
+              rm -rf node_modules package-lock.json
+              npm install --production=false
+            }
+            
+            # 构建项目
+            echo "🔨 构建项目..."
+            export NODE_OPTIONS="--max-old-space-size=3072"
+            npm run build || {
+              echo "❌ 构建失败"
+              exit 1
+            }
+            
+            # 检查构建结果
+            if [ ! -d "dist" ]; then
+              echo "❌ dist 目录不存在"
+              exit 1
+            fi
+            
+            echo "✅ 构建完成"
+      
+      - name: Deploy Frontend
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          timeout: 300s
+          script: |
+            cd /home/ubuntu/wushizhifu
+            
+            # 确定源目录和目标目录
+            if [ -d "repo/wushizhifu-full/dist" ]; then
+              SOURCE_DIR="repo/wushizhifu-full/dist"
+            elif [ -d "wushizhifu-full/dist" ]; then
+              SOURCE_DIR="wushizhifu-full/dist"
+            else
+              echo "❌ 错误: 找不到构建后的 dist 目录"
+              exit 1
+            fi
+            
+            TARGET_DIR="$HOME/wushizhifu/frontend"
+            
+            # 备份现有目录
+            if [ -d "$TARGET_DIR" ]; then
+              echo "📦 备份现有目录..."
+              mv "$TARGET_DIR" "${TARGET_DIR}.backup.$(date +%Y%m%d_%H%M%S)" || rm -rf "$TARGET_DIR"
+            fi
+            
+            # 复制构建结果
+            echo "📋 复制构建结果..."
+            mkdir -p "$TARGET_DIR"
+            cp -r "$SOURCE_DIR"/* "$TARGET_DIR"/
+            echo "✅ 文件复制完成"
+            
+            # 检查并安装 serve（如果需要）
+            if ! command -v serve >/dev/null 2>&1; then
+              echo "📦 安装 serve..."
+              sudo npm install -g serve || true
+            fi
+            
+            # 停止旧的 PM2 进程
+            pm2 delete miniapp-frontend 2>/dev/null || true
+            
+            # 启动新的 PM2 进程（如果需要）
+            # 注意：如果使用 Nginx 直接服务静态文件，可能不需要 PM2
+            # 这里先检查是否有 PM2 进程，如果没有则启动
+            if ! pm2 list | grep -q "miniapp-frontend"; then
+              echo "🚀 启动 PM2 进程..."
+              pm2 start "npx serve -s $TARGET_DIR -l 5000" --name miniapp-frontend || {
+                echo "⚠️  PM2 启动失败，可能使用 Nginx 直接服务"
+              }
+              pm2 save || true
+            else
+              echo "✅ PM2 进程已在运行"
+            fi
+            
+            # 重启 API 服务（如果存在）
+            if [ -f "/home/ubuntu/wushizhifu/api_server.py" ]; then
+              echo "🔄 重启 API 服务..."
+              sudo systemctl restart wushipay-api.service || true
+            fi
+            
+            echo "✅ 部署完成"
+            echo "🌐 访问: https://50zf.usdt2026.cc"
+
