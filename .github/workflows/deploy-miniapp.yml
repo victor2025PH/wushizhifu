@@ -199,14 +199,14 @@ jobs:
                   UVICORN_CMD="python3 -m uvicorn"
                 fi
                 
-                # 如果模板存在，使用模板；否则动态创建
+                # 如果模板存在，使用模板；否则使用 Python 创建服务文件（避免 heredoc 在 YAML 中的问题）
                 if [ -f "$PROJECT_ROOT/deploy/systemd/wushipay-api.service" ]; then
                   sudo cp "$PROJECT_ROOT/deploy/systemd/wushipay-api.service" "/etc/systemd/system/${SERVICE_NAME}.service"
                   sudo sed -i "s|/home/ubuntu/wushizhifu|$PROJECT_ROOT|g" "/etc/systemd/system/${SERVICE_NAME}.service"
                 else
-                  # 动态创建服务文件
-                  sudo bash -c "cat > /etc/systemd/system/${SERVICE_NAME}.service <<EOF
-[Unit]
+                  # 使用 Python 创建服务文件（避免 heredoc 在 YAML 中的问题）
+                  sudo python3 << PYEOF
+service_content = f"""[Unit]
 Description=WuShiPay API Service (FastAPI)
 After=network.target
 
@@ -214,13 +214,13 @@ After=network.target
 Type=simple
 User=ubuntu
 Group=ubuntu
-WorkingDirectory=$PROJECT_ROOT
-Environment=\"PATH=$PROJECT_ROOT/venv/bin:/usr/local/bin:/usr/bin:/bin\"
-Environment=\"PYTHONUNBUFFERED=1\"
-Environment=\"PYTHONPATH=$PROJECT_ROOT\"
-EnvironmentFile=-$PROJECT_ROOT/.env
+WorkingDirectory={PROJECT_ROOT}
+Environment="PATH={PROJECT_ROOT}/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+Environment="PYTHONPATH={PROJECT_ROOT}"
+EnvironmentFile=-{PROJECT_ROOT}/.env
 
-ExecStart=$UVICORN_CMD api_server:app --host 127.0.0.1 --port 8000
+ExecStart={UVICORN_CMD} api_server:app --host 127.0.0.1 --port 8000
 
 Restart=always
 RestartSec=10
@@ -235,7 +235,10 @@ LimitNOFILE=65536
 
 [Install]
 WantedBy=multi-user.target
-EOF"
+"""
+with open(f"/etc/systemd/system/{SERVICE_NAME}.service", "w") as f:
+    f.write(service_content)
+PYEOF
                 fi
                 sudo systemctl daemon-reload
                 echo "✅ Systemd 服务文件已创建"
