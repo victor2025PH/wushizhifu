@@ -18,24 +18,14 @@ class Database:
         Initialize database connection.
         
         Args:
-            db_path: Path to SQLite database file. If None, uses botA's database.
+            db_path: Path to SQLite database file. If None, uses shared database (wushipay.db in root).
         """
         if db_path is None:
-            # Use botA's database to ensure consistency
-            # Default to botA/wushipay.db if it exists, otherwise root wushipay.db
-            botA_db = Path(__file__).parent.parent / "botA" / "wushipay.db"
-            root_db = Path(__file__).parent.parent / "wushipay.db"
-            
-            if botA_db.exists():
-                self.db_path = str(botA_db)
-                logger.info(f"Using Bot A database: {self.db_path}")
-            elif root_db.exists():
-                self.db_path = str(root_db)
-                logger.info(f"Using root database: {self.db_path}")
-            else:
-                # Default to botA path for new installations
-                self.db_path = str(botA_db)
-                logger.info(f"Creating new database at: {self.db_path}")
+            # Use shared database (wushipay.db in project root)
+            root_dir = Path(__file__).parent.parent
+            root_db = root_dir / "wushipay.db"
+            self.db_path = str(root_db)
+            logger.info(f"Using shared database: {self.db_path}")
         else:
             self.db_path = db_path
         self.conn: Optional[sqlite3.Connection] = None

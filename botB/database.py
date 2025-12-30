@@ -23,19 +23,11 @@ class Database:
         """
         if db_path is None:
             # Use shared database (same as BotA and Miniapp)
-            # Default to root wushipay.db, or botA/wushipay.db if exists
+            # Use wushipay.db in project root directory
             root_dir = Path(__file__).parent.parent
             root_db = root_dir / "wushipay.db"
-            botA_db = root_dir / "botA" / "wushipay.db"
-            
-            if root_db.exists():
-                db_path = str(root_db)
-            elif botA_db.exists():
-                db_path = str(botA_db)
-            else:
-                # Default to root for new installations
-                db_path = str(root_db)
-                logger.info(f"Using shared database: {db_path}")
+            db_path = str(root_db)
+            logger.info(f"Using shared database: {db_path}")
         self.db_path = db_path
         self.conn: Optional[sqlite3.Connection] = None
         self._init_database()

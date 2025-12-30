@@ -24,7 +24,7 @@ def test_config():
             print(f"    Please ensure .env file has BOT_TOKEN_B on the second line")
             return False
         
-        print(f"  Database path: {Config.DB_PATH}")
+        print(f"  Database: Using shared database (wushipay.db)")
         print(f"  CoinGecko API URL: {Config.COINGECKO_API_URL}")
         print(f"  Fallback price: {Config.DEFAULT_FALLBACK_PRICE}")
         

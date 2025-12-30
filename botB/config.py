@@ -46,9 +46,6 @@ class Config:
     # This will be the same as Bot A if both use the same .env file
     INITIAL_ADMINS: list[int] = _parse_admin_ids()
     
-    # Database file path
-    DB_PATH: str = "otc_bot.db"
-    
     # CoinGecko API endpoint for USDT/CNY
     COINGECKO_API_URL: str = "https://api.coingecko.com/api/v3/simple/price"
     
