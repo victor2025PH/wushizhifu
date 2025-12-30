@@ -70,6 +70,11 @@ def get_groups_list_keyboard_with_edit(groups: list) -> InlineKeyboardMarkup:
         InlineKeyboardButton("🔄 刷新列表", callback_data="global_groups_list")
     ])
     
+    # Add back button to return to global management menu
+    keyboard.append([
+        InlineKeyboardButton("🔙 返回", callback_data="global_management_menu")
+    ])
+    
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
