@@ -56,11 +56,9 @@ jobs:
             pip install --upgrade pip -q
             pip install -r requirements.txt -q
             sleep 3
+            # 始终更新服务文件以确保配置最新
+            sudo cp /home/ubuntu/wushizhifu/botB/otc-bot.service /etc/systemd/system/otc-bot.service
             sudo systemctl daemon-reload
-            if [ ! -f "/etc/systemd/system/otc-bot.service" ]; then
-              sudo cp /home/ubuntu/wushizhifu/botB/otc-bot.service /etc/systemd/system/otc-bot.service
-              sudo systemctl daemon-reload
-            fi
             sudo systemctl restart otc-bot.service
             sudo systemctl enable otc-bot.service || true
             sleep 2

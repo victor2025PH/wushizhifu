@@ -57,6 +57,8 @@ jobs:
               pip install -r requirements.txt -q
             fi
             sleep 3
+            # 始终更新服务文件以确保配置最新（包括PYTHONUNBUFFERED=1等配置）
+            sudo cp /home/ubuntu/wushizhifu/botA/wushizhifu-bot.service /etc/systemd/system/wushizhifu-bot.service
             sudo systemctl daemon-reload
             sudo systemctl restart wushizhifu-bot.service
             sudo systemctl enable wushizhifu-bot.service || true
