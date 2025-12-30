@@ -88,23 +88,39 @@ jobs:
             
             TARGET_DIR="$HOME/wushizhifu/frontend/dist"
             
-            # 备份现有目录
+            # 使用 sudo 彻底删除旧文件（解决权限问题）
             if [ -d "$TARGET_DIR" ]; then
-              echo "📦 备份现有目录..."
-              mv "$TARGET_DIR" "${TARGET_DIR}.backup.$(date +%Y%m%d_%H%M%S)" || rm -rf "$TARGET_DIR"
+              echo "📦 删除旧部署文件..."
+              sudo rm -rf "$TARGET_DIR"/*
+              sudo rm -rf "$TARGET_DIR"/.[^.]* 2>/dev/null || true
+              # 如果目录还存在，确保是空的
+              if [ -d "$TARGET_DIR" ]; then
+                REMAINING=$(find "$TARGET_DIR" -mindepth 1 2>/dev/null | wc -l)
+                if [ "$REMAINING" -gt 0 ]; then
+                  echo "⚠️  仍有文件残留，强制删除目录..."
+                  sudo rm -rf "$TARGET_DIR"
+                  sudo mkdir -p "$TARGET_DIR"
+                fi
+              else
+                sudo mkdir -p "$TARGET_DIR"
+              fi
+              echo "✅ 旧文件已删除"
+            else
+              sudo mkdir -p "$TARGET_DIR"
             fi
             
             # 复制构建结果到 frontend/dist
             echo "📋 复制构建结果..."
             echo "源目录: $SOURCE_DIR"
             echo "目标目录: $TARGET_DIR"
-            mkdir -p "$(dirname "$TARGET_DIR")"
-            cp -r "$SOURCE_DIR" "$TARGET_DIR"
+            # 使用 sudo 复制以确保权限正确
+            sudo cp -r "$SOURCE_DIR"/* "$TARGET_DIR"/
+            sudo cp -r "$SOURCE_DIR"/.[^.]* "$TARGET_DIR"/ 2>/dev/null || true
             echo "✅ 文件复制完成"
             
             # 设置文件权限
             echo "🔐 设置文件权限..."
-            sudo chown -R www-data:www-data "$TARGET_DIR" || sudo chown -R ubuntu:ubuntu "$TARGET_DIR"
+            sudo chown -R www-data:www-data "$TARGET_DIR"
             sudo chmod -R 755 "$TARGET_DIR"
             echo "✅ 权限设置完成"
             
