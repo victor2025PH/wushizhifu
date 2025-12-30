@@ -350,7 +350,7 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await query.answer()
             else:
                 await send_group_message(update, error_msg)
-            conn.close()
+            # Don't close connection - Database class manages it as singleton
             return
         
         # Verify bot is still in each group and get group info
@@ -448,7 +448,7 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 logger.debug(f"Bot not in group {group_id} or cannot access: {e}")
                 continue
         
-        conn.close()
+        # Don't close connection - Database class manages it as singleton
         
         if not valid_groups:
             error_msg = "📭 机器人当前不在任何群组中\n\n所有记录的群组中，机器人已经离开或无法访问"
