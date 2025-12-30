@@ -513,8 +513,7 @@ async def get_alipay_video_url():
 async def get_binance_p2p_data(
     payment_method: str = "alipay",
     rows: int = 10,
-    page: int = 1,
-    user_data: dict = Depends(verify_auth)
+    page: int = 1
 ):
     """
     Get Binance P2P merchant leaderboard data.
