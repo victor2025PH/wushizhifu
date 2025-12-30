@@ -31,11 +31,6 @@ jobs:
             git stash || true
             git pull origin main
             
-            # 更新子模块
-            if [ -d "wushizhifu-full" ] && [ -f ".gitmodules" ]; then
-              git submodule update --init --recursive || true
-            fi
-            
             # 进入 wushizhifu-full 目录
             if [ -d "repo/wushizhifu-full" ]; then
               cd repo/wushizhifu-full
