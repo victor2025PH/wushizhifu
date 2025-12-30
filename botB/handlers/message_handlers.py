@@ -334,11 +334,11 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Get all unique group IDs from group_settings
         cursor.execute("SELECT DISTINCT group_id FROM group_settings WHERE is_active = 1")
-        configured_group_ids = [row[0] for row in cursor.fetchall()]
+        configured_group_ids = [row['group_id'] for row in cursor.fetchall()]
         
         # Get all unique group IDs from transactions
         cursor.execute("SELECT DISTINCT group_id FROM otc_transactions WHERE group_id IS NOT NULL")
-        transaction_group_ids = [row[0] for row in cursor.fetchall()]
+        transaction_group_ids = [row['group_id'] for row in cursor.fetchall()]
         
         # Combine and get unique group IDs
         all_group_ids = list(set(configured_group_ids + transaction_group_ids))
