@@ -1,16 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { TrendingUp, Wallet, ArrowRight, Zap, Shield, Calculator, Clock, User as UserIcon, BadgeCheck } from 'lucide-react';
+import { TrendingUp, Wallet, ArrowRight, Zap, Shield, Calculator, Clock, User as UserIcon, BadgeCheck, BarChart3, UserPlus } from 'lucide-react';
 import { PaymentProvider, EXCHANGE_RATE_CNY_USDT, Language, TRANSLATIONS, TelegramUser } from '../types';
 import { Logo } from './Logo';
 import { AlipayGuideModal } from './AlipayGuideModal';
 import { WeChatGuideModal } from './WeChatGuideModal';
+import { openSupportChat } from '../utils/supportService';
 
 interface DashboardProps {
   onSelectProvider: (provider: PaymentProvider) => void;
   onOpenCalculator: () => void;
   onOpenHistory: () => void;
   onOpenProfile: () => void;
+  onOpenTools: () => void;
   lang: Language;
   user: TelegramUser | null;
 }
@@ -32,6 +34,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onOpenCalculator,
   onOpenHistory,
   onOpenProfile,
+  onOpenTools,
   lang,
   user
 }) => {
@@ -165,25 +168,30 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* Quick Tools Row */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
+      {/* Quick Tools Row - Merged Calculator and History */}
+      <div className="flex flex-col gap-4 mb-6">
         <button 
-          onClick={onOpenCalculator}
-          className="bg-white p-3 rounded-2xl shadow-sm border border-transparent hover:border-champagne-200 hover:shadow-gold transition-all flex items-center justify-center space-x-2 group"
+          onClick={onOpenTools}
+          className="bg-white p-4 rounded-2xl shadow-sm border border-transparent hover:border-champagne-200 hover:shadow-gold transition-all flex items-center justify-center space-x-3 group w-full"
         >
           <div className="bg-tech-bg p-2 rounded-xl group-hover:bg-champagne-50 transition-colors">
-            <Calculator className="w-4 h-4 text-tech-sub group-hover:text-champagne-600" />
+            <BarChart3 className="w-5 h-5 text-tech-sub group-hover:text-champagne-600" />
           </div>
-          <span className="text-sm font-semibold text-tech-text">{t.calculator}</span>
+          <span className="text-sm font-semibold text-tech-text">{t.toolsAndRecords}</span>
         </button>
+        
+        {/* Open Account Button - Redirect to Telegram Support */}
         <button 
-          onClick={onOpenHistory}
-          className="bg-white p-3 rounded-2xl shadow-sm border border-transparent hover:border-champagne-200 hover:shadow-gold transition-all flex items-center justify-center space-x-2 group"
+          onClick={() => {
+            // 打开 Telegram 客服对话（自动轮询分配）
+            openSupportChat();
+          }}
+          className="bg-gradient-to-r from-champagne-500 to-champagne-600 text-white p-4 rounded-2xl shadow-lg hover:shadow-gold transition-all flex items-center justify-center space-x-3 group w-full"
         >
-          <div className="bg-tech-bg p-2 rounded-xl group-hover:bg-champagne-50 transition-colors">
-            <Clock className="w-4 h-4 text-tech-sub group-hover:text-champagne-600" />
+          <div className="bg-white/20 p-2 rounded-xl group-hover:bg-white/30 transition-colors">
+            <UserPlus className="w-5 h-5 text-white" />
           </div>
-          <span className="text-sm font-semibold text-tech-text">{t.history}</span>
+          <span className="text-sm font-semibold text-white">{t.openAccount}</span>
         </button>
       </div>
 
