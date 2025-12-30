@@ -165,6 +165,44 @@ class ApiClient {
   }> {
     return this.request('/rates');
   }
+
+  /**
+   * Get Binance P2P merchant data
+   */
+  async getBinanceP2P(params?: {
+    payment_method?: string;
+    rows?: number;
+    page?: number;
+  }): Promise<{
+    merchants: Array<{
+      rank: number;
+      price: number;
+      min_amount: number;
+      max_amount: number;
+      merchant_name: string;
+      trade_count: number;
+      finish_rate: number;
+    }>;
+    payment_method: string;
+    payment_label: string;
+    total: number;
+    page: number;
+    market_stats: {
+      min_price: number;
+      max_price: number;
+      avg_price: number;
+      total_trades: number;
+      merchant_count: number;
+    };
+  }> {
+    const queryParams = new URLSearchParams();
+    if (params?.payment_method) queryParams.append('payment_method', params.payment_method);
+    if (params?.rows) queryParams.append('rows', params.rows.toString());
+    if (params?.page) queryParams.append('page', params.page.toString());
+
+    const query = queryParams.toString();
+    return this.request(`/binance/p2p${query ? `?${query}` : ''}`);
+  }
 }
 
 export const apiClient = new ApiClient();

@@ -20,6 +20,7 @@ from database.transaction_repository import TransactionRepository
 from database.rate_repository import RateRepository
 from database.video_repository import VideoRepository
 import httpx
+import requests
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

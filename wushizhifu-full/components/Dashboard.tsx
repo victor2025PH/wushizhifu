@@ -5,6 +5,7 @@ import { PaymentProvider, EXCHANGE_RATE_CNY_USDT, Language, TRANSLATIONS, Telegr
 import { Logo } from './Logo';
 import { AlipayGuideModal } from './AlipayGuideModal';
 import { WeChatGuideModal } from './WeChatGuideModal';
+import { BinanceRateModal } from './BinanceRateModal';
 import { openSupportChat } from '../utils/supportService';
 
 interface DashboardProps {
@@ -133,8 +134,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* Rate Card */}
-      <div className="relative overflow-hidden bg-white/60 backdrop-blur-xl border border-white/50 rounded-3xl p-5 mb-4 shadow-soft group transition-all duration-300 hover:shadow-gold hover:border-champagne-200/60">
+      {/* Rate Card - Clickable */}
+      <button
+        onClick={() => setShowBinanceRate(true)}
+        className="relative overflow-hidden bg-white/60 backdrop-blur-xl border border-white/50 rounded-3xl p-5 mb-4 shadow-soft group transition-all duration-300 hover:shadow-gold hover:border-champagne-200/60 w-full text-left cursor-pointer active:scale-[0.98]"
+      >
         <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-champagne-200/20 to-tech-primary/10 rounded-full blur-2xl -translate-y-10 translate-x-10" />
         
         <div className="flex justify-between items-center relative z-10 h-full w-full">
@@ -160,7 +164,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
              </div>
           </div>
         </div>
-      </div>
+      </button>
 
       {/* Open Account Button - Redirect to Telegram Support */}
       <div className="flex flex-col gap-4 mb-6">
