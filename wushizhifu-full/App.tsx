@@ -307,9 +307,9 @@ export default function App() {
               })();
             }
             
+            // If still no user found, show guest mode (this is normal when opened in browser)
             if (!userFound) {
-              console.error("❌ Could not retrieve user information from any source");
-              console.error("Please ensure the app is opened from within Telegram using a WebApp button");
+              console.log("ℹ️  Guest mode: App opened outside Telegram (this is normal)");
             }
           }
           return true;
