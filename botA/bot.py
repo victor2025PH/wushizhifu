@@ -35,6 +35,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Reduce aiogram dispatcher log noise (Bad Gateway and timeout errors are normal and handled automatically)
+# These errors occur occasionally due to Telegram API server issues and are automatically retried
+logging.getLogger("aiogram.dispatcher").setLevel(logging.ERROR)  # Only log ERROR level for dispatcher
+logging.getLogger("aiogram").setLevel(logging.WARNING)  # Reduce INFO level logs from aiogram
+
 
 async def on_startup(bot: Bot):
     """Actions to perform on bot startup"""
