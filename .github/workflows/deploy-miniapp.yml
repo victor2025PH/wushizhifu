@@ -94,33 +94,35 @@ jobs:
               mv "$TARGET_DIR" "${TARGET_DIR}.backup.$(date +%Y%m%d_%H%M%S)" || rm -rf "$TARGET_DIR"
             fi
             
-            # 复制构建结果
+            # 复制构建结果到 frontend/dist
             echo "📋 复制构建结果..."
-            mkdir -p "$TARGET_DIR"
-            cp -r "$SOURCE_DIR"/* "$TARGET_DIR"/
+            mkdir -p "$TARGET_DIR/dist"
+            cp -r "$SOURCE_DIR"/* "$TARGET_DIR/dist/"
             echo "✅ 文件复制完成"
             
-            # 检查并安装 serve（如果需要）
-            if ! command -v serve >/dev/null 2>&1; then
-              echo "📦 安装 serve..."
-              sudo npm install -g serve || true
+            # 设置文件权限
+            echo "🔐 设置文件权限..."
+            sudo chown -R www-data:www-data "$TARGET_DIR/dist" || sudo chown -R ubuntu:ubuntu "$TARGET_DIR/dist"
+            sudo chmod -R 755 "$TARGET_DIR/dist"
+            echo "✅ 权限设置完成"
+            
+            # 更新 Nginx 配置（如果需要）
+            NGINX_CONFIG="/etc/nginx/sites-available/50zf.usdt2026.cc"
+            if [ -f "$NGINX_CONFIG" ]; then
+              echo "🔧 检查 Nginx 配置..."
+              # 确保 root 路径正确
+              if ! grep -q "root $TARGET_DIR/dist;" "$NGINX_CONFIG"; then
+                echo "⚠️  Nginx 配置中的 root 路径可能需要更新"
+                echo "   当前 root 路径: $(grep 'root ' "$NGINX_CONFIG" | head -1)"
+                echo "   应该设置为: root $TARGET_DIR/dist;"
+              fi
             fi
             
-            # 停止旧的 PM2 进程
-            pm2 delete miniapp-frontend 2>/dev/null || true
-            
-            # 启动新的 PM2 进程（如果需要）
-            # 注意：如果使用 Nginx 直接服务静态文件，可能不需要 PM2
-            # 这里先检查是否有 PM2 进程，如果没有则启动
-            if ! pm2 list | grep -q "miniapp-frontend"; then
-              echo "🚀 启动 PM2 进程..."
-              pm2 start "npx serve -s $TARGET_DIR -l 5000" --name miniapp-frontend || {
-                echo "⚠️  PM2 启动失败，可能使用 Nginx 直接服务"
-              }
-              pm2 save || true
-            else
-              echo "✅ PM2 进程已在运行"
-            fi
+            # 重载 Nginx
+            echo "🔄 重载 Nginx..."
+            sudo nginx -t && sudo systemctl reload nginx || {
+              echo "⚠️  Nginx 重载失败，请检查配置"
+            }
             
             # 重启 API 服务（如果存在）
             if [ -f "/home/ubuntu/wushizhifu/api_server.py" ]; then
