@@ -313,55 +313,157 @@ async def handle_admin_w4(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle w7/CKQL: View all groups with transactions"""
+    """Handle w7/CKQL: View all groups where bot is present"""
     try:
         # Use context.bot instead of message.bot to avoid attribute errors
         bot = context.bot
         
         # Handle both message and callback query updates
+        query = update.callback_query if hasattr(update, 'callback_query') and update.callback_query else None
         if update.message:
             message_target = update.message
-        elif update.callback_query and update.callback_query.message:
-            message_target = update.callback_query.message
+        elif query and query.message:
+            message_target = query.message
         else:
             logger.error("handle_admin_w7: No message target found")
             return
         
-        groups = db.get_all_groups()
+        # Get all group IDs from database (from group_settings and transactions)
+        conn = db.connect()
+        cursor = conn.cursor()
         
-        if not groups:
-            await send_group_message(update, "📭 暂无有交易记录的群组\n\n所有群组都在使用全局默认设置")
+        # Get all unique group IDs from group_settings
+        cursor.execute("SELECT DISTINCT group_id FROM group_settings WHERE is_active = 1")
+        configured_group_ids = [row[0] for row in cursor.fetchall()]
+        
+        # Get all unique group IDs from transactions
+        cursor.execute("SELECT DISTINCT group_id FROM otc_transactions WHERE group_id IS NOT NULL")
+        transaction_group_ids = [row[0] for row in cursor.fetchall()]
+        
+        # Combine and get unique group IDs
+        all_group_ids = list(set(configured_group_ids + transaction_group_ids))
+        
+        if not all_group_ids:
+            error_msg = "📭 暂无群组记录\n\n机器人尚未加入任何群组或没有群组活动记录"
+            if query:
+                await query.edit_message_text(error_msg, parse_mode="HTML")
+                await query.answer()
+            else:
+                await send_group_message(update, error_msg)
+            conn.close()
             return
         
-        # Try to get group titles from Bot API and verify bot is still in group
+        # Verify bot is still in each group and get group info
         valid_groups = []
-        for group in groups[:20]:  # Limit to 20 groups for API calls
+        from keyboards.inline_keyboard import get_groups_list_keyboard_with_edit
+        
+        for group_id in all_group_ids[:50]:  # Limit to 50 groups for API calls
             try:
                 # Verify bot is still in the group
-                chat = await bot.get_chat(group['group_id'])
-                group['group_title'] = chat.title
+                chat = await bot.get_chat(group_id)
                 
-                # Update in database if we have it in group_settings
-                if group.get('is_configured'):
-                    conn = db.connect()
-                    cursor = conn.cursor()
+                # Get group settings if exists
+                cursor.execute("""
+                    SELECT group_title, markup, usdt_address, created_at, updated_at
+                    FROM group_settings
+                    WHERE group_id = ? AND is_active = 1
+                """, (group_id,))
+                setting_row = cursor.fetchone()
+                
+                # Get first transaction date (as join date approximation)
+                cursor.execute("""
+                    SELECT MIN(created_at) as first_transaction
+                    FROM otc_transactions
+                    WHERE group_id = ?
+                """, (group_id,))
+                tx_row = cursor.fetchone()
+                first_transaction = tx_row['first_transaction'] if tx_row and tx_row['first_transaction'] else None
+                
+                # Get transaction count
+                cursor.execute("""
+                    SELECT COUNT(*) as tx_count
+                    FROM otc_transactions
+                    WHERE group_id = ?
+                """, (group_id,))
+                tx_count_row = cursor.fetchone()
+                tx_count = tx_count_row['tx_count'] if tx_count_row else 0
+                
+                # Determine join date (prefer group_settings.created_at, fallback to first transaction)
+                join_date = None
+                if setting_row and setting_row.get('created_at'):
+                    join_date = setting_row['created_at']
+                elif first_transaction:
+                    join_date = first_transaction
+                
+                # Format join date
+                join_date_str = "未知"
+                if join_date:
+                    try:
+                        from datetime import datetime
+                        if isinstance(join_date, str):
+                            # Try parsing different formats
+                            try:
+                                dt = datetime.fromisoformat(join_date.replace('Z', '+00:00'))
+                            except:
+                                dt = datetime.strptime(join_date[:10], '%Y-%m-%d')
+                        else:
+                            dt = join_date
+                        join_date_str = dt.strftime('%Y-%m-%d')
+                    except:
+                        join_date_str = str(join_date)[:10] if join_date else "未知"
+                
+                # Get markup (group-specific or global)
+                markup = float(setting_row['markup']) if setting_row and setting_row.get('markup') is not None else None
+                if markup is None:
+                    markup = db.get_admin_markup()
+                    is_configured = False
+                else:
+                    is_configured = True
+                
+                group_title = setting_row['group_title'] if setting_row and setting_row.get('group_title') else chat.title
+                
+                group_data = {
+                    'group_id': group_id,
+                    'group_title': group_title,
+                    'markup': markup,
+                    'is_configured': is_configured,
+                    'join_date': join_date_str,
+                    'tx_count': tx_count
+                }
+                
+                # Update group_title in database if different
+                if setting_row and setting_row.get('group_title') != chat.title:
                     cursor.execute("""
                         UPDATE group_settings 
                         SET group_title = ? 
                         WHERE group_id = ?
-                    """, (chat.title, group['group_id']))
+                    """, (chat.title, group_id))
                     conn.commit()
+                    group_data['group_title'] = chat.title
                 
-                valid_groups.append(group)
+                valid_groups.append(group_data)
+                
             except Exception as e:
-                logger.warning(f"Could not get chat info for group {group['group_id']}: {e}")
-                # Still include group if we can't verify (might be permission issue)
-                if not group.get('group_title'):
-                    group['group_title'] = f"群组 {group['group_id']}"
-                valid_groups.append(group)
+                # Bot is not in this group or cannot access it
+                logger.debug(f"Bot not in group {group_id} or cannot access: {e}")
+                continue
         
-        message = f"📊 <b>所有活跃群组</b>\n\n"
-        message += f"共 {len(valid_groups)} 个群组（显示前 20 个）\n"
+        conn.close()
+        
+        if not valid_groups:
+            error_msg = "📭 机器人当前不在任何群组中\n\n所有记录的群组中，机器人已经离开或无法访问"
+            if query:
+                await query.edit_message_text(error_msg, parse_mode="HTML")
+                await query.answer()
+            else:
+                await send_group_message(update, error_msg)
+            return
+        
+        # Sort by group_id for consistent ordering
+        valid_groups.sort(key=lambda x: x['group_id'])
+        
+        message = f"📊 <b>所有群组列表</b>\n\n"
+        message += f"共 {len(valid_groups)} 个群组（机器人当前在的群组）\n"
         message += "────────────────────────\n\n"
         
         configured_count = sum(1 for g in valid_groups if g.get('is_configured'))
@@ -370,43 +472,48 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message += f"• 使用全局默认: {len(valid_groups) - configured_count} 个\n\n"
         message += "────────────────────────\n\n"
         
-        for idx, group in enumerate(valid_groups, 1):  # Limit to 20 groups
+        # Display groups (limit to 20 for message length)
+        display_groups = valid_groups[:20]
+        for idx, group in enumerate(display_groups, 1):
             group_title = group.get('group_title') or f"群组 {group['group_id']}"
             is_configured = group.get('is_configured', False)
             group_id = group['group_id']
+            markup = group.get('markup', 0.0)
+            join_date = group.get('join_date', '未知')
+            tx_count = group.get('tx_count', 0)
             
             # Status indicator
             status_icon = "⚙️" if is_configured else "🌐"
             
             message += f"{status_icon} <b>{idx}. {group_title}</b>\n"
             message += f"   ID: <code>{group_id}</code>\n"
+            message += f"   加入日期: {join_date}\n"
+            message += f"   上浮汇率: {markup:+.4f} USDT\n"
+            if tx_count > 0:
+                message += f"   交易记录: {tx_count} 笔\n"
+            message += "\n"
+        
+        if len(valid_groups) > 20:
+            message += f"\n... 还有 {len(valid_groups) - 20} 个群组未显示\n"
+        
+        # Create keyboard with group selection buttons for editing
+        reply_markup = get_groups_list_keyboard_with_edit(display_groups)
+        
+        if query:
+            await query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
+            await query.answer()
+        else:
+            await send_group_message(update, message, parse_mode="HTML", inline_keyboard=reply_markup)
+        
+        logger.info(f"Admin {update.effective_user.id} executed w7/CKQL, showing {len(valid_groups)} groups")
             
-            # Show current markup (use group-specific or global)
-            current_markup = group.get('markup', 0.0)
-            if is_configured:
-                message += f"   加价: {current_markup:+.4f} USDT\n"
-                if group.get('usdt_address'):
-                    addr = group['usdt_address']
-                    addr_display = addr[:10] + "..." + addr[-10:] if len(addr) > 20 else addr
-                    message += f"   地址: <code>{addr_display}</code>\n"
-                else:
-                    global_address = db.get_usdt_address()
-                    if global_address:
-                        addr_display = global_address[:10] + "..." + global_address[-10:] if len(global_address) > 20 else global_address
-                        message += f"   地址: <code>{addr_display}</code> (全局)\n"
-                    else:
-                        message += f"   地址: 未设置\n"
-            else:
-                global_markup = db.get_admin_markup()
-                message += f"   加价: {global_markup:+.4f} USDT (全局)\n"
-                global_address = db.get_usdt_address()
-                if global_address:
-                    addr_display = global_address[:10] + "..." + global_address[-10:] if len(global_address) > 20 else global_address
-                    message += f"   地址: <code>{addr_display}</code> (全局)\n"
-                else:
-                    message += f"   地址: 未设置\n"
-            
-            # Transaction stats
+    except Exception as e:
+        logger.error(f"Error in handle_admin_w7: {e}", exc_info=True)
+        error_msg = f"❌ 错误: {str(e)}"
+        if query:
+            await query.answer(error_msg, show_alert=True)
+        else:
+            await send_group_message(update, error_msg)
             tx_count = group.get('tx_count', 0)
             last_active = group.get('last_active', '')
             if last_active:
