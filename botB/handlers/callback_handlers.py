@@ -504,34 +504,6 @@ async def handle_global_management_menu(update: Update, context: ContextTypes.DE
             await query.answer()
             return
         
-        elif callback_data == "global_settings_markup":
-            # Show help if needed
-            if should_show_help(query.from_user.id, "设置全局加价"):
-                help_message = format_button_help_message("设置全局加价")
-                if help_message:
-                    help_keyboard = get_button_help_keyboard("设置全局加价")
-                    await query.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
-                    mark_help_shown(query.from_user.id, "设置全局加价", shown=True)
-            
-            await query.message.reply_text("请输入全局默认加价值（例如：0.5）")
-            context.user_data['awaiting_global_markup'] = True
-            await query.answer("💡 请在聊天中输入加价值")
-            return
-        
-        elif callback_data == "global_settings_address":
-            # Show help if needed
-            if should_show_help(query.from_user.id, "设置全局地址"):
-                help_message = format_button_help_message("设置全局地址")
-                if help_message:
-                    help_keyboard = get_button_help_keyboard("设置全局地址")
-                    await query.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
-                    mark_help_shown(query.from_user.id, "设置全局地址", shown=True)
-            
-            await query.message.reply_text("请输入全局默认 USDT 收款地址")
-            context.user_data['awaiting_global_address'] = True
-            await query.answer("💡 请在聊天中输入地址")
-            return
-        
         elif callback_data == "global_groups_list":
             # Show help if needed
             if should_show_help(query.from_user.id, "所有群组列表"):
@@ -561,6 +533,74 @@ async def handle_global_management_menu(update: Update, context: ContextTypes.DE
         
     except Exception as e:
         logger.error(f"Error in handle_global_management_menu: {e}", exc_info=True)
+        await query.answer("❌ 错误: " + str(e), show_alert=True)
+
+
+# ========== Group Edit Handlers ==========
+
+async def handle_group_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle group edit callbacks (select group, edit markup, edit address)"""
+    query = update.callback_query
+    callback_data = query.data
+    
+    try:
+        # Handle group selection
+        if callback_data.startswith("group_select_"):
+            group_id = int(callback_data.split("_")[2])
+            from keyboards.inline_keyboard import get_group_edit_keyboard
+            from database import db
+            
+            # Get group info
+            groups = db.get_all_groups()
+            group = next((g for g in groups if g['group_id'] == group_id), None)
+            
+            if not group:
+                await query.answer("❌ 群组不存在", show_alert=True)
+                return
+            
+            group_title = group.get('group_title', f"群组 {group_id}")
+            current_markup = group.get('markup', 0.0)
+            current_address = group.get('usdt_address', '')
+            
+            message = f"⚙️ <b>编辑群组设置</b>\n\n"
+            message += f"群组: <b>{group_title}</b>\n"
+            message += f"ID: <code>{group_id}</code>\n\n"
+            message += f"当前上浮汇率: <code>{current_markup:+.4f} USDT</code>\n"
+            
+            if current_address:
+                addr_display = current_address[:15] + "..." + current_address[-15:] if len(current_address) > 30 else current_address
+                message += f"当前地址: <code>{addr_display}</code>\n"
+            else:
+                global_address = db.get_usdt_address()
+                if global_address:
+                    addr_display = global_address[:15] + "..." + global_address[-15:] if len(global_address) > 30 else global_address
+                    message += f"当前地址: <code>{addr_display}</code> (全局)\n"
+                else:
+                    message += f"当前地址: 未设置\n"
+            
+            reply_markup = get_group_edit_keyboard(group_id)
+            await query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
+            await query.answer()
+            return
+        
+        # Handle edit markup
+        elif callback_data.startswith("group_edit_markup_"):
+            group_id = int(callback_data.split("_")[3])
+            context.user_data[f'awaiting_group_markup_{group_id}'] = True
+            await query.message.reply_text(f"请输入群组的上浮汇率值（例如：0.5 或 -0.1）")
+            await query.answer("💡 请在聊天中输入上浮汇率值")
+            return
+        
+        # Handle edit address
+        elif callback_data.startswith("group_edit_address_"):
+            group_id = int(callback_data.split("_")[3])
+            context.user_data[f'awaiting_group_address_{group_id}'] = True
+            await query.message.reply_text(f"请输入群组的 USDT 收款地址")
+            await query.answer("💡 请在聊天中输入地址")
+            return
+            
+    except Exception as e:
+        logger.error(f"Error in handle_group_edit: {e}", exc_info=True)
         await query.answer("❌ 错误: " + str(e), show_alert=True)
 
 
@@ -764,6 +804,11 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer()
         return
     
+    # Group edit handlers
+    if callback_data.startswith("group_select_") or callback_data.startswith("group_edit_markup_") or callback_data.startswith("group_edit_address_"):
+        await handle_group_edit(update, context)
+        return
+    
     # Global management menu
     if callback_data.startswith("global_settings") or callback_data == "global_groups_list" or callback_data == "global_stats":
         await handle_global_management_menu(update, context)
@@ -925,35 +970,6 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if callback_data == "logs_filter":
         from handlers.audit_handlers import handle_logs_filter_menu
         await handle_logs_filter_menu(update, context)
-        return
-    
-    # Price alert handlers
-    if callback_data == "alerts_menu" or callback_data == "alerts_list":
-        from handlers.price_alert_handlers import handle_list_alerts
-        await handle_list_alerts(update, context)
-        return
-    
-    if callback_data == "alert_create":
-        from handlers.price_alert_handlers import handle_create_alert
-        await handle_create_alert(update, context)
-        return
-    
-    if callback_data.startswith("alert_type_"):
-        alert_type = callback_data.split("_")[2]  # 'above' or 'below'
-        from handlers.price_alert_handlers import handle_alert_type_selected
-        await handle_alert_type_selected(update, context, alert_type)
-        return
-    
-    if callback_data.startswith("price_history_"):
-        hours = int(callback_data.split("_")[2])
-        from handlers.price_alert_handlers import handle_price_history
-        # Check if this is callback query or message
-        if update.callback_query:
-            # For callback query, edit message
-            await update.callback_query.answer("📊 正在加载价格历史...")
-            # Convert callback query to message for handler
-            update.message = update.callback_query.message
-        await handle_price_history(update, context, hours)
         return
     
     # Template handlers

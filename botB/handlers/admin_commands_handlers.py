@@ -81,15 +81,6 @@ async def handle_admin_commands_help(update: Update, context: ContextTypes.DEFAU
                 "示例：<code>w4</code> 或 <code>CKQJ</code>\n"
                 "说明：全局设置会影响所有未配置独立设置的群组\n\n"
                 
-                "<b>w5 [数字] / SQJJ [数字]</b> - 设置全局加价\n"
-                "功能：设置全局默认加价值（影响所有未配置的群组）\n"
-                "示例：<code>w5 0.5</code>（加价 0.5）或 <code>w5 -0.2</code>（降价 0.2）\n"
-                "说明：设置后，所有未配置独立加价的群组都会使用此值\n\n"
-                
-                "<b>w6 [地址] / SQJDZ [地址]</b> - 设置全局地址\n"
-                "功能：设置全局默认 USDT 收款地址\n"
-                "示例：<code>w6 TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t</code>\n"
-                "说明：设置后，所有未配置独立地址的群组都会使用此地址\n\n"
                 
                 "<b>w7 / CKQL</b> - 查看所有群组列表\n"
                 "功能：查看所有已配置的群组及其设置信息\n"
@@ -117,8 +108,6 @@ async def handle_admin_commands_help(update: Update, context: ContextTypes.DEFAU
             help_message += (
                 "• <code>HL</code> / <code>hl</code> → w1（查看汇率）\n"
                 "• <code>CKQJ</code> / <code>ckqj</code> → w4（查看全局）\n"
-                "• <code>SQJJ</code> / <code>sqjj</code> → w5（设置全局加价）\n"
-                "• <code>SQJDZ</code> / <code>sqjdz</code> → w6（设置全局地址）\n"
                 "• <code>CKQL</code> / <code>ckql</code> → w7（查看群组列表）\n\n"
             )
         

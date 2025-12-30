@@ -142,7 +142,6 @@ async def handle_template_use(update: Update, context: ContextTypes.DEFAULT_TYPE
         # Import settlement service and handlers
         from services.settlement_service import calculate_settlement, format_settlement_bill, get_settlement_address
         from keyboards.inline_keyboard import get_settlement_bill_keyboard
-        from database import db
         from admin_checker import is_admin
         
         # Get group_id if in a group

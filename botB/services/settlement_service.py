@@ -175,7 +175,7 @@ def format_settlement_bill(settlement_data: dict, usdt_address: str = None, tran
     message += f"📊 状态: <b>{status_text}</b>\n\n"
     
     # Input: CNY amount
-    message += f"💰 应收人民币: <b><code>{cny_amount:,.2f} CNY</code></b>\n\n"
+    message += f"💰 已收人民币: <b><code>{cny_amount:,.2f} CNY</code></b>\n\n"
     
     # Exchange rate (no markup in price display)
     message += f"📊 汇率 (USDT/CNY): {base_price:.4f} (Binance P2P)\n"

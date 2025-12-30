@@ -310,80 +310,19 @@ async def handle_admin_w4(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_group_message(update, f"❌ 错误: {str(e)}")
 
 
-async def handle_admin_w5(update: Update, context: ContextTypes.DEFAULT_TYPE, markup_value: float):
-    """Handle w5/SQJJ [number]: Set global markup"""
-    try:
-        # Get old value for logging
-        old_markup = db.get_admin_markup()
-        
-        if db.set_admin_markup(markup_value):
-            # Log operation
-            from services.audit_service import log_admin_operation, OperationType
-            log_admin_operation(
-                OperationType.SET_GLOBAL_MARKUP,
-                update,
-                target_type='global',
-                description=f"设置全局默认加价: {markup_value:.4f} USDT",
-                old_value=str(old_markup),
-                new_value=str(markup_value)
-            )
-            
-            message = f"✅ 全局默认加价已设置为: {markup_value:.4f} USDT\n\n"
-            message += "ℹ️ 此设置将应用于所有未配置独立加价的群组"
-        else:
-            message = "❌ 设置失败"
-        
-        await send_group_message(update, message)
-        logger.info(f"Admin {update.effective_user.id} set global markup to {markup_value}")
-        
-    except Exception as e:
-        logger.error(f"Error in handle_admin_w5: {e}", exc_info=True)
-        await send_group_message(update, f"❌ 错误: {str(e)}")
-
-
-async def handle_admin_w6(update: Update, context: ContextTypes.DEFAULT_TYPE, address: str):
-    """Handle w6/SQJDZ [address]: Set global address"""
-    try:
-        # Get old value for logging
-        old_address = db.get_usdt_address()
-        
-        if db.set_usdt_address(address):
-            # Log operation
-            from services.audit_service import log_admin_operation, OperationType
-            log_admin_operation(
-                OperationType.SET_GLOBAL_ADDRESS,
-                update,
-                target_type='global',
-                description=f"设置全局默认 USDT 地址",
-                old_value=old_address[:20] + "..." if old_address and len(old_address) > 20 else old_address,
-                new_value=address[:20] + "..." if len(address) > 20 else address
-            )
-            
-            address_display = address[:15] + "..." + address[-15:] if len(address) > 30 else address
-            message = f"✅ 全局默认 USDT 地址已设置\n\n"
-            message += f"地址: <code>{address_display}</code>\n\n"
-            message += "ℹ️ 此设置将应用于所有未配置独立地址的群组"
-        else:
-            message = "❌ 设置失败"
-        
-        await send_group_message(update, message, parse_mode="HTML")
-        logger.info(f"Admin {update.effective_user.id} set global address")
-        
-    except Exception as e:
-        logger.error(f"Error in handle_admin_w6: {e}", exc_info=True)
-        await send_group_message(update, f"❌ 错误: {str(e)}")
 
 
 async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle w7/CKQL: View all groups with transactions"""
     try:
+        # Use context.bot instead of message.bot to avoid attribute errors
+        bot = context.bot
+        
         # Handle both message and callback query updates
         if update.message:
             message_target = update.message
-            bot = update.message.bot
         elif update.callback_query and update.callback_query.message:
             message_target = update.callback_query.message
-            bot = update.callback_query.message.bot
         else:
             logger.error("handle_admin_w7: No message target found")
             return
@@ -394,57 +333,78 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await send_group_message(update, "📭 暂无有交易记录的群组\n\n所有群组都在使用全局默认设置")
             return
         
-        # Try to get group titles from Bot API
+        # Try to get group titles from Bot API and verify bot is still in group
+        valid_groups = []
         for group in groups[:20]:  # Limit to 20 groups for API calls
-            if not group.get('group_title'):
-                try:
-                    chat = await bot.get_chat(group['group_id'])
-                    group['group_title'] = chat.title
-                    # Update in database if we have it in group_settings
-                    if group.get('is_configured'):
-                        from database import db
-                        conn = db.connect()
-                        cursor = conn.cursor()
-                        cursor.execute("""
-                            UPDATE group_settings 
-                            SET group_title = ? 
-                            WHERE group_id = ?
-                        """, (chat.title, group['group_id']))
-                        conn.commit()
-                except Exception as e:
-                    logger.warning(f"Could not get chat info for group {group['group_id']}: {e}")
+            try:
+                # Verify bot is still in the group
+                chat = await bot.get_chat(group['group_id'])
+                group['group_title'] = chat.title
+                
+                # Update in database if we have it in group_settings
+                if group.get('is_configured'):
+                    conn = db.connect()
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        UPDATE group_settings 
+                        SET group_title = ? 
+                        WHERE group_id = ?
+                    """, (chat.title, group['group_id']))
+                    conn.commit()
+                
+                valid_groups.append(group)
+            except Exception as e:
+                logger.warning(f"Could not get chat info for group {group['group_id']}: {e}")
+                # Still include group if we can't verify (might be permission issue)
+                if not group.get('group_title'):
                     group['group_title'] = f"群组 {group['group_id']}"
+                valid_groups.append(group)
         
         message = f"📊 <b>所有活跃群组</b>\n\n"
-        message += f"共 {len(groups)} 个群组（显示前 20 个）\n"
+        message += f"共 {len(valid_groups)} 个群组（显示前 20 个）\n"
         message += "────────────────────────\n\n"
         
-        configured_count = sum(1 for g in groups if g.get('is_configured'))
+        configured_count = sum(1 for g in valid_groups if g.get('is_configured'))
         message += f"📈 <b>统计：</b>\n"
         message += f"• 已配置: {configured_count} 个\n"
-        message += f"• 使用全局默认: {len(groups) - configured_count} 个\n\n"
+        message += f"• 使用全局默认: {len(valid_groups) - configured_count} 个\n\n"
         message += "────────────────────────\n\n"
         
-        for idx, group in enumerate(groups[:20], 1):  # Limit to 20 groups
+        for idx, group in enumerate(valid_groups, 1):  # Limit to 20 groups
             group_title = group.get('group_title') or f"群组 {group['group_id']}"
             is_configured = group.get('is_configured', False)
+            group_id = group['group_id']
             
             # Status indicator
             status_icon = "⚙️" if is_configured else "🌐"
             
             message += f"{status_icon} <b>{idx}. {group_title}</b>\n"
-            message += f"   ID: <code>{group['group_id']}</code>\n"
+            message += f"   ID: <code>{group_id}</code>\n"
             
+            # Show current markup (use group-specific or global)
+            current_markup = group.get('markup', 0.0)
             if is_configured:
-                message += f"   加价: {group['markup']:+.4f} USDT\n"
+                message += f"   加价: {current_markup:+.4f} USDT\n"
                 if group.get('usdt_address'):
                     addr = group['usdt_address']
                     addr_display = addr[:10] + "..." + addr[-10:] if len(addr) > 20 else addr
                     message += f"   地址: <code>{addr_display}</code>\n"
                 else:
-                    message += f"   地址: 未设置（使用全局）\n"
+                    global_address = db.get_usdt_address()
+                    if global_address:
+                        addr_display = global_address[:10] + "..." + global_address[-10:] if len(global_address) > 20 else global_address
+                        message += f"   地址: <code>{addr_display}</code> (全局)\n"
+                    else:
+                        message += f"   地址: 未设置\n"
             else:
-                message += f"   配置: 使用全局默认设置\n"
+                global_markup = db.get_admin_markup()
+                message += f"   加价: {global_markup:+.4f} USDT (全局)\n"
+                global_address = db.get_usdt_address()
+                if global_address:
+                    addr_display = global_address[:10] + "..." + global_address[-10:] if len(global_address) > 20 else global_address
+                    message += f"   地址: <code>{addr_display}</code> (全局)\n"
+                else:
+                    message += f"   地址: 未设置\n"
             
             # Transaction stats
             tx_count = group.get('tx_count', 0)
@@ -460,12 +420,12 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if len(groups) > 20:
             message += f"\n... 还有 {len(groups) - 20} 个群组未显示"
         
-        # Add inline keyboard for group management
-        from keyboards.inline_keyboard import get_groups_list_keyboard
-        reply_markup = get_groups_list_keyboard()
+        # Add inline keyboard for group management with edit buttons for each group
+        from keyboards.inline_keyboard import get_groups_list_keyboard_with_edit
+        reply_markup = get_groups_list_keyboard_with_edit(valid_groups)
         
         await send_group_message(update, message, parse_mode="HTML", inline_keyboard=reply_markup)
-        logger.info(f"Admin {update.effective_user.id} executed w7/CKQL, showing {len(groups)} groups")
+        logger.info(f"Admin {update.effective_user.id} executed w7/CKQL, showing {len(valid_groups)} groups")
         
     except Exception as e:
         logger.error(f"Error in handle_admin_w7: {e}", exc_info=True)
@@ -718,12 +678,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Update user last active timestamp
     db.update_user_last_active(user_id)
     
-    # Handle alert threshold input (after user selects alert type)
-    if 'awaiting_alert_threshold' in context.user_data:
-        from handlers.price_alert_handlers import handle_alert_threshold_input
-        await handle_alert_threshold_input(update, context, text)
-        return
-    
     # Handle template input (after user selects template creation type)
     if 'awaiting_template_input' in context.user_data:
         from handlers.template_handlers import handle_template_input
@@ -736,22 +690,80 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_address_input(update, context, text)
         return
     
-    # Handle global markup input (after admin clicks set global markup)
-    if 'awaiting_global_markup' in context.user_data:
-        del context.user_data['awaiting_global_markup']
-        try:
-            markup_value = float(text.strip())
-            await handle_admin_w5(update, context, markup_value)
-        except ValueError:
-            await update.message.reply_text("❌ 格式错误，请输入数字（例如：0.5）")
-        return
+    # Handle group markup input (after admin clicks edit group markup)
+    for key in list(context.user_data.keys()):
+        if key.startswith('awaiting_group_markup_'):
+            group_id = int(key.split('_')[3])
+            del context.user_data[key]
+            try:
+                markup_value = float(text.strip())
+                from admin_checker import is_admin
+                if not is_admin(user_id):
+                    await update.message.reply_text("❌ 仅管理员可以设置群组加价")
+                    return
+                
+                # Get group title for audit
+                bot = context.bot
+                try:
+                    chat = await bot.get_chat(group_id)
+                    group_title = chat.title
+                except:
+                    group_title = f"群组 {group_id}"
+                
+                # Set group markup
+                if db.set_group_markup(group_id, markup_value, group_title, user_id):
+                    from services.audit_service import log_admin_operation, OperationType
+                    log_admin_operation(
+                        OperationType.SET_GROUP_MARKUP,
+                        update,
+                        target_type='group',
+                        target_id=str(group_id),
+                        description=f"设置群组加价: {markup_value:.4f} USDT"
+                    )
+                    await update.message.reply_text(f"✅ 群组上浮汇率已设置为: {markup_value:+.4f} USDT")
+                    logger.info(f"Admin {user_id} set group {group_id} markup to {markup_value}")
+                else:
+                    await update.message.reply_text("❌ 设置失败，请重试")
+            except ValueError:
+                await update.message.reply_text("❌ 格式错误，请输入数字（例如：0.5 或 -0.1）")
+            return
     
-    # Handle global address input (after admin clicks set global address)
-    if 'awaiting_global_address' in context.user_data:
-        del context.user_data['awaiting_global_address']
-        address = text.strip()
-        await handle_admin_w6(update, context, address)
-        return
+    # Handle group address input (after admin clicks edit group address)
+    for key in list(context.user_data.keys()):
+        if key.startswith('awaiting_group_address_'):
+            group_id = int(key.split('_')[3])
+            del context.user_data[key]
+            from admin_checker import is_admin
+            if not is_admin(user_id):
+                await update.message.reply_text("❌ 仅管理员可以设置群组地址")
+                return
+            
+            address = text.strip()
+            
+            # Get group title for audit
+            bot = context.bot
+            try:
+                chat = await bot.get_chat(group_id)
+                group_title = chat.title
+            except:
+                group_title = f"群组 {group_id}"
+            
+            # Set group address
+            if db.set_group_address(group_id, address, group_title, user_id):
+                from services.audit_service import log_admin_operation, OperationType
+                log_admin_operation(
+                    OperationType.SET_GROUP_ADDRESS,
+                    update,
+                    target_type='group',
+                    target_id=str(group_id),
+                    description=f"设置群组地址"
+                )
+                addr_display = address[:15] + "..." + address[-15:] if len(address) > 30 else address
+                await update.message.reply_text(f"✅ 群组地址已设置为: <code>{addr_display}</code>", parse_mode="HTML")
+                logger.info(f"Admin {user_id} set group {group_id} address")
+            else:
+                await update.message.reply_text("❌ 设置失败，请重试")
+            return
     
     # Handle filter input (after user clicks filter button)
     if 'awaiting_filter' in context.user_data:
@@ -932,7 +944,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "地址": "address",
             "客服": "support",
             "我的账单": "mybills",
-            "预警": "alerts"
         }
         
         if command in command_map:
@@ -982,13 +993,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await handle_personal_bills(update, context, page=1)
                 else:
                     await update.message.reply_text("❌ 此功能仅在私聊中可用")
-            elif command == "预警":
-                if chat.type == 'private':
-                    from handlers.price_alert_handlers import handle_price_alert_menu
-                    await handle_price_alert_menu(update, context)
-                else:
-                    await update.message.reply_text("❌ 此功能仅在私聊中可用")
-            
             return
     
     # Handle reply keyboard buttons with help system
@@ -1216,28 +1220,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         return
     
-    # Handle "🔔 预警" button (both group and private)
-    if text == "🔔 预警":
-        if chat.type == 'private':
-            # Show help if needed
-            if should_show_help(user_id, "🔔 预警"):
-                help_message = format_button_help_message("🔔 预警")
-                if help_message:
-                    help_keyboard = get_button_help_keyboard("🔔 预警")
-                    await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
-                    mark_help_shown(user_id, "🔔 预警", shown=True)
-            from handlers.price_alert_handlers import handle_price_alert_menu
-            await handle_price_alert_menu(update, context)
-        else:
-            # In groups, show a message that this feature is only available in private chat
-            await send_group_message(update,
-                "❌ <b>「🔔 预警」功能</b>\n\n"
-                "此功能仅在私聊中可用。\n\n"
-                "价格预警功能需要在私聊中设置和管理。\n\n"
-                "💡 <i>点击机器人头像，选择「发送消息」进入私聊，然后设置价格预警</i>",
-                parse_mode="HTML"
-            )
-        return
     
     # Personal stats (private chat only)
     if chat.type == 'private':
@@ -1281,24 +1263,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await handle_admin_w4(update, context)
             return
         
-        # w5 / SQJJ [number] - Set global markup
-        w5_match = re.match(r'^(w5|sqjj)\s+(-?\d+\.?\d*)$', text, re.IGNORECASE)
-        if w5_match:
-            try:
-                markup_value = float(w5_match.group(2))
-                await handle_admin_w5(update, context, markup_value)
-                return
-            except ValueError:
-                await update.message.reply_text("❌ 格式错误，应为: w5 [数字] 或 SQJJ [数字]")
-                return
-        
-        # w6 / SQJDZ [address] - Set global address
-        w6_match = re.match(r'^(w6|sqjdz)\s+(.+)$', text, re.IGNORECASE)
-        if w6_match:
-            address = w6_match.group(2).strip()
-            await handle_admin_w6(update, context, address)
-            return
-        
         # w7 / CKQL - View all groups
         if is_pinyin_command(text, "w7", "ckql"):
             await handle_admin_w7(update, context)
@@ -1320,7 +1284,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await handle_admin_w1(update, context)
             return
         
-        # w02 → w2 (group) or w5 (global)
+        # w02 → w2 (group only)
         w02_match = re.match(r'^w02\s+(-?\d+\.?\d*)$', text)
         if w02_match:
             try:
@@ -1329,13 +1293,13 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if chat.type in ['group', 'supergroup']:
                     await handle_admin_w2(update, context, markup_value)
                 else:
-                    await handle_admin_w5(update, context, markup_value)
+                    await update.message.reply_text("❌ w02 命令仅在群组中使用，请使用 w2 命令设置群组加价")
                 return
             except ValueError:
                 await update.message.reply_text("❌ w02 格式错误，应为: w02 [数字]")
                 return
         
-        # w03 → w2 (negative) or w5 (negative)
+        # w03 → w2 (negative, group only)
         w03_match = re.match(r'^w03\s+(\d+\.?\d*)$', text)
         if w03_match:
             try:
@@ -1345,7 +1309,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if chat.type in ['group', 'supergroup']:
                     await handle_admin_w2(update, context, markup_value)
                 else:
-                    await handle_admin_w5(update, context, markup_value)
+                    await update.message.reply_text("❌ w03 命令仅在群组中使用，请使用 w2 命令设置群组加价")
                 return
             except ValueError:
                 await update.message.reply_text("❌ w03 格式错误，应为: w03 [数字]")

@@ -38,6 +38,41 @@ def get_groups_list_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
+def get_groups_list_keyboard_with_edit(groups: list) -> InlineKeyboardMarkup:
+    """
+    Get inline keyboard for groups list with edit buttons for each group.
+    
+    Args:
+        groups: List of group dictionaries
+        
+    Returns:
+        InlineKeyboardMarkup with edit buttons for each group and refresh button
+    """
+    keyboard = []
+    
+    # Add edit buttons for each group (max 10 groups to avoid keyboard size limit)
+    for group in groups[:10]:
+        group_id = group['group_id']
+        group_title = group.get('group_title', f"群组 {group_id}")
+        # Truncate title if too long
+        if len(group_title) > 15:
+            group_title = group_title[:12] + "..."
+        
+        keyboard.append([
+            InlineKeyboardButton(
+                f"✏️ {group_title[:12]}",
+                callback_data=f"group_select_{group_id}"
+            )
+        ])
+    
+    # Add refresh button
+    keyboard.append([
+        InlineKeyboardButton("🔄 刷新列表", callback_data="global_groups_list")
+    ])
+    
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
 def get_settlement_bill_keyboard(transaction_id: str = None, transaction_status: str = None, 
                                 is_admin: bool = False) -> InlineKeyboardMarkup:
     """
@@ -158,25 +193,6 @@ def get_paid_transactions_keyboard(group_id: int = None, page: int = 1) -> Inlin
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
-def get_alerts_menu_keyboard() -> InlineKeyboardMarkup:
-    """
-    Get inline keyboard for price alerts menu.
-    
-    Returns:
-        InlineKeyboardMarkup with alert menu options
-    """
-    keyboard = [
-        [
-            InlineKeyboardButton("➕ 创建预警", callback_data="alert_create"),
-            InlineKeyboardButton("📋 我的预警", callback_data="alerts_list")
-        ],
-        [
-            InlineKeyboardButton("📊 价格历史", callback_data="price_history_24"),
-            InlineKeyboardButton("🔙 返回", callback_data="main_menu")
-        ]
-    ]
-    
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
 def get_group_settings_menu() -> InlineKeyboardMarkup:
@@ -230,10 +246,6 @@ def get_global_management_menu() -> InlineKeyboardMarkup:
     keyboard = [
         [
             InlineKeyboardButton("📋 查看全局设置", callback_data="global_settings_view")
-        ],
-        [
-            InlineKeyboardButton("➕ 设置全局加价", callback_data="global_settings_markup"),
-            InlineKeyboardButton("📍 设置全局地址", callback_data="global_settings_address")
         ],
         [
             InlineKeyboardButton("📊 所有群组列表", callback_data="global_groups_list"),
@@ -394,5 +406,29 @@ def get_onboarding_keyboard(step: int) -> InlineKeyboardMarkup:
         InlineKeyboardButton("⏭️ 跳过引导", callback_data="onboarding_skip")
     ])
     
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+def get_group_edit_keyboard(group_id: int) -> InlineKeyboardMarkup:
+    """
+    Get inline keyboard for editing a specific group's settings.
+    
+    Args:
+        group_id: The group ID to edit
+        
+    Returns:
+        InlineKeyboardMarkup with edit options for the group
+    """
+    keyboard = [
+        [
+            InlineKeyboardButton("📈 编辑上浮汇率", callback_data=f"group_edit_markup_{group_id}")
+        ],
+        [
+            InlineKeyboardButton("📍 编辑地址", callback_data=f"group_edit_address_{group_id}")
+        ],
+        [
+            InlineKeyboardButton("🔙 返回群组列表", callback_data="global_groups_list")
+        ]
+    ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 

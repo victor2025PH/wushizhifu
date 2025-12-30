@@ -290,15 +290,6 @@ async def mybills_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await handle_personal_bills(update, context, page=1)
 
 
-async def alerts_command_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /alerts or /预警 command - show price alerts menu (private chat only)"""
-    chat = update.effective_chat
-    if chat.type not in ['private']:
-        await update.message.reply_text("❌ 此功能仅在私聊中可用")
-        return
-    
-    from handlers.price_alert_handlers import handle_price_alert_menu
-    await handle_price_alert_menu(update, context)
 
 
 async def post_init(application: Application) -> None:
@@ -313,7 +304,6 @@ async def post_init(application: Application) -> None:
         BotCommand("address", "查看USDT收款地址"),
         BotCommand("support", "联系人工客服"),
         BotCommand("mybills", "我的账单（私聊）"),
-        BotCommand("alerts", "价格预警（私聊）"),
         BotCommand("help", "查看详细帮助"),
         BotCommand("settings", "查看当前设置"),
     ]
@@ -361,28 +351,6 @@ def main():
     application.add_handler(CommandHandler("address", address_command))
     application.add_handler(CommandHandler("support", support_command))
     application.add_handler(CommandHandler("mybills", mybills_command))
-    application.add_handler(CommandHandler("alerts", alerts_command_menu))
-    # Register price alert command handlers
-    from handlers.price_alert_handlers import handle_list_alerts, handle_price_history
-    
-    async def alerts_list_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /alerts_list command - show list of alerts"""
-        await handle_list_alerts(update, context)
-    
-    async def price_history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /price_history command"""
-        hours = 24
-        if context.args and len(context.args) > 0:
-            try:
-                hours = int(context.args[0])
-                if hours not in [24, 168, 720]:
-                    hours = 24
-            except ValueError:
-                pass
-        await handle_price_history(update, context, hours=hours)
-    
-    application.add_handler(CommandHandler("alerts_list", alerts_list_command))
-    application.add_handler(CommandHandler("price_history", price_history_command))
     
     # Register chart command handlers (P5 feature)
     from handlers.chart_handlers import (
@@ -447,22 +415,6 @@ def main():
     # Register callback handler (for inline keyboard buttons)
     application.add_handler(get_callback_handler())
     
-    # Register job queue for price alert monitoring
-    from telegram.ext import JobQueue
-    job_queue = application.job_queue
-    
-    # Schedule price alert monitoring (every 5 minutes)
-    async def monitor_alerts_callback(context: ContextTypes.DEFAULT_TYPE):
-        from services.price_alert_service import monitor_price_alerts
-        await monitor_price_alerts(context)
-    
-    if job_queue:
-        job_queue.run_repeating(
-            monitor_alerts_callback,
-            interval=300,  # 5 minutes
-            first=60  # Start after 1 minute
-        )
-        logger.info("Price alert monitoring scheduled (every 5 minutes)")
     
     logger.info("Bot B (OTC Group Management) starting...")
     logger.info(f"Database initialized at: {db.db_path}")
