@@ -157,7 +157,7 @@ export const TRANSLATIONS = {
     exchangeRate: "实时汇率",
     cnyToUsdt: "CNY 兑换 USDT",
     liveUpdate: "实时更新",
-    selectChannel: "选择支付通道",
+    selectChannel: "产品演示",
     instant: "极速到账",
     fastSecure: "快速 & 安全",
     verifiedMerchant: "官方认证商户",
