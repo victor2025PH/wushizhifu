@@ -102,20 +102,26 @@ jobs:
             
             # 设置文件权限
             echo "🔐 设置文件权限..."
-            sudo chown -R www-data:www-data "$TARGET_DIR/dist" || sudo chown -R ubuntu:ubuntu "$TARGET_DIR/dist"
-            sudo chmod -R 755 "$TARGET_DIR/dist"
+            sudo chown -R www-data:www-data "$TARGET_DIR" || sudo chown -R ubuntu:ubuntu "$TARGET_DIR"
+            sudo chmod -R 755 "$TARGET_DIR"
             echo "✅ 权限设置完成"
             
-            # 更新 Nginx 配置（如果需要）
+            # 更新 Nginx 配置
             NGINX_CONFIG="/etc/nginx/sites-available/50zf.usdt2026.cc"
+            if [ ! -f "$NGINX_CONFIG" ]; then
+              # 如果配置文件不存在，尝试查找其他可能的配置文件名
+              NGINX_CONFIG="/etc/nginx/sites-available/wushizhifu"
+            fi
+            
             if [ -f "$NGINX_CONFIG" ]; then
-              echo "🔧 检查 Nginx 配置..."
-              # 确保 root 路径正确
-              if ! grep -q "root $TARGET_DIR/dist;" "$NGINX_CONFIG"; then
-                echo "⚠️  Nginx 配置中的 root 路径可能需要更新"
-                echo "   当前 root 路径: $(grep 'root ' "$NGINX_CONFIG" | head -1)"
-                echo "   应该设置为: root $TARGET_DIR/dist;"
-              fi
+              echo "🔧 更新 Nginx 配置..."
+              # 更新 root 路径
+              sudo sed -i "s|root /.*/frontend/dist;|root $TARGET_DIR;|g" "$NGINX_CONFIG"
+              sudo sed -i "s|root /.*/frontend;|root $TARGET_DIR;|g" "$NGINX_CONFIG"
+              echo "✅ Nginx 配置已更新"
+            else
+              echo "⚠️  Nginx 配置文件不存在: $NGINX_CONFIG"
+              echo "   请手动创建或检查配置文件位置"
             fi
             
             # 重载 Nginx
