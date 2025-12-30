@@ -193,16 +193,18 @@ export default function App() {
             }
             
             // Sync user data with backend
-            try {
-              const { apiClient } = await import('./api');
-              apiClient.syncUser(tgUser).then(() => {
-                console.log("User data synced with backend from initData");
-              }).catch((error) => {
-                console.error("Failed to sync user data:", error);
-              });
-            } catch (error) {
-              console.error("Failed to import apiClient:", error);
-            }
+            (async () => {
+              try {
+                const { apiClient } = await import('./api');
+                apiClient.syncUser(tgUser).then(() => {
+                  console.log("User data synced with backend from initData");
+                }).catch((error) => {
+                  console.error("Failed to sync user data:", error);
+                });
+              } catch (error) {
+                console.error("Failed to import apiClient:", error);
+              }
+            })();
           } else if (!urlUser) {
             // Only try fallback methods if we didn't already get user from URL
             console.warn("⚠️ No user data found in initDataUnsafe");
@@ -224,16 +226,18 @@ export default function App() {
                   userFound = true;
                   
                   // Sync with backend
-                  try {
-                    const { apiClient } = await import('./api');
-                    apiClient.syncUser(userData).then(() => {
-                      console.log("User data synced with backend");
-                    }).catch((error) => {
-                      console.error("Failed to sync user data:", error);
-                    });
-                  } catch (error) {
-                    console.error("Failed to import apiClient:", error);
-                  }
+                  (async () => {
+                    try {
+                      const { apiClient } = await import('./api');
+                      apiClient.syncUser(userData).then(() => {
+                        console.log("User data synced with backend");
+                      }).catch((error) => {
+                        console.error("Failed to sync user data:", error);
+                      });
+                    } catch (error) {
+                      console.error("Failed to import apiClient:", error);
+                    }
+                  })();
                 }
               } catch (e) {
                 console.error("Failed to parse initData:", e);
@@ -280,25 +284,27 @@ export default function App() {
             // Method 3: Try to get user via backend API (using initData if available)
             if (!userFound && window.Telegram.WebApp.initData) {
               console.log("Method 3: Attempting to get user via backend API...");
-              try {
-                const { apiClient } = await import('./api');
-                const response = await apiClient.getCurrentUser();
-                if (response && response.user_id) {
-                  // Convert UserResponse to TelegramUser format
-                  const userData = {
-                    id: response.user_id,
-                    first_name: response.first_name || 'User',
-                    last_name: response.last_name,
-                    username: response.username,
-                    language_code: response.language_code || 'zh'
-                  };
-                  console.log("✅ Got user from backend API:", userData);
-                  setUser(userData);
-                  userFound = true;
+              (async () => {
+                try {
+                  const { apiClient } = await import('./api');
+                  const response = await apiClient.getCurrentUser();
+                  if (response && response.user_id) {
+                    // Convert UserResponse to TelegramUser format
+                    const userData = {
+                      id: response.user_id,
+                      first_name: response.first_name || 'User',
+                      last_name: response.last_name,
+                      username: response.username,
+                      language_code: response.language_code || 'zh'
+                    };
+                    console.log("✅ Got user from backend API:", userData);
+                    setUser(userData);
+                    userFound = true;
+                  }
+                } catch (error) {
+                  console.error("Failed to get user from backend:", error);
                 }
-              } catch (error) {
-                console.error("Failed to get user from backend:", error);
-              }
+              })();
             }
             
             if (!userFound) {
