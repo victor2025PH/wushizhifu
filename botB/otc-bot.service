@@ -8,6 +8,7 @@ User=ubuntu
 Group=ubuntu
 WorkingDirectory=/home/ubuntu/wushizhifu/botB
 Environment="PATH=/home/ubuntu/wushizhifu/botB/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
 ExecStart=/home/ubuntu/wushizhifu/botB/venv/bin/python /home/ubuntu/wushizhifu/botB/bot.py
 Restart=on-failure
 RestartSec=10
