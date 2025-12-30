@@ -607,31 +607,38 @@ def get_p2p_leaderboard_inline(payment_method: str = "alipay", rows: int = 10, p
         response.raise_for_status()
         data = response.json()
         
-        if data.get("code") != "000000":
+        if data.get("code") != "000000" or not data.get("success"):
             logger.error(f"Binance P2P API error: {data}")
             return None
         
         merchants_data = data.get("data", [])
         merchants = []
         
-        for idx, item in enumerate(merchants_data, 1):
-            adv = item.get("advertiser", {}).get("nickName", "Unknown")
-            price_str = item.get("adv", {}).get("price", "0")
+        for idx, item in enumerate(merchants_data[:rows], 1):
+            adv_data = item.get("adv", {})
+            advertiser_data = item.get("advertiser", {})
+            
+            merchant_name = advertiser_data.get("nickName", "Unknown")
+            price_str = adv_data.get("price", "0")
             price = float(price_str) if price_str else 0.0
             
-            min_amount_str = item.get("adv", {}).get("minSingleTransAmount", "0")
-            max_amount_str = item.get("adv", {}).get("maxSingleTransAmount", "0")
+            min_amount_str = adv_data.get("minSingleTransAmount", "0")
+            max_amount_str = adv_data.get("maxSingleTransAmount", "0")
             min_amount = float(min_amount_str) if min_amount_str else 0.0
             max_amount = float(max_amount_str) if max_amount_str else 0.0
+            
+            # Get trade count (try multiple fields)
+            trade_count = advertiser_data.get("monthFinishCount", 0) or advertiser_data.get("monthOrderCount", 0) or 0
+            finish_rate = advertiser_data.get("monthFinishRate", 0.0) or 0.0
             
             merchants.append({
                 "rank": idx,
                 "price": price,
                 "min_amount": min_amount,
                 "max_amount": max_amount,
-                "merchant_name": adv,
-                "trade_count": item.get("advertiser", {}).get("monthFinishRate", 0),
-                "finish_rate": item.get("advertiser", {}).get("monthFinishRate", 0.0),
+                "merchant_name": merchant_name,
+                "trade_count": trade_count,
+                "finish_rate": finish_rate,
             })
         
         # Calculate market stats
