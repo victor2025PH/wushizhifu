@@ -250,9 +250,6 @@ def get_global_management_menu() -> InlineKeyboardMarkup:
     """
     keyboard = [
         [
-            InlineKeyboardButton("📋 查看全局设置", callback_data="global_settings_view")
-        ],
-        [
             InlineKeyboardButton("📊 所有群组列表", callback_data="global_groups_list"),
             InlineKeyboardButton("📈 全局统计", callback_data="global_stats")
         ],

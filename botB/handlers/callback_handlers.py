@@ -490,21 +490,7 @@ async def handle_global_management_menu(update: Update, context: ContextTypes.DE
         )
         from keyboards.inline_keyboard import get_button_help_keyboard
         
-        if callback_data == "global_settings_view":
-            # Show help if needed
-            if should_show_help(query.from_user.id, "查看全局设置"):
-                help_message = format_button_help_message("查看全局设置")
-                if help_message:
-                    help_keyboard = get_button_help_keyboard("查看全局设置")
-                    await query.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
-                    mark_help_shown(query.from_user.id, "查看全局设置", shown=True)
-            
-            from handlers.message_handlers import handle_admin_w4
-            await handle_admin_w4(update, context)
-            await query.answer()
-            return
-        
-        elif callback_data == "global_groups_list":
+        if callback_data == "global_groups_list":
             # Show help if needed
             if should_show_help(query.from_user.id, "所有群组列表"):
                 help_message = format_button_help_message("所有群组列表")
