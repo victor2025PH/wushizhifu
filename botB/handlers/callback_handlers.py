@@ -588,6 +588,38 @@ async def handle_group_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Handle edit address
         elif callback_data.startswith("group_edit_address_"):
             group_id = int(callback_data.split("_")[3])
+            
+            # Check if user is group admin
+            from utils.group_admin_checker import is_group_admin
+            user_id = query.from_user.id
+            
+            # Check if user is group admin (for groups) or global admin (for any context)
+            is_group_admin_user = False
+            chat = query.message.chat
+            if chat.type in ['group', 'supergroup']:
+                is_group_admin_user = await is_group_admin(context.bot, chat.id, user_id)
+            
+            # Allow if user is group admin OR global admin
+            if not is_group_admin_user and not is_admin(user_id):
+                # Get chat info to show group owner info
+                try:
+                    chat_info = await context.bot.get_chat(chat.id)
+                    message = (
+                        "❌ <b>权限不足</b>\n\n"
+                        f"只有群组管理员才能编辑此群组的 USDT 地址。\n\n"
+                        f"💡 <i>提示：请联系群主 @{chat_info.username if chat_info.username else '群主'} 提升您的权限，或联系全局管理员获取帮助。</i>"
+                    )
+                except:
+                    message = (
+                        "❌ <b>权限不足</b>\n\n"
+                        "只有群组管理员才能编辑此群组的 USDT 地址。\n\n"
+                        "💡 <i>提示：请联系群主提升您的权限，或联系全局管理员获取帮助。</i>"
+                    )
+                
+                await query.answer("❌ 权限不足", show_alert=True)
+                await query.message.reply_text(message, parse_mode="HTML")
+                return
+            
             context.user_data[f'awaiting_group_address_{group_id}'] = True
             await query.message.reply_text(f"请输入群组的 USDT 收款地址")
             await query.answer("💡 请在聊天中输入地址")
