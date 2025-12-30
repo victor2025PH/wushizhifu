@@ -183,7 +183,7 @@ export const TRANSLATIONS = {
     calculator: "汇率计算",
     history: "交易记录",
     toolsAndRecords: "工具与记录",
-    openAccount: "开户",
+    openAccount: "开通帐户",
     recentTransactions: "最近交易",
     success: "成功",
     pending: "处理中",

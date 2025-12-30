@@ -10,7 +10,6 @@ import { PaymentForm } from './components/PaymentForm';
 import { ResultScreen } from './components/ResultScreen';
 import { CalculatorModal } from './components/CalculatorModal';
 import { WelcomeModal } from './components/WelcomeModal';
-import { ToolsModal } from './components/ToolsModal';
 import { AppState, PaymentProvider, Language, TelegramUser } from './types';
 import { Globe } from 'lucide-react';
 
@@ -50,7 +49,6 @@ export default function App() {
   // Modals state
   const [showCalculator, setShowCalculator] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
-  const [showTools, setShowTools] = useState(false);
 
   useEffect(() => {
     // Prevent multiple instances (but allow if opened from different sources)
@@ -419,10 +417,7 @@ export default function App() {
             <Dashboard 
               key="dashboard" 
               onSelectProvider={handleProviderSelect} 
-              onOpenCalculator={() => setShowCalculator(true)}
-              onOpenHistory={() => setView('history')}
               onOpenProfile={() => setView('profile')}
-              onOpenTools={() => setShowTools(true)}
               lang={lang} 
               user={user}
             />
@@ -486,21 +481,6 @@ export default function App() {
            )}
            {showWelcome && (
              <WelcomeModal key="welcome" user={user} lang={lang} onClose={() => setShowWelcome(false)} />
-           )}
-           {showTools && (
-             <ToolsModal 
-               key="tools" 
-               lang={lang} 
-               onClose={() => setShowTools(false)}
-               onOpenCalculator={() => {
-                 setShowTools(false);
-                 setShowCalculator(true);
-               }}
-               onOpenHistory={() => {
-                 setShowTools(false);
-                 setView('history');
-               }}
-             />
            )}
         </AnimatePresence>
       </main>

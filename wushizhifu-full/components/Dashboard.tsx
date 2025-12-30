@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { TrendingUp, Wallet, ArrowRight, Zap, Shield, Calculator, Clock, User as UserIcon, BadgeCheck, BarChart3, UserPlus } from 'lucide-react';
+import { TrendingUp, Wallet, ArrowRight, Zap, Shield, User as UserIcon, BadgeCheck, UserPlus } from 'lucide-react';
 import { PaymentProvider, EXCHANGE_RATE_CNY_USDT, Language, TRANSLATIONS, TelegramUser } from '../types';
 import { Logo } from './Logo';
 import { AlipayGuideModal } from './AlipayGuideModal';
@@ -9,10 +9,7 @@ import { openSupportChat } from '../utils/supportService';
 
 interface DashboardProps {
   onSelectProvider: (provider: PaymentProvider) => void;
-  onOpenCalculator: () => void;
-  onOpenHistory: () => void;
   onOpenProfile: () => void;
-  onOpenTools: () => void;
   lang: Language;
   user: TelegramUser | null;
 }
@@ -31,10 +28,7 @@ const WeChatIcon = () => (
 
 export const Dashboard: React.FC<DashboardProps> = ({ 
   onSelectProvider, 
-  onOpenCalculator,
-  onOpenHistory,
   onOpenProfile,
-  onOpenTools,
   lang,
   user
 }) => {
@@ -168,19 +162,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* Quick Tools Row - Merged Calculator and History */}
+      {/* Open Account Button - Redirect to Telegram Support */}
       <div className="flex flex-col gap-4 mb-6">
-        <button 
-          onClick={onOpenTools}
-          className="bg-white p-4 rounded-2xl shadow-sm border border-transparent hover:border-champagne-200 hover:shadow-gold transition-all flex items-center justify-center space-x-3 group w-full"
-        >
-          <div className="bg-tech-bg p-2 rounded-xl group-hover:bg-champagne-50 transition-colors">
-            <BarChart3 className="w-5 h-5 text-tech-sub group-hover:text-champagne-600" />
-          </div>
-          <span className="text-sm font-semibold text-tech-text">{t.toolsAndRecords}</span>
-        </button>
-        
-        {/* Open Account Button - Redirect to Telegram Support */}
         <button 
           onClick={() => {
             // 打开 Telegram 客服对话（自动轮询分配）
