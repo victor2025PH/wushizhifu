@@ -368,28 +368,56 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for group_id in all_group_ids[:50]:  # Limit to 50 groups for API calls
             try:
                 # Verify bot is still in the group (添加超時處理)
+                # 使用更短的超時時間，避免長時間等待
                 try:
                     chat = await asyncio.wait_for(
                         bot.get_chat(group_id),
-                        timeout=10.0  # 10秒超時
+                        timeout=5.0  # 減少到5秒超時
                     )
                 except asyncio.TimeoutError:
-                    logger.warning(f"獲取群組 {group_id} 資訊超時")
-                    # 即使超時，也嘗試從資料庫讀取資訊顯示
+                    # 超時時，檢查資料庫中的狀態
                     cursor.execute("""
-                        SELECT group_title, markup, usdt_address, is_active, created_at, updated_at
+                        SELECT group_title, is_active, updated_at
                         FROM group_settings
                         WHERE group_id = ?
                     """, (group_id,))
                     setting_row = cursor.fetchone()
-                    if setting_row and setting_row['is_active']:
-                        # 如果資料庫中標記為活躍，即使無法驗證也顯示
-                        group_title = setting_row['group_title'] if setting_row['group_title'] else f"群組 {group_id}"
-                        # 使用資料庫中的資訊創建群組數據
-                        # ... 繼續處理
-                        raise Exception("Timeout but will handle in except block")
+                    
+                    if setting_row:
+                        # 檢查最後更新時間，如果很久沒更新，可能是群組不存在
+                        from datetime import datetime, timedelta
+                        updated_at = setting_row['updated_at']
+                        if updated_at:
+                            try:
+                                if isinstance(updated_at, str):
+                                    last_update = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
+                                else:
+                                    last_update = updated_at
+                                
+                                # 如果超過1小時沒更新，且標記為活躍，可能是群組不存在
+                                if datetime.now() - last_update.replace(tzinfo=None) > timedelta(hours=1):
+                                    logger.info(f"🗑️ 群組 {group_id} 超時且長時間未更新，標記為非活躍")
+                                    cursor.execute("""
+                                        UPDATE group_settings 
+                                        SET is_active = 0,
+                                            updated_at = CURRENT_TIMESTAMP
+                                        WHERE group_id = ?
+                                    """, (group_id,))
+                                    conn.commit()
+                                    continue
+                            except Exception as e:
+                                logger.debug(f"解析更新時間失敗: {e}")
+                        
+                        # 如果標記為活躍，可能是臨時網絡問題，從資料庫讀取
+                        if setting_row['is_active']:
+                            logger.warning(f"⚠️ 群組 {group_id} 驗證超時，從資料庫讀取資訊")
+                            raise Exception("Timeout but will handle in except block")
+                        else:
+                            # 非活躍群組，跳過
+                            continue
                     else:
-                        raise Exception("Timeout and not active")
+                        # 資料庫中沒有記錄，跳過
+                        continue
                 
                 # Get group settings if exists (包括非活躍的)
                 cursor.execute("""

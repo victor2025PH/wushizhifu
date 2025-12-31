@@ -593,6 +593,34 @@ async def handle_group_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("💡 请在聊天中输入上浮汇率值")
             return
         
+        # Handle delete group
+        elif callback_data.startswith("group_delete_"):
+            group_id = int(callback_data.split("_")[2])
+            from keyboards.inline_keyboard import get_confirmation_keyboard
+            
+            # Get group info for confirmation message
+            groups = db.get_all_groups()
+            group = next((g for g in groups if g['group_id'] == group_id), None)
+            
+            if not group:
+                await query.answer("❌ 群组不存在", show_alert=True)
+                return
+            
+            group_title = group.get('group_title', f"群组 {group_id}")
+            
+            # Show confirmation dialog
+            message = f"🗑️ <b>确认删除群组</b>\n\n"
+            message += f"群组: <b>{group_title}</b>\n"
+            message += f"ID: <code>{group_id}</code>\n\n"
+            message += f"⚠️ <b>警告：</b>此操作将完全删除群组的所有配置记录。\n"
+            message += f"删除后，群组将使用全局默认设置。\n\n"
+            message += f"确定要删除吗？"
+            
+            reply_markup = get_confirmation_keyboard("delete_group_from_list", str(group_id))
+            await query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
+            await query.answer("⚠️ 请确认删除操作")
+            return
+        
         # Handle edit address
         elif callback_data.startswith("group_edit_address_"):
             group_id = int(callback_data.split("_")[3])
@@ -746,6 +774,34 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
                     message = f"✅ 群组配置已删除\n\n群组: {chat.title or '未知群组'}\n已完全删除群组独立配置"
                     await query.edit_message_text(message, parse_mode="HTML")
                     await query.answer("✅ 删除成功")
+                else:
+                    await query.answer("❌ 删除失败", show_alert=True)
+                return
+            
+            elif action == "delete_group_from_list":
+                # 从群组列表中删除群组
+                group_id = int(data)
+                
+                # 获取群组信息（用于显示）
+                groups = db.get_all_groups()
+                group = next((g for g in groups if g['group_id'] == group_id), None)
+                group_title = group.get('group_title', f"群组 {group_id}") if group else f"群组 {group_id}"
+                
+                if db.delete_group_settings(group_id):
+                    message = f"✅ <b>群组已删除</b>\n\n"
+                    message += f"群组: <b>{group_title}</b>\n"
+                    message += f"ID: <code>{group_id}</code>\n\n"
+                    message += f"已完全删除群组的所有配置记录。\n\n"
+                    message += f"💡 点击「🔄 刷新列表」查看更新后的群组列表。"
+                    
+                    # 添加刷新按钮
+                    from keyboards.inline_keyboard import get_groups_list_keyboard
+                    reply_markup = get_groups_list_keyboard()
+                    await query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
+                    await query.answer("✅ 删除成功")
+                    
+                    # 记录操作日志
+                    logger.info(f"Admin {query.from_user.id} deleted group {group_id} ({group_title}) from list")
                 else:
                     await query.answer("❌ 删除失败", show_alert=True)
                 return

@@ -50,7 +50,7 @@ def get_groups_list_keyboard_with_edit(groups: list) -> InlineKeyboardMarkup:
     """
     keyboard = []
     
-    # Add edit buttons for each group (max 10 groups to avoid keyboard size limit)
+    # Add edit and delete buttons for each group (max 10 groups to avoid keyboard size limit)
     for group in groups[:10]:
         group_id = group['group_id']
         group_title = group.get('group_title', f"群组 {group_id}")
@@ -58,10 +58,15 @@ def get_groups_list_keyboard_with_edit(groups: list) -> InlineKeyboardMarkup:
         if len(group_title) > 15:
             group_title = group_title[:12] + "..."
         
+        # 每行顯示編輯和刪除按鈕（兩個按鈕並排）
         keyboard.append([
             InlineKeyboardButton(
                 f"✏️ {group_title[:12]}",
                 callback_data=f"group_select_{group_id}"
+            ),
+            InlineKeyboardButton(
+                "🗑️ 删除",
+                callback_data=f"group_delete_{group_id}"
             )
         ])
     
