@@ -496,14 +496,25 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if len(valid_groups) > 20:
             message += f"\n... 还有 {len(valid_groups) - 20} 个群组未显示\n"
         
-        # Create keyboard with group selection buttons for editing
-        reply_markup = get_groups_list_keyboard_with_edit(display_groups)
+        # Use management menu keyboard for navigation (return to management menu)
+        from keyboards.management_keyboard import get_management_menu_keyboard
+        reply_keyboard = get_management_menu_keyboard()
         
+        # For groups list, we'll still use inline keyboard for selecting groups to edit
+        # But add reply keyboard for navigation
         if query:
-            await query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
+            # If called from callback, edit the message
+            inline_keyboard = get_groups_list_keyboard_with_edit(display_groups)
+            await query.edit_message_text(message, parse_mode="HTML", reply_markup=inline_keyboard)
             await query.answer()
+            # Also send a message with reply keyboard for navigation
+            await query.message.reply_text("💡 使用底部按钮返回管理菜单", reply_markup=reply_keyboard)
         else:
-            await send_group_message(update, message, parse_mode="HTML", inline_keyboard=reply_markup)
+            # If called from message, send new message with both keyboards
+            inline_keyboard = get_groups_list_keyboard_with_edit(display_groups)
+            await update.message.reply_text(message, parse_mode="HTML", reply_markup=inline_keyboard)
+            # Also send reply keyboard for navigation
+            await update.message.reply_text("💡 使用底部按钮返回管理菜单", reply_markup=reply_keyboard)
         
         logger.info(f"Admin {update.effective_user.id} executed w7/CKQL, showing {len(valid_groups)} groups")
             
