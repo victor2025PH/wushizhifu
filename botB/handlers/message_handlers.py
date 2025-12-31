@@ -1109,19 +1109,70 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         # Support batch adding: split by newline, comma, or space
-        # Remove @ symbols and clean up
+        # Support formats:
+        # 1. Newline-separated: @username1\n@username2\n@username3
+        # 2. Comma-separated: @username1, @username2, @username3
+        # 3. Space-separated: @username1 @username2 @username3
+        # 4. Mixed: @username1, @username2\n@username3
         usernames_raw = text.strip()
-        # Split by newline first, then by comma, then by space
         usernames_list = []
-        for line in usernames_raw.split('\n'):
-            for part in line.split(','):
-                for username in part.split():
-                    username = username.strip().lstrip('@')
-                    if username and len(username) >= 3:
-                        usernames_list.append(username)
+        
+        # First, split by newline (most common format for bulk input)
+        lines = usernames_raw.split('\n')
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            
+            # Then split by comma
+            comma_parts = line.split(',')
+            for comma_part in comma_parts:
+                comma_part = comma_part.strip()
+                if not comma_part:
+                    continue
+                
+                # Finally split by space (in case user uses space-separated format)
+                space_parts = comma_part.split()
+                for space_part in space_parts:
+                    space_part = space_part.strip()
+                    if not space_part:
+                        continue
+                    
+                    # Remove @ symbol if present
+                    username = space_part.lstrip('@').strip()
+                    
+                    # Validate username (Telegram usernames are 5-32 characters, but we allow 3+ for flexibility)
+                    if username and len(username) >= 3 and len(username) <= 32:
+                        # Basic validation: should only contain letters, numbers, and underscores
+                        if re.match(r'^[a-zA-Z0-9_]+$', username):
+                            usernames_list.append(username)
+                        else:
+                            logger.warning(f"Invalid username format: {username}")
+                    elif username:
+                        logger.warning(f"Username length invalid: {username} (length: {len(username)})")
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_usernames = []
+        for username in usernames_list:
+            if username.lower() not in seen:
+                seen.add(username.lower())
+                unique_usernames.append(username)
+        usernames_list = unique_usernames
         
         if not usernames_list:
-            await update.message.reply_text("❌ 未找到有效的用户名。请输入至少一个有效的Telegram用户名（至少3个字符）\n\n💡 支持批量添加，可以用换行、逗号或空格分隔多个用户名")
+            await update.message.reply_text(
+                "❌ 未找到有效的用户名。\n\n"
+                "💡 <b>支持的格式：</b>\n"
+                "• 换行分隔：每行一个用户名（推荐）\n"
+                "• 逗号分隔：用逗号分隔\n"
+                "• 空格分隔：用空格分隔\n"
+                "• 用户名可以带或不带 @ 符号\n\n"
+                "示例：\n"
+                "<code>@username1\n@username2\n@username3</code>",
+                parse_mode="HTML"
+            )
             return
         
         # Add all accounts
@@ -1768,13 +1819,15 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "➕ <b>添加客服账号</b>\n\n"
             "请输入客服的 Telegram 用户名（例如：@username）\n\n"
             "💡 <b>支持批量添加</b>：\n"
-            "• 换行分隔：每行一个用户名\n"
-            "• 逗号分隔：用逗号分隔多个用户名\n"
-            "• 空格分隔：用空格分隔多个用户名\n\n"
-            "示例：\n"
-            "<code>@username1\n@username2\n@username3</code>\n\n"
-            "或：\n"
-            "<code>@username1, @username2, @username3</code>",
+            "• <b>换行分隔</b>：每行一个用户名（推荐）\n"
+            "  示例：<code>@username1\n@username2\n@username3</code>\n\n"
+            "• <b>逗号分隔</b>：用逗号分隔多个用户名\n"
+            "  示例：<code>@username1, @username2, @username3</code>\n\n"
+            "• <b>空格分隔</b>：用空格分隔多个用户名\n"
+            "  示例：<code>@username1 @username2 @username3</code>\n\n"
+            "• <b>混合格式</b>：可以混合使用以上格式\n"
+            "  示例：<code>@username1, @username2\n@username3</code>\n\n"
+            "💡 <i>提示：用户名可以带或不带 @ 符号</i>",
             parse_mode="HTML"
         )
         return

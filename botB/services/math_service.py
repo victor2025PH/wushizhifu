@@ -151,12 +151,32 @@ def is_batch_amounts(text: str) -> bool:
     """
     text = text.strip()
     
+    # Exclude text that contains @ symbol (likely usernames, not amounts)
+    if '@' in text:
+        return False
+    
     # Check for comma or newline separators
     if ',' in text or '\n' in text:
         # Split by comma or newline and check if at least 2 parts
         parts = re.split(r'[,,\n]+', text)
         parts = [p.strip() for p in parts if p.strip()]
-        return len(parts) >= 2
+        
+        # Must have at least 2 parts
+        if len(parts) < 2:
+            return False
+        
+        # Check if at least one part looks like a number (to avoid false positives)
+        # This helps distinguish between amounts and other multi-line text
+        has_number_like = False
+        for part in parts:
+            # Remove common currency symbols and spaces
+            cleaned = part.replace('¥', '').replace('$', '').replace('€', '').replace(' ', '')
+            # Check if it's a number or simple math expression
+            if is_number(cleaned) or is_simple_math(cleaned):
+                has_number_like = True
+                break
+        
+        return has_number_like
     
     return False
 
