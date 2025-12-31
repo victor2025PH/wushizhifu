@@ -415,26 +415,8 @@ def main():
     # Register callback handler (for inline keyboard buttons)
     application.add_handler(get_callback_handler())
     
-    # Register chat member handler to track when bot is added/removed from groups
-    async def chat_member_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Track when bot is added to or removed from groups"""
-        if update.chat_member:
-            chat = update.chat_member.chat
-            new_status = update.chat_member.new_chat_member.status
-            old_status = update.chat_member.old_chat_member.status
-            
-            # Only handle bot's membership changes
-            if update.chat_member.new_chat_member.user.id == context.bot.id:
-                if chat.type in ['group', 'supergroup']:
-                    # Bot was added to group
-                    if old_status != 'member' and new_status == 'member':
-                        db.ensure_group_exists(chat.id, chat.title)
-                        logger.info(f"Bot added to group: {chat.id} - {chat.title}")
-                    # Bot was removed from group (optional: mark as inactive)
-                    elif old_status == 'member' and new_status != 'member':
-                        logger.info(f"Bot removed from group: {chat.id} - {chat.title}")
-    
-    application.add_handler(ChatMemberHandler(chat_member_handler))
+    # Note: Chat member tracking is handled in message_handler via ensure_group_exists()
+    # When bot receives any message from a group, the group is automatically tracked
     
     
     logger.info("Bot B (OTC Group Management) starting...")
