@@ -389,6 +389,175 @@ def main():
     application.add_handler(CommandHandler("support", support_command))
     application.add_handler(CommandHandler("mybills", mybills_command))
     
+    # Register admin commands
+    async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /admin command - show admin panel"""
+        from handlers.message_handlers import handle_admin_panel
+        await handle_admin_panel(update, context)
+    
+    async def addadmin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /addadmin command - add admin"""
+        from admin_checker import is_admin
+        from database import db
+        
+        user = update.effective_user
+        chat = update.effective_chat
+        
+        if not is_admin(user.id):
+            await update.message.reply_text("❌ 您不是管理员，无权限执行此操作")
+            return
+        
+        args = context.args
+        if not args or len(args) < 1:
+            await update.message.reply_text(
+                "❌ 请提供用户ID\n格式：`/addadmin <user_id>`",
+                parse_mode="MarkdownV2"
+            )
+            return
+        
+        try:
+            user_id = int(args[0])
+            conn = db.connect()
+            cursor = conn.cursor()
+            
+            # Check if already admin
+            cursor.execute("SELECT COUNT(*) FROM admins WHERE user_id = ? AND status = 'active'", (user_id,))
+            if cursor.fetchone()[0] > 0:
+                await update.message.reply_text("❌ 添加失败（可能已是管理员）")
+                cursor.close()
+                return
+            
+            # Add admin
+            from datetime import datetime
+            now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+            cursor.execute("""
+                INSERT INTO admins (user_id, role, status, added_by, added_at)
+                VALUES (?, 'admin', 'active', ?, ?)
+            """, (user_id, user.id, now))
+            conn.commit()
+            cursor.close()
+            
+            await update.message.reply_text(
+                f"✅ 已添加管理员：{user_id}\n\n"
+                f"📝 此管理员已同步到 Bot A 和 Bot B，无需重启服务即可生效。"
+            )
+            logger.info(f"Admin {user.id} added admin {user_id}")
+            
+        except ValueError:
+            await update.message.reply_text("❌ 无效的用户ID")
+        except Exception as e:
+            logger.error(f"Error in addadmin_command: {e}", exc_info=True)
+            await update.message.reply_text("❌ 添加失败，请稍后再试")
+    
+    async def addword_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /addword command - add sensitive word"""
+        from admin_checker import is_admin
+        from repositories.sensitive_words_repository import SensitiveWordsRepository
+        
+        user = update.effective_user
+        
+        if not is_admin(user.id):
+            await update.message.reply_text("❌ 您不是管理员，无权限执行此操作")
+            return
+        
+        args = context.args
+        if not args or len(args) < 1:
+            await update.message.reply_text(
+                "❌ 请提供敏感词\n格式：`/addword <词语> [action]`\n动作：warn, delete, ban",
+                parse_mode="MarkdownV2"
+            )
+            return
+        
+        word = args[0]
+        action = args[1] if len(args) > 1 else "warn"
+        
+        if action not in ["warn", "delete", "ban"]:
+            action = "warn"
+        
+        if SensitiveWordsRepository.add_word(None, word, action, user.id):
+            await update.message.reply_text(
+                f"✅ 已添加敏感词：`{word}` (动作：{action})",
+                parse_mode="MarkdownV2"
+            )
+        else:
+            await update.message.reply_text("❌ 添加失败（可能已存在）")
+    
+    async def addgroup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /addgroup command - add group"""
+        from admin_checker import is_admin
+        from repositories.group_repository import GroupRepository
+        from repositories.verification_repository import VerificationRepository
+        
+        user = update.effective_user
+        
+        if not is_admin(user.id):
+            await update.message.reply_text("❌ 您不是管理员，无权限执行此操作")
+            return
+        
+        args = context.args
+        if not args or len(args) < 1:
+            await update.message.reply_text(
+                "❌ 请提供群组ID\n格式：`/addgroup <group_id> [group_title]`\n\n"
+                "示例：`/addgroup -1001234567890 测试群组`",
+                parse_mode="MarkdownV2"
+            )
+            return
+        
+        try:
+            group_id = int(args[0])
+            group_title = args[1] if len(args) > 1 else None
+            
+            # Validate group ID format (should start with -100 for supergroups)
+            if group_id > 0:
+                await update.message.reply_text("❌ 群组ID格式错误，超级群组ID应以 -100 开头")
+                return
+            
+            # Try to get group info from bot
+            try:
+                chat = await context.bot.get_chat(group_id)
+                if not group_title:
+                    group_title = chat.title
+                
+                # Check if bot is admin in the group
+                bot_member = await context.bot.get_chat_member(group_id, context.bot.id)
+                if bot_member.status not in ['administrator', 'creator']:
+                    await update.message.reply_text("❌ 机器人不是该群组的管理员，无法添加")
+                    return
+                
+            except Exception as e:
+                logger.warning(f"Could not verify group info: {e}")
+                # Continue anyway, might be a permission issue
+            
+            # Add group to database
+            group = GroupRepository.create_or_update_group(
+                group_id=group_id,
+                group_title=group_title,
+                verification_enabled=False,
+                verification_type='none'
+            )
+            
+            # Create default verification config
+            VerificationRepository.create_or_update_config(group_id)
+            
+            await update.message.reply_text(
+                f"✅ 已成功添加群组：{group_title or '未命名群组'}\n"
+                f"群组ID：`{group_id}`\n\n"
+                f"请在群组设置中配置审核规则",
+                parse_mode="MarkdownV2"
+            )
+            logger.info(f"Admin {user.id} added group {group_id}")
+            
+        except ValueError:
+            await update.message.reply_text("❌ 无效的群组ID，请输入数字")
+        except Exception as e:
+            logger.error(f"Error adding group: {e}", exc_info=True)
+            await update.message.reply_text("❌ 添加失败，请检查群组ID和机器人权限")
+    
+    application.add_handler(CommandHandler("admin", admin_command))
+    application.add_handler(CommandHandler("addadmin", addadmin_command))
+    application.add_handler(CommandHandler("addword", addword_command))
+    application.add_handler(CommandHandler("addgroup", addgroup_command))
+    
     # Register chart command handlers (P5 feature)
     from handlers.chart_handlers import (
         handle_chart_trend, handle_chart_volume,

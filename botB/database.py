@@ -534,6 +534,133 @@ class Database:
                 VALUES ('wushizhifu_jianglai', '客服账号1', 'available', 5, 50, 1)
             """)
         
+        # Create users table (if not exists from Bot A)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                user_id BIGINT PRIMARY KEY,
+                username VARCHAR(255),
+                first_name VARCHAR(255),
+                last_name VARCHAR(255),
+                language_code VARCHAR(10),
+                is_premium BOOLEAN DEFAULT 0,
+                vip_level INTEGER DEFAULT 0,
+                total_transactions INTEGER DEFAULT 0,
+                total_amount DECIMAL(15,2) DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_active_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                status VARCHAR(20) DEFAULT 'active'
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_users_username 
+            ON users(username)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_users_status 
+            ON users(status)
+        """)
+        
+        # Create transactions table (if not exists from Bot A)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS transactions (
+                transaction_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id BIGINT NOT NULL,
+                order_id VARCHAR(64) UNIQUE NOT NULL,
+                transaction_type VARCHAR(20) NOT NULL,
+                payment_channel VARCHAR(20) NOT NULL,
+                amount DECIMAL(15,2) NOT NULL,
+                fee DECIMAL(15,2) DEFAULT 0,
+                actual_amount DECIMAL(15,2) NOT NULL,
+                currency VARCHAR(10) DEFAULT 'CNY',
+                status VARCHAR(20) NOT NULL,
+                description TEXT,
+                payer_info VARCHAR(255),
+                payee_info VARCHAR(255),
+                qr_code_url TEXT,
+                payment_url TEXT,
+                callback_data TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                paid_at TIMESTAMP,
+                expired_at TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(user_id)
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_transactions_user_id 
+            ON transactions(user_id)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_transactions_status 
+            ON transactions(status)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_transactions_created_at 
+            ON transactions(created_at)
+        """)
+        
+        # Create admins table (if not exists from Bot A)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS admins (
+                admin_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id BIGINT UNIQUE NOT NULL,
+                role VARCHAR(20) DEFAULT 'admin',
+                status VARCHAR(20) DEFAULT 'active',
+                added_by BIGINT,
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(user_id)
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_admins_user_id 
+            ON admins(user_id)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_admins_status 
+            ON admins(status)
+        """)
+        
+        # Create referral_codes table (if not exists from Bot A)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS referral_codes (
+                user_id BIGINT PRIMARY KEY,
+                referral_code VARCHAR(50) UNIQUE NOT NULL,
+                total_invites INTEGER DEFAULT 0,
+                successful_invites INTEGER DEFAULT 0,
+                total_rewards DECIMAL(15,2) DEFAULT 0,
+                lottery_entries INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(user_id)
+            )
+        """)
+        
+        # Create referrals table (if not exists from Bot A)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS referrals (
+                referral_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                referrer_id BIGINT NOT NULL,
+                referred_id BIGINT NOT NULL,
+                referral_code VARCHAR(50) NOT NULL,
+                status VARCHAR(20) DEFAULT 'pending',
+                first_transaction_at TIMESTAMP,
+                reward_amount DECIMAL(15,2) DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (referrer_id) REFERENCES users(user_id),
+                FOREIGN KEY (referred_id) REFERENCES users(user_id),
+                UNIQUE(referred_id)
+            )
+        """)
+        
         conn.commit()
         logger.info("Database initialized successfully")
     
