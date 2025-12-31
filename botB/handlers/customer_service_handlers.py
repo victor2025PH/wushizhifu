@@ -211,16 +211,19 @@ async def handle_customer_service_delete(update: Update, context: ContextTypes.D
             await query.answer("❌ 客服账号不存在", show_alert=True)
             return
         
-        # Delete account
-        success = customer_service.delete_account(account_id)
-        if not success:
-            await query.answer("❌ 删除失败", show_alert=True)
-            return
-        
-        await query.answer("✅ 客服账号已删除", show_alert=False)
-        
-        # Return to list
-        await handle_customer_service_list(update, context)
+        # Show confirmation dialog
+        from keyboards.inline_keyboard import get_confirmation_keyboard
+        message = (
+            f"⚠️ <b>确认删除客服账号？</b>\n\n"
+            f"账号：<b>{account['display_name']}</b>\n"
+            f"用户名：@{account['username']}\n"
+            f"ID：<code>{account_id}</code>\n\n"
+            f"此操作将永久删除该客服账号及其所有配置。\n\n"
+            f"您确定要继续吗？"
+        )
+        reply_markup = get_confirmation_keyboard("delete_customer_service", str(account_id))
+        await query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
+        await query.answer()
         
     except Exception as e:
         logger.error(f"Error in handle_customer_service_delete: {e}", exc_info=True)

@@ -1108,18 +1108,59 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ 仅管理员可以添加客服账号")
             return
         
-        username = text.strip().lstrip('@')
-        if not username or len(username) < 3:
-            await update.message.reply_text("❌ 用户名格式错误，请输入有效的Telegram用户名（至少3个字符）")
+        # Support batch adding: split by newline, comma, or space
+        # Remove @ symbols and clean up
+        usernames_raw = text.strip()
+        # Split by newline first, then by comma, then by space
+        usernames_list = []
+        for line in usernames_raw.split('\n'):
+            for part in line.split(','):
+                for username in part.split():
+                    username = username.strip().lstrip('@')
+                    if username and len(username) >= 3:
+                        usernames_list.append(username)
+        
+        if not usernames_list:
+            await update.message.reply_text("❌ 未找到有效的用户名。请输入至少一个有效的Telegram用户名（至少3个字符）\n\n💡 支持批量添加，可以用换行、逗号或空格分隔多个用户名")
             return
         
-        # Add customer service account
-        success = customer_service.add_account(username=username, display_name=username)
-        if success:
-            await update.message.reply_text(f"✅ 客服账号已添加：@{username}")
-            logger.info(f"Admin {user_id} added customer service account: {username}")
+        # Add all accounts
+        success_count = 0
+        failed_count = 0
+        failed_usernames = []
+        
+        for username in usernames_list:
+            success = customer_service.add_account(username=username, display_name=username)
+            if success:
+                success_count += 1
+                logger.info(f"Admin {user_id} added customer service account: {username}")
+            else:
+                failed_count += 1
+                failed_usernames.append(username)
+        
+        # Format response message
+        if success_count > 0 and failed_count == 0:
+            if success_count == 1:
+                await update.message.reply_text(f"✅ 客服账号已添加：@{usernames_list[0]}")
+            else:
+                message = f"✅ 成功添加 {success_count} 个客服账号：\n\n"
+                for username in usernames_list:
+                    message += f"• @{username}\n"
+                await update.message.reply_text(message)
+        elif success_count > 0 and failed_count > 0:
+            message = f"⚠️ 部分添加成功\n\n"
+            message += f"✅ 成功：{success_count} 个\n"
+            message += f"❌ 失败：{failed_count} 个（可能已存在）\n\n"
+            if failed_usernames:
+                message += "失败的账号：\n"
+                for username in failed_usernames:
+                    message += f"• @{username}\n"
+            await update.message.reply_text(message)
         else:
-            await update.message.reply_text(f"❌ 添加失败，账号可能已存在：@{username}")
+            message = f"❌ 所有账号添加失败（可能已存在）：\n\n"
+            for username in usernames_list:
+                message += f"• @{username}\n"
+            await update.message.reply_text(message)
         return
     
     # Handle group markup input (after admin clicks edit group markup)
@@ -1519,31 +1560,43 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ 此功能仅限管理员使用")
             return
         
-        # 首先显示完整的指令教程
-        from handlers.admin_commands_handlers import handle_admin_commands_help
-        await handle_admin_commands_help(update, context)
+        # 首先显示完整的指令教程（带错误处理，即使失败也继续显示菜单）
+        try:
+            from handlers.admin_commands_handlers import handle_admin_commands_help
+            # 确保 update.message 存在
+            if update.message:
+                await handle_admin_commands_help(update, context)
+            else:
+                logger.warning(f"Admin {user_id} clicked management button but update.message is None")
+        except Exception as e:
+            logger.error(f"Error showing admin commands help: {e}", exc_info=True)
+            # 即使顯示幫助失敗，也繼續顯示管理菜單
         
         # 然后显示管理菜单（使用底部键盘）
-        if is_group := chat.type in ['group', 'supergroup']:
-            # 群组设置菜单 - 使用底部键盘
-            from keyboards.management_keyboard import get_group_settings_menu_keyboard
-            reply_keyboard = get_group_settings_menu_keyboard()
-            message = (
-                "⚙️ <b>群组设置菜单</b>\n\n"
-                "请选择要执行的操作：\n\n"
-                "💡 <i>提示：上方已显示完整指令教程，也可以点击「⚡ 管理员指令教程」再次查看</i>"
-            )
-            await update.message.reply_text(message, parse_mode="HTML", reply_markup=reply_keyboard)
-        else:
-            # 全局管理菜单 - 使用底部键盘
-            from keyboards.management_keyboard import get_management_menu_keyboard
-            reply_keyboard = get_management_menu_keyboard()
-            message = (
-                "🌐 <b>全局管理菜单</b>\n\n"
-                "请选择要执行的操作：\n\n"
-                "💡 <i>提示：上方已显示完整指令教程，也可以点击「⚡ 管理员指令教程」再次查看</i>"
-            )
-            await update.message.reply_text(message, parse_mode="HTML", reply_markup=reply_keyboard)
+        try:
+            if is_group := chat.type in ['group', 'supergroup']:
+                # 群组设置菜单 - 使用底部键盘
+                from keyboards.management_keyboard import get_group_settings_menu_keyboard
+                reply_keyboard = get_group_settings_menu_keyboard()
+                message = (
+                    "⚙️ <b>群组设置菜单</b>\n\n"
+                    "请选择要执行的操作：\n\n"
+                    "💡 <i>提示：上方已显示完整指令教程，也可以点击「⚡ 管理员指令教程」再次查看</i>"
+                )
+                await update.message.reply_text(message, parse_mode="HTML", reply_markup=reply_keyboard)
+            else:
+                # 全局管理菜单 - 使用底部键盘
+                from keyboards.management_keyboard import get_management_menu_keyboard
+                reply_keyboard = get_management_menu_keyboard()
+                message = (
+                    "🌐 <b>全局管理菜单</b>\n\n"
+                    "请选择要执行的操作：\n\n"
+                    "💡 <i>提示：上方已显示完整指令教程，也可以点击「⚡ 管理员指令教程」再次查看</i>"
+                )
+                await update.message.reply_text(message, parse_mode="HTML", reply_markup=reply_keyboard)
+        except Exception as e:
+            logger.error(f"Error showing management menu: {e}", exc_info=True)
+            await update.message.reply_text("❌ 显示管理菜单时出错，请稍后重试")
         return
     
     if text in ["📈 统计", "📊 数据"]:
@@ -1653,11 +1706,56 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Handle customer service management menu buttons
     if text == "📋 客服账号列表":
+        logger.info(f"User {user_id} clicked '客服账号列表' button")
         if not is_admin_user:
             await update.message.reply_text("❌ 此功能仅限管理员使用")
             return
         
-        await update.message.reply_text("📋 客服账号列表功能正在开发中，请使用指令或稍后再试")
+        # Display customer service account list directly
+        from keyboards.inline_keyboard import get_customer_service_list_keyboard
+        from services.customer_service_service import customer_service
+        
+        try:
+            logger.debug(f"Fetching customer service accounts for user {user_id}")
+            # Get all accounts
+            accounts = customer_service.get_all_accounts(active_only=False)
+            logger.info(f"Found {len(accounts)} customer service accounts")
+            
+            if not accounts:
+                message = "📋 <b>客服账号列表</b>\n\n暂无客服账号。\n\n请点击「➕ 添加客服账号」添加第一个客服账号。"
+                reply_markup = get_customer_service_list_keyboard([], page=0)
+                await update.message.reply_text(message, parse_mode="HTML", reply_markup=reply_markup)
+                logger.info(f"Displayed empty customer service list to user {user_id}")
+                return
+            
+            # Format message (first page)
+            page = 0
+            start_idx = page * 10
+            end_idx = min(start_idx + 10, len(accounts))
+            page_accounts = accounts[start_idx:end_idx]
+            
+            message = f"📋 <b>客服账号列表</b>\n\n"
+            message += f"共 {len(accounts)} 个账号（显示第 {start_idx + 1}-{end_idx} 个）\n\n"
+            
+            for idx, account in enumerate(page_accounts, start=start_idx + 1):
+                status_emoji = "🟢" if account['status'] == 'available' else \
+                              "🟡" if account['status'] == 'busy' else \
+                              "🔴" if account['status'] == 'offline' else "⚫"
+                active_icon = "✅" if account['is_active'] else "❌"
+                message += (
+                    f"{idx}. {active_icon} <b>{account['display_name']}</b>\n"
+                    f"   状态：{status_emoji} {account['status']}\n"
+                    f"   权重：{account['weight']} | 当前接待：{account['current_count']}/{account['max_concurrent']}\n"
+                    f"   累计接待：{account['total_served']} 次\n\n"
+                )
+            
+            reply_markup = get_customer_service_list_keyboard(accounts, page=page)
+            await update.message.reply_text(message, parse_mode="HTML", reply_markup=reply_markup)
+            logger.info(f"Successfully displayed customer service list ({len(accounts)} accounts) to user {user_id}")
+            
+        except Exception as e:
+            logger.error(f"Error displaying customer service list for user {user_id}: {e}", exc_info=True)
+            await update.message.reply_text(f"❌ 显示客服账号列表时出错: {str(e)}")
         return
     
     if text == "➕ 添加客服账号":
@@ -1668,7 +1766,15 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['waiting_for'] = 'customer_service_username'
         await update.message.reply_text(
             "➕ <b>添加客服账号</b>\n\n"
-            "请输入客服的 Telegram 用户名（例如：@username）：",
+            "请输入客服的 Telegram 用户名（例如：@username）\n\n"
+            "💡 <b>支持批量添加</b>：\n"
+            "• 换行分隔：每行一个用户名\n"
+            "• 逗号分隔：用逗号分隔多个用户名\n"
+            "• 空格分隔：用空格分隔多个用户名\n\n"
+            "示例：\n"
+            "<code>@username1\n@username2\n@username3</code>\n\n"
+            "或：\n"
+            "<code>@username1, @username2, @username3</code>",
             parse_mode="HTML"
         )
         return

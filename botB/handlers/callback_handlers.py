@@ -805,6 +805,37 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
                 else:
                     await query.answer("❌ 删除失败", show_alert=True)
                 return
+            
+            elif action == "delete" and data.startswith("customer_service"):
+                # Handle customer service account deletion confirmation
+                # Format: confirm_delete_customer_service_{account_id}
+                account_id = int(data.split("_")[-1])
+                from services.customer_service_service import customer_service
+                from handlers.customer_service_handlers import handle_customer_service_list
+                
+                account = customer_service.get_account(account_id=account_id)
+                if not account:
+                    await query.answer("❌ 客服账号不存在", show_alert=True)
+                    return
+                
+                success = customer_service.delete_account(account_id)
+                if not success:
+                    await query.answer("❌ 删除失败", show_alert=True)
+                    return
+                
+                message = f"✅ <b>客服账号已删除</b>\n\n"
+                message += f"账号: <b>{account['display_name']}</b>\n"
+                message += f"用户名: @{account['username']}\n\n"
+                message += f"已永久删除该客服账号及其所有配置。"
+                
+                await query.edit_message_text(message, parse_mode="HTML")
+                await query.answer("✅ 删除成功")
+                
+                # Return to list after a short delay
+                import asyncio
+                await asyncio.sleep(1)
+                await handle_customer_service_list(update, context)
+                return
         
         # Parse: cancel_{action}
         elif callback_data.startswith("cancel_"):

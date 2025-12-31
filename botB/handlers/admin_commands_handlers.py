@@ -15,13 +15,21 @@ async def handle_admin_commands_help(update: Update, context: ContextTypes.DEFAU
         # Handle both message and callback query updates
         message_target = None
         query = None
+        
+        # Enhanced validation
+        if not update:
+            logger.error("handle_admin_commands_help: update is None")
+            return
+        
         if update.message:
             message_target = update.message
+            logger.debug(f"Using update.message for admin commands help (user: {update.effective_user.id if update.effective_user else 'unknown'})")
         elif update.callback_query and update.callback_query.message:
             message_target = update.callback_query.message
             query = update.callback_query
+            logger.debug(f"Using callback_query.message for admin commands help (user: {update.effective_user.id if update.effective_user else 'unknown'})")
         else:
-            logger.error("handle_admin_commands_help: No message target found")
+            logger.error(f"handle_admin_commands_help: No message target found. update.message={update.message}, update.callback_query={update.callback_query}")
             return
         
         chat = update.effective_chat
