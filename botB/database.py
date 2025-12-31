@@ -348,6 +348,173 @@ class Database:
             ON customer_service_assignments(user_id)
         """)
         
+        # Create groups table for group management (if not exists from Bot A)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS groups (
+                group_id BIGINT PRIMARY KEY,
+                group_title VARCHAR(255),
+                verification_enabled BOOLEAN DEFAULT 0,
+                verification_type VARCHAR(20) DEFAULT 'none',
+                welcome_message TEXT,
+                rules_text TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_groups_verification_enabled 
+            ON groups(verification_enabled)
+        """)
+        
+        # Create group_members table for tracking group members
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS group_members (
+                member_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                group_id BIGINT NOT NULL,
+                user_id BIGINT NOT NULL,
+                status VARCHAR(20) DEFAULT 'pending',
+                joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                verified_at TIMESTAMP,
+                FOREIGN KEY (group_id) REFERENCES groups(group_id),
+                UNIQUE(group_id, user_id)
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_group_members_group_id 
+            ON group_members(group_id)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_group_members_user_id 
+            ON group_members(user_id)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_group_members_status 
+            ON group_members(status)
+        """)
+        
+        # Create sensitive_words table for filtering
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS sensitive_words (
+                word_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                group_id BIGINT,
+                word VARCHAR(255) NOT NULL,
+                action VARCHAR(20) DEFAULT 'warn',
+                added_by BIGINT,
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                is_active BOOLEAN DEFAULT 1,
+                FOREIGN KEY (group_id) REFERENCES groups(group_id)
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_sensitive_words_group_id 
+            ON sensitive_words(group_id)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_sensitive_words_word 
+            ON sensitive_words(word)
+        """)
+        
+        # Create verification_questions table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS verification_questions (
+                question_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                group_id BIGINT,
+                question_text TEXT NOT NULL,
+                question_type VARCHAR(20) NOT NULL DEFAULT 'single_choice',
+                correct_answer TEXT NOT NULL,
+                options TEXT,
+                difficulty VARCHAR(20) DEFAULT 'medium',
+                hint TEXT,
+                max_attempts INTEGER DEFAULT 3,
+                time_limit INTEGER DEFAULT 300,
+                is_active BOOLEAN DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (group_id) REFERENCES groups(group_id)
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_verification_questions_group_id 
+            ON verification_questions(group_id)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_verification_questions_active 
+            ON verification_questions(is_active)
+        """)
+        
+        # Create verification_records table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS verification_records (
+                record_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                group_id BIGINT NOT NULL,
+                user_id BIGINT NOT NULL,
+                verification_type VARCHAR(50) NOT NULL,
+                ai_score INTEGER,
+                question_id INTEGER,
+                user_answer TEXT,
+                is_correct BOOLEAN,
+                result VARCHAR(20) NOT NULL,
+                attempt_count INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                completed_at TIMESTAMP,
+                FOREIGN KEY (group_id) REFERENCES groups(group_id),
+                FOREIGN KEY (question_id) REFERENCES verification_questions(question_id)
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_verification_records_group_user 
+            ON verification_records(group_id, user_id)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_verification_records_result 
+            ON verification_records(result)
+        """)
+        
+        # Create verification_configs table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS verification_configs (
+                config_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                group_id BIGINT UNIQUE NOT NULL,
+                verification_mode VARCHAR(20) DEFAULT 'question',
+                auto_approve_threshold INTEGER DEFAULT 80,
+                question_threshold_min INTEGER DEFAULT 60,
+                question_threshold_max INTEGER DEFAULT 80,
+                manual_threshold_min INTEGER DEFAULT 40,
+                manual_threshold_max INTEGER DEFAULT 60,
+                auto_reject_threshold INTEGER DEFAULT 40,
+                enable_time_strategy BOOLEAN DEFAULT 0,
+                question_selection_mode VARCHAR(20) DEFAULT 'random',
+                welcome_message TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (group_id) REFERENCES groups(group_id)
+            )
+        """)
+        
+        # Initialize default questions if not exists
+        cursor.execute("SELECT COUNT(*) FROM verification_questions WHERE group_id IS NULL")
+        if cursor.fetchone()[0] == 0:
+            default_questions = [
+                ('伍拾支付的主要功能是什么？', 'fill_blank', '支付|转账|USDT|数字资产', 'easy', '提示：我们是一个支付平台', 3, 300),
+                ('USDT是什么？', 'fill_blank', 'USDT|泰达币|稳定币', 'easy', '提示：一种数字货币', 3, 300),
+                ('本群是否允许发送广告？', 'true_false', '否|不允许|禁止|不', 'medium', '请查看群组规则', 3, 300),
+                ('请回答：3+5=？', 'fill_blank', '8|八', 'easy', '简单的数学题', 3, 180),
+            ]
+            cursor.executemany("""
+                INSERT INTO verification_questions 
+                (group_id, question_text, question_type, correct_answer, difficulty, hint, max_attempts, time_limit)
+                VALUES (NULL, ?, ?, ?, ?, ?, ?, ?)
+            """, default_questions)
+        
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_customer_service_assignments_service_account 
             ON customer_service_assignments(service_account)

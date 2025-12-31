@@ -93,7 +93,7 @@ def get_main_keyboard(user_id: int = None, is_admin: bool = False, is_group: boo
     keyboard_rows.append([
         InlineKeyboardButton(
             text="💬 客服支持",
-            url=Config.SUPPORT_URL
+            callback_data="customer_support"
         ),
         InlineKeyboardButton(
             text="🤖 AI 助手",

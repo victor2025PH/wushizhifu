@@ -21,6 +21,11 @@ logger = logging.getLogger(__name__)
 @router.callback_query(F.data == "wallet")
 async def callback_wallet(callback: CallbackQuery):
     """Handle wallet menu"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         user_id = callback.from_user.id
         
@@ -112,6 +117,11 @@ async def callback_wallet(callback: CallbackQuery):
 @router.callback_query(F.data == "wallet_deposit")
 async def callback_wallet_deposit(callback: CallbackQuery):
     """Handle wallet deposit"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         text = (
             "*💳 充值*\n\n"
@@ -144,6 +154,11 @@ async def callback_wallet_deposit(callback: CallbackQuery):
 @router.callback_query(F.data == "wallet_withdraw")
 async def callback_wallet_withdraw(callback: CallbackQuery):
     """Handle wallet withdraw"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         user_id = callback.from_user.id
         user = UserRepository.get_user(user_id)
@@ -200,6 +215,11 @@ async def callback_wallet_withdraw(callback: CallbackQuery):
 @router.callback_query(F.data == "wallet_details")
 async def callback_wallet_details(callback: CallbackQuery):
     """Handle wallet details with enhanced display"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         user_id = callback.from_user.id
         

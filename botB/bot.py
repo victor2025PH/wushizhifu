@@ -455,6 +455,11 @@ def main():
     # 方案三：註冊 ChatMemberUpdated 事件處理器，自動追蹤機器人加入/離開群組
     application.add_handler(get_chat_member_handler())
     
+    # Register group management handlers (verification and sensitive words)
+    from handlers.group_management_handlers import get_group_message_handler, get_new_member_handler
+    application.add_handler(get_group_message_handler())
+    application.add_handler(get_new_member_handler())
+    
     # 添加全局錯誤處理器，處理網絡超時等錯誤
     async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
         """處理未捕獲的錯誤"""

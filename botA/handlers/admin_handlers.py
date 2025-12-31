@@ -26,6 +26,10 @@ def is_admin(user_id: int) -> bool:
 @router.message(Command("admin"))
 async def cmd_admin(message: Message):
     """Handle /admin command"""
+    # Skip if message is from a group (Bot A should be silent in groups)
+    if message.chat.type in ['group', 'supergroup']:
+        return
+    
     try:
         user_id = message.from_user.id
         
@@ -69,6 +73,11 @@ async def cmd_admin(message: Message):
 @router.callback_query(F.data == "admin_panel")
 async def callback_admin_panel(callback: CallbackQuery):
     """Handle admin panel entry"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         user_id = callback.from_user.id
         
@@ -113,6 +122,11 @@ async def callback_admin_panel(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("admin_"))
 async def callback_admin_menu(callback: CallbackQuery):
     """Handle admin menu callbacks"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         user_id = callback.from_user.id
         
@@ -676,6 +690,10 @@ async def handle_admin_add(callback: CallbackQuery):
 @router.message(Command("addadmin"))
 async def cmd_add_admin(message: Message):
     """Add admin command"""
+    # Skip if message is from a group (Bot A should be silent in groups)
+    if message.chat.type in ['group', 'supergroup']:
+        return
+    
     try:
         if not is_admin(message.from_user.id):
             await message.answer("❌ 您不是管理員，無權限執行此操作")
@@ -707,6 +725,10 @@ async def cmd_add_admin(message: Message):
 @router.message(Command("addword"))
 async def cmd_add_word(message: Message):
     """Add sensitive word command"""
+    # Skip if message is from a group (Bot A should be silent in groups)
+    if message.chat.type in ['group', 'supergroup']:
+        return
+    
     try:
         if not is_admin(message.from_user.id):
             await message.answer("❌ 您不是管理員，無權限執行此操作")
@@ -1290,6 +1312,10 @@ async def handle_admin_verify_all_reject(callback: CallbackQuery):
 @router.message(Command("addgroup"))
 async def cmd_add_group(message: Message):
     """Add group command"""
+    # Skip if message is from a group (Bot A should be silent in groups)
+    if message.chat.type in ['group', 'supergroup']:
+        return
+    
     try:
         if not is_admin(message.from_user.id):
             await message.answer("❌ 您不是管理员，无权限执行此操作")
@@ -1366,6 +1392,11 @@ async def cmd_add_group(message: Message):
 @router.callback_query(F.data == "main_menu")
 async def callback_main_menu(callback: CallbackQuery):
     """Return to main menu"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     from services.message_service import MessageService
     from services.user_service import UserService
     

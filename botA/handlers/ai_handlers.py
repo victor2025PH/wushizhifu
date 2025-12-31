@@ -39,6 +39,11 @@ def add_to_history(user_id: int, role: str, content: str):
 @router.callback_query(F.data == "ai_chat")
 async def callback_ai_chat(callback: CallbackQuery):
     """Handle AI chat button callback"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         user_id = callback.from_user.id
         is_admin = AdminRepository.is_admin(user_id)

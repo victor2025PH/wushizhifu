@@ -16,6 +16,11 @@ logger = logging.getLogger(__name__)
 @router.callback_query(F.data == "settings")
 async def callback_settings(callback: CallbackQuery):
     """Handle settings menu with premium experience"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         from database.transaction_repository import TransactionRepository
         from database.rate_repository import RateRepository
@@ -153,6 +158,11 @@ async def callback_settings(callback: CallbackQuery):
 @router.callback_query(F.data == "settings_language")
 async def callback_settings_language(callback: CallbackQuery):
     """Handle language settings"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         text = (
             "*🌐 语言设置*\n\n"
@@ -188,6 +198,11 @@ async def callback_settings_language(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("set_lang_"))
 async def callback_set_language(callback: CallbackQuery):
     """Handle language selection"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         lang_code = callback.data.replace("set_lang_", "")
         user_id = callback.from_user.id
@@ -224,6 +239,11 @@ async def callback_set_language(callback: CallbackQuery):
 @router.callback_query(F.data == "settings_notification")
 async def callback_settings_notification(callback: CallbackQuery):
     """Handle notification settings"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         text = (
             "*🔔 通知设置*\n\n"
@@ -262,6 +282,11 @@ async def callback_settings_notification(callback: CallbackQuery):
 @router.callback_query(F.data == "settings_provider")
 async def callback_settings_provider(callback: CallbackQuery):
     """Handle preferred provider settings"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         text = (
             "*💳 首选支付通道*\n\n"
@@ -294,6 +319,11 @@ async def callback_settings_provider(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("set_provider_"))
 async def callback_set_provider(callback: CallbackQuery):
     """Handle provider selection"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         provider = callback.data.replace("set_provider_", "")
         provider_text = "支付宝" if provider == "alipay" else "微信支付"
@@ -322,6 +352,11 @@ async def callback_set_provider(callback: CallbackQuery):
 @router.callback_query(F.data == "settings_security")
 async def callback_settings_security(callback: CallbackQuery):
     """Handle security settings"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         user_id = callback.from_user.id
         user = UserRepository.get_user(user_id)
@@ -363,6 +398,11 @@ async def callback_settings_security(callback: CallbackQuery):
 @router.callback_query(F.data == "settings_vip")
 async def callback_settings_vip(callback: CallbackQuery):
     """Handle VIP privileges display"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         from database.rate_repository import RateRepository
         from utils.text_utils import format_separator
@@ -452,6 +492,11 @@ async def callback_settings_vip(callback: CallbackQuery):
 @router.callback_query(F.data == "settings_stats")
 async def callback_settings_stats(callback: CallbackQuery):
     """Handle statistics display"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         from database.transaction_repository import TransactionRepository
         from utils.text_utils import format_separator
@@ -517,6 +562,11 @@ async def callback_settings_stats(callback: CallbackQuery):
 @router.callback_query(F.data == "settings_more")
 async def callback_settings_more(callback: CallbackQuery):
     """Handle more settings"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         from utils.text_utils import format_separator
         from config import Config
@@ -577,6 +627,11 @@ async def callback_settings_more(callback: CallbackQuery):
 @router.callback_query(F.data == "settings_account")
 async def callback_settings_account(callback: CallbackQuery):
     """Handle account information"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         user_id = callback.from_user.id
         user = UserRepository.get_user(user_id)

@@ -2140,6 +2140,28 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if text == "w08":
             await handle_admin_w8(update, context)
             return
+        
+        # Handle group management buttons (using reply keyboard)
+        if text == "✅ 群组审核":
+            await handle_group_verification(update, context)
+            return
+        
+        if text == "📋 群组列表":
+            await handle_group_list(update, context)
+            return
+        
+        if text == "⚙️ 群组设置":
+            await handle_group_settings(update, context)
+            return
+        
+        # Handle approve/reject all (using reply keyboard)
+        if text == "✅ 全部通过":
+            await handle_verify_all_approve(update, context)
+            return
+        
+        if text == "❌ 全部拒绝":
+            await handle_verify_all_reject(update, context)
+            return
     
     # Check if message is a number, math expression, or batch amounts (settlement calculation)
     if is_number(text) or is_simple_math(text) or is_batch_amounts(text):
@@ -2147,6 +2169,239 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     # Otherwise, ignore the message
+
+
+# ========== Group Management Handlers ==========
+
+async def handle_group_verification(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle group verification management (using reply keyboard)"""
+    from repositories.group_repository import GroupRepository
+    from database import db
+    
+    try:
+        conn = db.connect()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT gm.*, g.group_title 
+            FROM group_members gm
+            JOIN groups g ON gm.group_id = g.group_id
+            WHERE gm.status = 'pending'
+            ORDER BY gm.joined_at ASC
+            LIMIT 10
+        """)
+        
+        pending = cursor.fetchall()
+        cursor.close()
+        
+        if not pending:
+            text = (
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                "  ✅ 群组审核\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "暂无待审核成员\n\n"
+                "所有成员已审核完成"
+            )
+        else:
+            text = (
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"  ✅ 群组审核\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"<b>待审核成员（共 {len(pending)} 人）：</b>\n\n"
+            )
+            
+            for idx, member in enumerate(pending[:10], 1):
+                user_id = member['user_id']
+                group_title = member['group_title'] if member['group_title'] else f"群组 {member['group_id']}"
+                joined_at = member['joined_at'][:16] if member['joined_at'] else 'N/A'
+                
+                text += (
+                    f"{idx}. 用户ID：<code>{user_id}</code>\n"
+                    f"   群组：{group_title}\n"
+                    f"   加入时间：{joined_at}\n\n"
+                )
+            
+            text += "💡 使用下方按钮进行审核操作"
+        
+        await send_group_message(update, text, parse_mode="HTML")
+        
+    except Exception as e:
+        logger.error(f"Error in handle_group_verification: {e}", exc_info=True)
+        await send_group_message(update, "❌ 系统错误，请稍后再试", parse_mode="HTML")
+
+
+async def handle_group_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle group list (using reply keyboard)"""
+    from repositories.group_repository import GroupRepository
+    from database import db
+    
+    try:
+        conn = db.connect()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT g.*, 
+                   COUNT(DISTINCT gm.user_id) as member_count,
+                   COUNT(DISTINCT CASE WHEN gm.status = 'pending' THEN gm.user_id END) as pending_count,
+                   COUNT(DISTINCT CASE WHEN gm.status = 'verified' THEN gm.user_id END) as verified_count
+            FROM groups g
+            LEFT JOIN group_members gm ON g.group_id = gm.group_id
+            GROUP BY g.group_id
+            ORDER BY g.created_at DESC
+            LIMIT 20
+        """)
+        
+        groups = cursor.fetchall()
+        cursor.close()
+        
+        text = (
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"  📋 群组列表\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"<b>已管理群组（共 {len(groups)} 个）：</b>\n\n"
+        )
+        
+        if not groups:
+            text += "暂无管理的群组\n\n请先添加群组到管理系统"
+        else:
+            for idx, group in enumerate(groups[:20], 1):
+                group_id = group['group_id']
+                group_title = group['group_title'] if group['group_title'] else f"群组 {group_id}"
+                verification_enabled = group['verification_enabled'] if group['verification_enabled'] is not None else 0
+                member_count = group['member_count'] if group['member_count'] is not None else 0
+                pending_count = group['pending_count'] if group['pending_count'] is not None else 0
+                verified_count = group['verified_count'] if group['verified_count'] is not None else 0
+                
+                verification_text = "已开启" if verification_enabled else "已关闭"
+                
+                text += (
+                    f"{idx}. {group_title}\n"
+                    f"   ID：<code>{group_id}</code>\n"
+                    f"   审核：{verification_text} | "
+                    f"成员：{member_count} | "
+                    f"已审核：{verified_count} | "
+                    f"待审核：{pending_count}\n\n"
+                )
+            
+            if len(groups) >= 20:
+                text += f"显示前 20 个群组...\n\n"
+        
+        await send_group_message(update, text, parse_mode="HTML")
+        
+    except Exception as e:
+        logger.error(f"Error in handle_group_list: {e}", exc_info=True)
+        await send_group_message(update, "❌ 系统错误，请稍后再试", parse_mode="HTML")
+
+
+async def handle_group_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle group settings (using reply keyboard)"""
+    from repositories.group_repository import GroupRepository
+    from database import db
+    
+    try:
+        conn = db.connect()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT g.*, 
+                   COUNT(DISTINCT gm.user_id) as member_count,
+                   COUNT(DISTINCT CASE WHEN gm.status = 'pending' THEN gm.user_id END) as pending_count
+            FROM groups g
+            LEFT JOIN group_members gm ON g.group_id = gm.group_id
+            GROUP BY g.group_id
+            ORDER BY g.created_at DESC
+            LIMIT 10
+        """)
+        
+        groups = cursor.fetchall()
+        cursor.close()
+        
+        text = (
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"  ⚙️ 群组设置\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        )
+        
+        if not groups:
+            text += "暂无管理的群组\n\n请先添加群组到管理系统"
+        else:
+            text += f"<b>已管理群组（共 {len(groups)} 个）：</b>\n\n"
+            
+            for idx, group in enumerate(groups[:10], 1):
+                group_id = group['group_id']
+                group_title = group['group_title'] if group['group_title'] else f"群组 {group_id}"
+                verification_enabled = group['verification_enabled'] if group['verification_enabled'] is not None else 0
+                member_count = group['member_count'] if group['member_count'] is not None else 0
+                pending_count = group['pending_count'] if group['pending_count'] is not None else 0
+                
+                verification_text = "已开启" if verification_enabled else "已关闭"
+                
+                text += (
+                    f"{idx}. {group_title}\n"
+                    f"   审核：{verification_text} | "
+                    f"成员：{member_count} | "
+                    f"待审核：{pending_count}\n\n"
+                )
+            
+            text += "💡 使用命令管理群组：\n"
+            text += "• /addgroup <group_id> [group_title] - 添加群组\n"
+            text += "• 在群组中使用 w2/w3 命令设置群组加价和地址"
+        
+        await send_group_message(update, text, parse_mode="HTML")
+        
+    except Exception as e:
+        logger.error(f"Error in handle_group_settings: {e}", exc_info=True)
+        await send_group_message(update, "❌ 系统错误，请稍后再试", parse_mode="HTML")
+
+
+async def handle_verify_all_approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle approve all pending members (using reply keyboard)"""
+    from repositories.group_repository import GroupRepository
+    
+    try:
+        count = GroupRepository.verify_all_pending_members()
+        
+        text = (
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"  ✅ 全部通过\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"✅ 已通过 {count} 位待审核成员\n\n"
+            f"所有待审核成员已自动通过验证"
+        )
+        
+        await send_group_message(update, text, parse_mode="HTML")
+        
+        # Refresh the verification page
+        await handle_group_verification(update, context)
+        
+    except Exception as e:
+        logger.error(f"Error in handle_verify_all_approve: {e}", exc_info=True)
+        await send_group_message(update, "❌ 系统错误，请稍后再试", parse_mode="HTML")
+
+
+async def handle_verify_all_reject(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle reject all pending members (using reply keyboard)"""
+    from repositories.group_repository import GroupRepository
+    
+    try:
+        count = GroupRepository.reject_all_pending_members()
+        
+        text = (
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"  ❌ 全部拒绝\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"❌ 已拒绝 {count} 位待审核成员\n\n"
+            f"所有待审核成员已自动拒绝"
+        )
+        
+        await send_group_message(update, text, parse_mode="HTML")
+        
+        # Refresh the verification page
+        await handle_group_verification(update, context)
+        
+    except Exception as e:
+        logger.error(f"Error in handle_verify_all_reject: {e}", exc_info=True)
+        await send_group_message(update, "❌ 系统错误，请稍后再试", parse_mode="HTML")
 
 
 def get_message_handler():

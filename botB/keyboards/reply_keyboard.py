@@ -88,11 +88,15 @@ def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = Fals
         stats_button_text = "📈 统计" if is_group else "📊 数据"
         
         if is_group:
-            # In groups, don't use WebApp button - Telegram API doesn't allow it
-            # Just add two buttons (don't add empty button - Telegram may not display keyboard with empty buttons)
+            # In groups, add group management buttons
             keyboard.append([
                 KeyboardButton(admin_button_text),
                 KeyboardButton(stats_button_text)
+            ])
+            # Add group management buttons
+            keyboard.append([
+                KeyboardButton("✅ 群组审核"),
+                KeyboardButton("📋 群组列表")
             ])
         else:
             # In private chats, WebApp button is allowed
@@ -103,6 +107,12 @@ def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = Fals
                     "💎 打开应用",
                     web_app=WebAppInfo(url=get_webapp_url())
                 )
+            ])
+            # Add group management buttons for private chat
+            keyboard.append([
+                KeyboardButton("✅ 群组审核"),
+                KeyboardButton("📋 群组列表"),
+                KeyboardButton("⚙️ 群组设置")
             ])
     else:
         # If not admin, handle based on chat type

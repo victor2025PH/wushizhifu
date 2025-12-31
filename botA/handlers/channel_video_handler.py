@@ -100,6 +100,11 @@ async def handle_video_type_selection(callback: CallbackQuery, bot: Bot):
     """
     处理视频类型选择
     """
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         # 解析 callback_data: video_type:wechat:123 或 video_type:alipay:123
         parts = callback.data.split(":")

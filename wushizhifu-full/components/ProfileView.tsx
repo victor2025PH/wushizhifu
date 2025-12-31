@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Settings, Globe, Shield, Headphones, Info, ChevronRight, LogOut, BadgeCheck, ArrowLeft, Zap, Lock, Award } from 'lucide-react';
 import { Language, TRANSLATIONS, TelegramUser } from '../types';
 import { Logo } from './Logo';
+import { openSupportChat, assignCustomerService, CustomerServiceAssignmentResult } from '../utils/supportService';
+import { CustomerServiceModal } from './CustomerServiceModal';
 
 interface ProfileViewProps {
   lang: Language;
@@ -12,6 +14,9 @@ interface ProfileViewProps {
 
 export const ProfileView: React.FC<ProfileViewProps> = ({ lang, user, onToggleLang }) => {
   const [showAbout, setShowAbout] = useState(false);
+  const [showCustomerServiceModal, setShowCustomerServiceModal] = useState(false);
+  const [customerServiceResult, setCustomerServiceResult] = useState<CustomerServiceAssignmentResult | null>(null);
+  const [isAssigningService, setIsAssigningService] = useState(false);
   const t = TRANSLATIONS[lang];
   const displayName = user?.first_name || t.guest;
 
@@ -160,13 +165,15 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ lang, user, onToggleLa
                 <MenuItem 
                     icon={Headphones} 
                     label={t.support} 
-                    onClick={() => {
-                        const supportUrl = 'https://t.me/wushizhifu_jianglai';
-                        if (window.Telegram?.WebApp) {
-                            window.Telegram.WebApp.openLink(supportUrl);
-                        } else {
-                            window.open(supportUrl, '_blank');
-                        }
+                    onClick={async () => {
+                        // 显示加载状态
+                        setIsAssigningService(true);
+                        setShowCustomerServiceModal(true);
+                        
+                        // 分配客服账号
+                        const result = await assignCustomerService();
+                        setCustomerServiceResult(result);
+                        setIsAssigningService(false);
                     }}
                 />
                 <MenuItem icon={Info} label={t.about} value="v1.5.0" onClick={() => setShowAbout(true)} />
@@ -180,6 +187,27 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ lang, user, onToggleLa
         <div className="mt-auto text-center">
             <p className="text-[10px] text-gray-300">{t.techLtd} &copy; 2024</p>
         </div>
+
+        {/* Customer Service Modal */}
+        <CustomerServiceModal
+          isOpen={showCustomerServiceModal}
+          onClose={() => {
+            setShowCustomerServiceModal(false);
+            setCustomerServiceResult(null);
+          }}
+          serviceAccount={customerServiceResult?.service_account || null}
+          assignmentMethod={customerServiceResult?.assignment_method}
+          error={customerServiceResult?.error}
+          onContact={() => {
+            if (customerServiceResult?.service_account) {
+              openSupportChat(customerServiceResult.service_account);
+            }
+          }}
+          onContactAdmin={() => {
+            openSupportChat('wushizhifu_jianglai');
+          }}
+          lang={lang}
+        />
     </motion.div>
   );
 };

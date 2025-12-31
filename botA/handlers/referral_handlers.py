@@ -18,6 +18,11 @@ logger = logging.getLogger(__name__)
 @router.callback_query(F.data == "referral_main")
 async def callback_referral_main(callback: CallbackQuery):
     """Handle referral main menu"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         from config import Config
         
@@ -107,6 +112,11 @@ async def callback_referral_main(callback: CallbackQuery):
 @router.callback_query(F.data == "referral_invite")
 async def callback_referral_invite(callback: CallbackQuery):
     """Handle invite friend page"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         from config import Config
         
@@ -176,6 +186,11 @@ async def callback_referral_invite(callback: CallbackQuery):
 @router.callback_query(F.data == "referral_rewards")
 async def callback_referral_rewards(callback: CallbackQuery):
     """Handle rewards record page"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         user_id = callback.from_user.id
         
@@ -242,6 +257,11 @@ async def callback_referral_rewards(callback: CallbackQuery):
 @router.callback_query(F.data == "referral_ranking")
 async def callback_referral_ranking(callback: CallbackQuery):
     """Handle monthly ranking page"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         user_id = callback.from_user.id
         current_month = datetime.now().strftime("%Y-%m")
@@ -342,6 +362,11 @@ async def callback_referral_ranking(callback: CallbackQuery):
 @router.callback_query(F.data == "referral_lottery")
 async def callback_referral_lottery(callback: CallbackQuery):
     """Handle lottery page"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         user_id = callback.from_user.id
         
@@ -401,6 +426,11 @@ async def callback_referral_lottery(callback: CallbackQuery):
 @router.callback_query(F.data == "referral_lottery_draw")
 async def callback_referral_lottery_draw(callback: CallbackQuery):
     """Handle lottery draw"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         user_id = callback.from_user.id
         

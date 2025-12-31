@@ -5,7 +5,7 @@ import asyncio
 import logging
 from pathlib import Path
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery, FSInputFile
+from aiogram.types import Message, CallbackQuery, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 from config import Config
 from keyboards.main_kb import get_main_keyboard
@@ -25,6 +25,10 @@ async def cmd_start(message: Message):
     Implements step-by-step progressive display for enhanced UX.
     Also handles referral code from /start?ref=CODE
     """
+    # Skip if message is from a group (Bot A should be silent in groups)
+    if message.chat.type in ['group', 'supergroup']:
+        return
+    
     try:
         user = message.from_user
         
@@ -118,6 +122,10 @@ async def cmd_help(message: Message):
     Handle /help command.
     Provides usage instructions for the bot.
     """
+    # Skip if message is from a group (Bot A should be silent in groups)
+    if message.chat.type in ['group', 'supergroup']:
+        return
+    
     try:
         user = message.from_user
         is_admin = AdminRepository.is_admin(user.id)
@@ -169,9 +177,99 @@ async def cmd_help(message: Message):
 # 支付按鈕現在使用 web_app 跳轉到 MiniApp，不再需要這些回調
 
 
+@user_router.callback_query(F.data == "customer_support")
+async def callback_customer_support(callback: CallbackQuery):
+    """
+    Handle customer support callback - assign customer service using smart allocation
+    """
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
+    try:
+        user = callback.from_user
+        user_id = user.id
+        username = user.username or f"user_{user.id}"
+        
+        # Use shared customer service service
+        import sys
+        from pathlib import Path
+        root_dir = Path(__file__).parent.parent.parent
+        sys.path.insert(0, str(root_dir))
+        from services.customer_service_service import customer_service
+        from services.customer_service_utils import get_customer_service_contact_keyboard
+        
+        # Get assignment strategy from settings
+        assignment_method = customer_service.get_assignment_strategy()
+        
+        # Assign customer service account
+        service_account = customer_service.assign_service(
+            user_id=user_id,
+            username=username,
+            method=assignment_method
+        )
+        
+        if service_account:
+            # Create inline keyboard with link to customer service
+            keyboard = get_customer_service_contact_keyboard(service_account, use_aiogram=True)
+            
+            # Send message with contact button
+            await callback.message.edit_text(
+                f"💬 <b>客服支持</b>\n\n"
+                f"已为您分配客服：<b>@{service_account}</b>\n\n"
+                f"点击下方按钮直接联系客服：",
+                parse_mode="HTML",
+                reply_markup=keyboard
+            )
+            logger.info(f"Assigned customer service @{service_account} to user {user_id}")
+        else:
+            # No available customer service - fallback to default
+            await callback.message.edit_text(
+                f"💬 <b>客服支持</b>\n\n"
+                f"⚠️ 当前没有可用的客服账号，请联系管理员：\n"
+                f"@{Config.SUPPORT_USERNAME}\n\n"
+                f"或稍后再试。",
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(
+                        text=f"💬 联系管理员 @{Config.SUPPORT_USERNAME}",
+                        url=Config.SUPPORT_URL
+                    )]
+                ])
+            )
+            logger.warning(f"No available customer service for user {user_id}")
+        
+        await callback.answer()
+        
+    except Exception as e:
+        logger.error(f"Error in callback_customer_support: {e}", exc_info=True)
+        try:
+            # Fallback to default support URL
+            await callback.message.edit_text(
+                f"💬 <b>客服支持</b>\n\n"
+                f"请联系管理员：@{Config.SUPPORT_USERNAME}",
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(
+                        text=f"💬 联系管理员 @{Config.SUPPORT_USERNAME}",
+                        url=Config.SUPPORT_URL
+                    )]
+                ])
+            )
+        except:
+            pass
+        await callback.answer("❌ 分配客服失败，请稍后再试", show_alert=True)
+
+
 @user_router.callback_query(F.data == "rates")
 async def callback_rates(callback: CallbackQuery):
     """Handle rates information callback"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         rates_text = MessageService.generate_rates_message()
         
@@ -195,6 +293,11 @@ async def callback_rates(callback: CallbackQuery):
 @user_router.callback_query(F.data == "statistics")
 async def callback_statistics(callback: CallbackQuery):
     """Handle statistics callback"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         from database.user_repository import UserRepository
         from database.transaction_repository import TransactionRepository

@@ -24,6 +24,11 @@ _payment_states = {}
 @router.callback_query(F.data == "pay_ali")
 async def callback_pay_ali(callback: CallbackQuery):
     """Handle Alipay payment channel selection"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         await callback.answer("正在启动支付宝通道...", show_alert=False)
         
@@ -50,6 +55,11 @@ async def callback_pay_ali(callback: CallbackQuery):
 @router.callback_query(F.data == "pay_wechat")
 async def callback_pay_wechat(callback: CallbackQuery):
     """Handle WeChat payment channel selection"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         await callback.answer("正在啟動微信支付通道...", show_alert=False)
         
@@ -76,6 +86,11 @@ async def callback_pay_wechat(callback: CallbackQuery):
 @router.callback_query(F.data.in_(["payment_receive", "payment_pay"]))
 async def callback_payment_type(callback: CallbackQuery):
     """Handle payment type selection"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         transaction_type = "receive" if callback.data == "payment_receive" else "pay"
         user_id = callback.from_user.id
@@ -114,6 +129,11 @@ async def callback_payment_type(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("amount_"))
 async def callback_amount_quick(callback: CallbackQuery):
     """Handle quick amount selection"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         amount_str = callback.data.split("_")[1]
         amount = float(amount_str)
@@ -180,6 +200,11 @@ async def process_amount(callback: CallbackQuery, amount: float):
 @router.callback_query(F.data.startswith("confirm_order_"))
 async def callback_confirm_order(callback: CallbackQuery):
     """Handle order confirmation"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         user_id = callback.from_user.id
         state = _payment_states.get(user_id, {})

@@ -665,6 +665,104 @@ def get_p2p_leaderboard_inline(payment_method: str = "alipay", rows: int = 10, p
         return None
 
 
+class CustomerServiceAssignRequest(BaseModel):
+    """Request model for customer service assignment"""
+    user_id: Optional[int] = None
+    username: Optional[str] = None
+
+
+class CustomerServiceAssignResponse(BaseModel):
+    """Response model for customer service assignment"""
+    service_account: str
+    assignment_method: str
+    success: bool
+    message: Optional[str] = None
+
+
+@app.post("/api/customer-service/assign", response_model=CustomerServiceAssignResponse)
+async def assign_customer_service(
+    request: Optional[CustomerServiceAssignRequest] = None,
+    x_telegram_init_data: Optional[str] = Header(None, alias="X-Telegram-Init-Data")
+):
+    """
+    Assign a customer service account to a user (for MiniApp).
+    
+    Uses the same smart allocation logic as Bot A and Bot B.
+    Authentication is optional - if initData is provided, it will be verified.
+    Otherwise, user_id and username from request body will be used.
+    """
+    try:
+        # Try to get user info from authenticated initData first
+        user_data = None
+        if x_telegram_init_data:
+            try:
+                if verify_telegram_init_data(x_telegram_init_data, Config.BOT_TOKEN):
+                    user_data = parse_init_data(x_telegram_init_data)
+            except Exception as e:
+                logger.warning(f"Failed to verify initData, using request body: {e}")
+        
+        # Get user info from auth or request body
+        if user_data:
+            # Use authenticated user data (preferred)
+            user_id = user_data.get('id')
+            username = user_data.get('username')
+        elif request:
+            # Use request body data
+            user_id = request.user_id
+            username = request.username
+        else:
+            # No data provided
+            user_id = None
+            username = None
+        
+        if not user_id:
+            raise HTTPException(status_code=400, detail="User ID is required")
+        
+        if not username:
+            username = f"user_{user_id}"
+        
+        # Import shared customer service service
+        import sys
+        from pathlib import Path
+        root_dir = Path(__file__).parent
+        sys.path.insert(0, str(root_dir))
+        from services.customer_service_service import customer_service
+        
+        # Get assignment strategy from settings
+        assignment_method = customer_service.get_assignment_strategy()
+        
+        # Assign customer service account
+        service_account = customer_service.assign_service(
+            user_id=user_id,
+            username=username,
+            method=assignment_method
+        )
+        
+        if service_account:
+            logger.info(f"Assigned customer service @{service_account} to user {user_id} via API")
+            return CustomerServiceAssignResponse(
+                service_account=service_account,
+                assignment_method=assignment_method,
+                success=True,
+                message=f"Assigned to @{service_account}"
+            )
+        else:
+            # No available customer service - return error
+            logger.warning(f"No available customer service for user {user_id} via API")
+            return CustomerServiceAssignResponse(
+                service_account="",
+                assignment_method=assignment_method,
+                success=False,
+                message="No available customer service account"
+            )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error assigning customer service via API: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Global exception handler"""

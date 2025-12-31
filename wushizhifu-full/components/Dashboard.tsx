@@ -6,7 +6,8 @@ import { Logo } from './Logo';
 import { AlipayGuideModal } from './AlipayGuideModal';
 import { WeChatGuideModal } from './WeChatGuideModal';
 import { BinanceRateModal } from './BinanceRateModal';
-import { openSupportChat } from '../utils/supportService';
+import { CustomerServiceModal } from './CustomerServiceModal';
+import { openSupportChat, assignCustomerService, CustomerServiceAssignmentResult } from '../utils/supportService';
 import { apiClient } from '../api';
 
 interface DashboardProps {
@@ -46,6 +47,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [showScrollHint, setShowScrollHint] = useState(true);
   const [marketStats, setMarketStats] = useState<MarketStats | null>(null);
   const [loadingMarketStats, setLoadingMarketStats] = useState(false);
+  const [showCustomerServiceModal, setShowCustomerServiceModal] = useState(false);
+  const [customerServiceResult, setCustomerServiceResult] = useState<CustomerServiceAssignmentResult | null>(null);
+  const [isAssigningService, setIsAssigningService] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const t = TRANSLATIONS[lang];
   const displayName = user?.first_name || t.guest;
@@ -247,16 +251,32 @@ export const Dashboard: React.FC<DashboardProps> = ({
       {/* Open Account Button - Redirect to Telegram Support */}
       <div className="flex flex-col gap-4 mb-6">
         <button 
-          onClick={() => {
-            // 打开 Telegram 客服对话（自动轮询分配）
-            openSupportChat();
+          onClick={async () => {
+            // 显示加载状态
+            setIsAssigningService(true);
+            setShowCustomerServiceModal(true);
+            
+            // 分配客服账号
+            const result = await assignCustomerService();
+            setCustomerServiceResult(result);
+            setIsAssigningService(false);
           }}
-          className="bg-gradient-to-r from-champagne-500 to-champagne-600 text-white p-4 rounded-2xl shadow-lg hover:shadow-gold transition-all flex items-center justify-center space-x-3 group w-full"
+          disabled={isAssigningService}
+          className="bg-gradient-to-r from-champagne-500 to-champagne-600 text-white p-4 rounded-2xl shadow-lg hover:shadow-gold transition-all flex items-center justify-center space-x-3 group w-full disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <div className="bg-white/20 p-2 rounded-xl group-hover:bg-white/30 transition-colors">
-            <UserPlus className="w-5 h-5 text-white" />
+            {isAssigningService ? (
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+            ) : (
+              <UserPlus className="w-5 h-5 text-white" />
+            )}
           </div>
-          <span className="text-sm font-semibold text-white">{t.openAccount}</span>
+          <span className="text-sm font-semibold text-white">
+            {isAssigningService 
+              ? (lang === 'zh' ? '正在分配客服...' : 'Assigning service...')
+              : t.openAccount
+            }
+          </span>
         </button>
       </div>
 
@@ -344,6 +364,27 @@ export const Dashboard: React.FC<DashboardProps> = ({
         isOpen={showAlipayGuide}
         onClose={() => setShowAlipayGuide(false)}
         onConfirm={handleAlipayConfirm}
+        lang={lang}
+      />
+
+      {/* Customer Service Modal */}
+      <CustomerServiceModal
+        isOpen={showCustomerServiceModal}
+        onClose={() => {
+          setShowCustomerServiceModal(false);
+          setCustomerServiceResult(null);
+        }}
+        serviceAccount={customerServiceResult?.service_account || null}
+        assignmentMethod={customerServiceResult?.assignment_method}
+        error={customerServiceResult?.error}
+        onContact={() => {
+          if (customerServiceResult?.service_account) {
+            openSupportChat(customerServiceResult.service_account);
+          }
+        }}
+        onContactAdmin={() => {
+          openSupportChat('wushizhifu_jianglai');
+        }}
         lang={lang}
       />
 

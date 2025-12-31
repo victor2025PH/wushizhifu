@@ -1,4 +1,15 @@
 python bot.py
+客服名单
+@zxc123456cxsj
+@wubaizhifuaran
+@Mark77585
+@Moon727888
+@yuanpay_01
+@wushizhifu888
+@wushi987
+@xiaoyue5918
+@Aeight888 
+@wuzhifu_8
 
 # BotB
 sudo journalctl -u otc-bot.service -f

@@ -21,6 +21,11 @@ logger = logging.getLogger(__name__)
 @router.callback_query(F.data == "transactions")
 async def callback_transactions(callback: CallbackQuery):
     """Handle transaction records menu"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         user_id = callback.from_user.id
         
@@ -76,6 +81,11 @@ async def callback_transactions(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("filter_"))
 async def callback_filter_transactions(callback: CallbackQuery):
     """Handle transaction filtering"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         from datetime import datetime, timedelta
         from database.db import db
@@ -183,6 +193,11 @@ async def callback_filter_transactions(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("order_detail_"))
 async def callback_order_detail(callback: CallbackQuery):
     """Handle order detail view"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         order_id = callback.data.split("_", 2)[2]
         

@@ -23,6 +23,11 @@ _calc_states = {}
 @router.callback_query(F.data == "calculator")
 async def callback_calculator(callback: CallbackQuery):
     """Handle calculator menu"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         text = (
             "*🧮 伍拾支付计算器*\n\n"
@@ -45,6 +50,11 @@ async def callback_calculator(callback: CallbackQuery):
 @router.callback_query(F.data == "calc_fee")
 async def callback_calc_fee(callback: CallbackQuery):
     """Handle fee calculator"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         _calc_states[callback.from_user.id] = {"type": "fee"}
         
@@ -69,6 +79,11 @@ async def callback_calc_fee(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("calc_channel_"))
 async def callback_calc_channel(callback: CallbackQuery):
     """Handle calculator channel selection"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         channel = callback.data.split("_")[-1]
         user_id = callback.from_user.id
@@ -107,12 +122,22 @@ async def callback_calc_channel(callback: CallbackQuery):
 @router.callback_query(F.data == "calc_exchange")
 async def callback_calc_exchange(callback: CallbackQuery):
     """Handle exchange rate calculator - show P2P merchant leaderboard"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
+    
     try:
         user_id = callback.from_user.id
         _calc_states[user_id] = {"type": "exchange", "awaiting_amount": True}
         
         # Show P2P leaderboard with default payment method (alipay)
-        from services.p2p_leaderboard_service import get_p2p_leaderboard, format_p2p_leaderboard_html
+        # Use shared P2P service from root services directory
+        import sys
+        from pathlib import Path
+        root_dir = Path(__file__).parent.parent.parent
+        sys.path.insert(0, str(root_dir))
+        from services.p2p_leaderboard_service import get_p2p_leaderboard, format_p2p_leaderboard_html, PAYMENT_METHOD_LABELS
         
         # Send loading message
         loading_msg = await callback.message.edit_text("⏳ 正在获取实时币价行情...")
@@ -197,6 +222,10 @@ async def callback_calc_exchange(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("p2p_exchange_"))
 async def callback_p2p_exchange(callback: CallbackQuery):
     """Handle P2P exchange rate leaderboard pagination and payment method switch"""
+    # Skip if callback is from a group (Bot A should be silent in groups)
+    if callback.message.chat.type in ['group', 'supergroup']:
+        await callback.answer()
+        return
     try:
         query = callback.data
         await callback.answer("⏳ 正在加载...")
@@ -220,8 +249,12 @@ async def callback_p2p_exchange(callback: CallbackQuery):
         
         user_id = callback.from_user.id
         
-        # Get P2P leaderboard
-        from services.p2p_leaderboard_service import get_p2p_leaderboard, format_p2p_leaderboard_html
+        # Get P2P leaderboard - use shared service
+        import sys
+        from pathlib import Path
+        root_dir = Path(__file__).parent.parent.parent
+        sys.path.insert(0, str(root_dir))
+        from services.p2p_leaderboard_service import get_p2p_leaderboard, format_p2p_leaderboard_html, PAYMENT_METHOD_LABELS
         
         # Send loading
         await callback.answer("⏳ 正在获取最新汇率...")
@@ -246,7 +279,6 @@ async def callback_p2p_exchange(callback: CallbackQuery):
         
         # Recreate leaderboard_data structure
         from datetime import datetime
-        from services.p2p_leaderboard_service import PAYMENT_METHOD_LABELS
         
         payment_label = PAYMENT_METHOD_LABELS.get(payment_method.lower(), "支付宝")
         
@@ -309,6 +341,10 @@ async def callback_p2p_exchange(callback: CallbackQuery):
 @router.message(F.text.regexp(r'^\d+(\.\d+)?$'))
 async def handle_calculator_amount(message: Message):
     """Handle amount input for calculator (both fee and exchange)"""
+    # Skip if message is from a group (Bot A should be silent in groups)
+    if message.chat.type in ['group', 'supergroup']:
+        return
+    
     try:
         user_id = message.from_user.id
         
