@@ -5,7 +5,7 @@ Handles admin shortcuts, w0-w9 commands, pinyin commands, and math/settlement pr
 import re
 import logging
 from typing import Optional
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import MessageHandler, filters, ContextTypes
 from config import Config
 from database import db
@@ -2064,15 +2064,79 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
                 mark_help_shown(user_id, "📞 客服", shown=True)
         
-        contact_message = (
-            "📞 <b>联系人工客服</b>\n\n"
-            "如有任何问题，请联系管理员：\n"
-            "@wushizhifu_jianglai\n\n"
-            "或使用以下方式：\n"
-            "• 工作时间：7×24小时\n"
-            "• 响应时间：通常在5分钟内"
-        )
-        await send_group_message(update, contact_message, parse_mode="HTML")
+        # Handle customer service assignment based on chat type
+        if chat.type in ['group', 'supergroup']:
+            # In group: assign customer service and create link to private chat
+            try:
+                from services.customer_service_service import customer_service
+                
+                # Get current assignment strategy from settings
+                all_settings = db.get_all_settings()
+                assignment_method = all_settings.get('customer_service_strategy', 'smart')
+                
+                # Get user info
+                user = update.effective_user
+                username = user.username or f"user_{user.id}"
+                
+                # Assign customer service account
+                service_account = customer_service.assign_service(
+                    user_id=user.id,
+                    username=username,
+                    method=assignment_method
+                )
+                
+                if service_account:
+                    # Create inline keyboard with link to customer service
+                    keyboard = [
+                        [InlineKeyboardButton(
+                            f"💬 联系客服 @{service_account}",
+                            url=f"https://t.me/{service_account}"
+                        )]
+                    ]
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+                    
+                    contact_message = (
+                        f"📞 <b>联系人工客服</b>\n\n"
+                        f"已为您分配客服：<b>@{service_account}</b>\n\n"
+                        f"💡 点击下方按钮跳转到与客服的私聊对话\n\n"
+                        f"• 工作时间：7×24小时\n"
+                        f"• 响应时间：通常在5分钟内"
+                    )
+                    await send_group_message(update, contact_message, parse_mode="HTML", reply_markup=reply_markup)
+                    logger.info(f"Assigned customer service @{service_account} to user {user.id} in group {chat.id}")
+                else:
+                    # No available customer service
+                    contact_message = (
+                        "📞 <b>联系人工客服</b>\n\n"
+                        "⚠️ 当前没有可用的客服账号，请联系管理员：\n"
+                        "@wushizhifu_jianglai\n\n"
+                        "或稍后再试。"
+                    )
+                    await send_group_message(update, contact_message, parse_mode="HTML")
+                    logger.warning(f"No available customer service for user {user.id} in group {chat.id}")
+            except Exception as e:
+                logger.error(f"Error assigning customer service: {e}", exc_info=True)
+                # Fallback to default message
+                contact_message = (
+                    "📞 <b>联系人工客服</b>\n\n"
+                    "如有任何问题，请联系管理员：\n"
+                    "@wushizhifu_jianglai\n\n"
+                    "或使用以下方式：\n"
+                    "• 工作时间：7×24小时\n"
+                    "• 响应时间：通常在5分钟内"
+                )
+                await send_group_message(update, contact_message, parse_mode="HTML")
+        else:
+            # In private chat: show contact information
+            contact_message = (
+                "📞 <b>联系人工客服</b>\n\n"
+                "如有任何问题，请联系管理员：\n"
+                "@wushizhifu_jianglai\n\n"
+                "或使用以下方式：\n"
+                "• 工作时间：7×24小时\n"
+                "• 响应时间：通常在5分钟内"
+            )
+            await send_group_message(update, contact_message, parse_mode="HTML")
         return
     
     # Handle "📜 我的账单" button (both group and private)
