@@ -1240,15 +1240,15 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # 然后显示管理菜单（使用底部键盘）
         if is_group := chat.type in ['group', 'supergroup']:
-            # 群组设置菜单 - 暂时保留内联键盘（群组设置功能较简单）
-            from keyboards.inline_keyboard import get_group_settings_menu
-            reply_markup = get_group_settings_menu()
+            # 群组设置菜单 - 使用底部键盘
+            from keyboards.management_keyboard import get_group_settings_menu_keyboard
+            reply_keyboard = get_group_settings_menu_keyboard()
             message = (
                 "⚙️ <b>群组设置菜单</b>\n\n"
                 "请选择要执行的操作：\n\n"
                 "💡 <i>提示：上方已显示完整指令教程，也可以点击「⚡ 管理员指令教程」再次查看</i>"
             )
-            await send_group_message(update, message, parse_mode="HTML", inline_keyboard=reply_markup)
+            await update.message.reply_text(message, parse_mode="HTML", reply_markup=reply_keyboard)
         else:
             # 全局管理菜单 - 使用底部键盘
             from keyboards.management_keyboard import get_management_menu_keyboard
@@ -1402,6 +1402,138 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         await update.message.reply_text("📊 客服统计报表功能正在开发中，请使用指令或稍后再试")
+        return
+    
+    # Handle group settings menu buttons (bottom keyboard)
+    if text == "📋 查看群组设置":
+        if not is_admin_user:
+            await update.message.reply_text("❌ 此功能仅限管理员使用")
+            return
+        
+        if chat.type not in ['group', 'supergroup']:
+            await update.message.reply_text("❌ 此功能仅在群组中可用")
+            return
+        
+        await handle_admin_w0(update, context)
+        return
+    
+    if text == "➕ 设置加价":
+        if not is_admin_user:
+            await update.message.reply_text("❌ 此功能仅限管理员使用")
+            return
+        
+        if chat.type not in ['group', 'supergroup']:
+            await update.message.reply_text("❌ 此功能仅在群组中可用")
+            return
+        
+        context.user_data['waiting_for'] = 'group_markup'
+        await update.message.reply_text(
+            "➕ <b>设置群组加价</b>\n\n"
+            "请输入加价值（例如：0.5 或 -0.5）：\n\n"
+            "💡 <i>提示：正数表示加价，负数表示降价</i>",
+            parse_mode="HTML"
+        )
+        return
+    
+    if text == "📍 地址管理":
+        if not is_admin_user:
+            await update.message.reply_text("❌ 此功能仅限管理员使用")
+            return
+        
+        if chat.type not in ['group', 'supergroup']:
+            await update.message.reply_text("❌ 此功能仅在群组中可用")
+            return
+        
+        from handlers.address_handlers import handle_address_list
+        await handle_address_list(update, context)
+        return
+    
+    if text == "🔄 重置设置":
+        if not is_admin_user:
+            await update.message.reply_text("❌ 此功能仅限管理员使用")
+            return
+        
+        if chat.type not in ['group', 'supergroup']:
+            await update.message.reply_text("❌ 此功能仅在群组中可用")
+            return
+        
+        # Reset group settings
+        group_id = chat.id
+        db.reset_group_settings(group_id)
+        await update.message.reply_text(
+            "✅ <b>群组设置已重置</b>\n\n"
+            "群组将恢复使用全局默认设置。",
+            parse_mode="HTML"
+        )
+        return
+    
+    if text == "❌ 删除配置":
+        if not is_admin_user:
+            await update.message.reply_text("❌ 此功能仅限管理员使用")
+            return
+        
+        if chat.type not in ['group', 'supergroup']:
+            await update.message.reply_text("❌ 此功能仅在群组中可用")
+            return
+        
+        # Delete group settings
+        group_id = chat.id
+        db.delete_group_settings(group_id)
+        await update.message.reply_text(
+            "✅ <b>群组配置已删除</b>\n\n"
+            "群组的独立配置已被清除，将使用全局默认设置。",
+            parse_mode="HTML"
+        )
+        return
+    
+    if text == "⏳ 待支付交易":
+        if not is_admin_user:
+            await update.message.reply_text("❌ 此功能仅限管理员使用")
+            return
+        
+        if chat.type not in ['group', 'supergroup']:
+            await update.message.reply_text("❌ 此功能仅在群组中可用")
+            return
+        
+        from handlers.stats_handlers import handle_pending_transactions
+        await handle_pending_transactions(update, context, chat.id)
+        return
+    
+    if text == "✅ 待确认交易":
+        if not is_admin_user:
+            await update.message.reply_text("❌ 此功能仅限管理员使用")
+            return
+        
+        if chat.type not in ['group', 'supergroup']:
+            await update.message.reply_text("❌ 此功能仅在群组中可用")
+            return
+        
+        from handlers.stats_handlers import handle_paid_transactions
+        await handle_paid_transactions(update, context, chat.id)
+        return
+    
+    if text == "📥 导出报表":
+        if not is_admin_user:
+            await update.message.reply_text("❌ 此功能仅限管理员使用")
+            return
+        
+        if chat.type not in ['group', 'supergroup']:
+            await update.message.reply_text("❌ 此功能仅在群组中可用")
+            return
+        
+        await update.message.reply_text("📥 导出报表功能正在开发中，请使用指令或稍后再试")
+        return
+    
+    if text == "📋 操作日志":
+        if not is_admin_user:
+            await update.message.reply_text("❌ 此功能仅限管理员使用")
+            return
+        
+        if chat.type not in ['group', 'supergroup']:
+            await update.message.reply_text("❌ 此功能仅在群组中可用")
+            return
+        
+        await update.message.reply_text("📋 操作日志功能正在开发中，请使用指令或稍后再试")
         return
     
     if text in ["🔗 收款地址", "🔗 地址"]:

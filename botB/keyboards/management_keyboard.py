@@ -64,3 +64,49 @@ def get_customer_service_menu_keyboard() -> ReplyKeyboardMarkup:
         input_field_placeholder="请选择操作..."
     )
 
+
+def get_group_settings_menu_keyboard() -> ReplyKeyboardMarkup:
+    """
+    Get reply keyboard for group settings menu.
+    
+    Returns:
+        ReplyKeyboardMarkup with group settings options (2 per row where applicable)
+    """
+    keyboard = [
+        [
+            KeyboardButton("📋 查看群组设置")
+        ],
+        [
+            KeyboardButton("➕ 设置加价"),
+            KeyboardButton("📍 地址管理")
+        ],
+        [
+            KeyboardButton("🔄 重置设置"),
+            KeyboardButton("❌ 删除配置")
+        ],
+        [
+            KeyboardButton("⏳ 待支付交易"),
+            KeyboardButton("✅ 待确认交易")
+        ],
+        [
+            KeyboardButton("📊 群组统计"),
+            KeyboardButton("📥 导出报表")
+        ],
+        [
+            KeyboardButton("📋 操作日志")
+        ],
+        [
+            KeyboardButton("⚡ 管理员指令教程")
+        ],
+        [
+            KeyboardButton("🔙 返回主菜单")
+        ]
+    ]
+    
+    return ReplyKeyboardMarkup(
+        keyboard=keyboard,
+        resize_keyboard=True,
+        one_time_keyboard=False,
+        input_field_placeholder="请选择操作..."
+    )
+
