@@ -10,6 +10,7 @@ from config import Config
 from database import db
 from handlers.message_handlers import get_message_handler, handle_price_button, handle_today_bills_button
 from handlers.callback_handlers import get_callback_handler
+from handlers.group_tracking_handlers import get_chat_member_handler
 from admin_checker import is_admin as check_admin
 
 # Configure logging
@@ -346,6 +347,18 @@ async def post_init(application: Application) -> None:
         logger.info(f"✅ Menu button set: '💎 打开应用' -> {Config.get_miniapp_url('dashboard')}")
     except Exception as e:
         logger.error(f"Failed to set menu button: {e}", exc_info=True)
+    
+    # 方案一：啟動時同步群組 - 驗證資料庫中所有已知群組
+    # 延遲 30 秒後執行，避免在啟動時立即執行導致網絡超時
+    async def delayed_sync():
+        await asyncio.sleep(30)  # 等待 30 秒，讓機器人完全啟動
+        try:
+            from services.group_sync_service import sync_groups_on_startup
+            await sync_groups_on_startup(application.bot)
+        except Exception as e:
+            logger.error(f"啟動時同步群組失敗: {e}", exc_info=True)
+    
+    asyncio.create_task(delayed_sync())
 
 
 def main():
@@ -439,8 +452,29 @@ def main():
     # Register callback handler (for inline keyboard buttons)
     application.add_handler(get_callback_handler())
     
-    # Note: Chat member tracking is handled in message_handler via ensure_group_exists()
-    # When bot receives any message from a group, the group is automatically tracked
+    # 方案三：註冊 ChatMemberUpdated 事件處理器，自動追蹤機器人加入/離開群組
+    application.add_handler(get_chat_member_handler())
+    
+    # 添加全局錯誤處理器，處理網絡超時等錯誤
+    async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """處理未捕獲的錯誤"""
+        from telegram.error import TimedOut, NetworkError, RetryAfter
+        
+        error = context.error
+        if isinstance(error, (TimedOut, NetworkError)):
+            logger.warning(f"網絡錯誤（已忽略）: {error}")
+            return  # 網絡錯誤不影響機器人運行
+        elif isinstance(error, RetryAfter):
+            logger.warning(f"Telegram API 速率限制: {error}")
+            return
+        else:
+            logger.error(f"未處理的錯誤: {error}", exc_info=error)
+    
+    application.add_error_handler(error_handler)
+    
+    # Note: Chat member tracking is handled in multiple ways:
+    # 1. ChatMemberUpdated events (when bot is added/removed from groups)
+    # 2. Message handler via ensure_group_exists() (when bot receives messages from groups)
     
     
     logger.info("Bot B (OTC Group Management) starting...")

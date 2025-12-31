@@ -329,18 +329,19 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         # Get all group IDs from database (from group_settings and transactions)
+        # 改進：優先從 group_settings 獲取所有群組，包括非活躍的（用於顯示）
         conn = db.connect()
         cursor = conn.cursor()
         
-        # Get all unique group IDs from group_settings
-        cursor.execute("SELECT DISTINCT group_id FROM group_settings WHERE is_active = 1")
+        # 獲取所有群組（包括非活躍的，以便顯示完整列表）
+        cursor.execute("SELECT DISTINCT group_id FROM group_settings")
         configured_group_ids = [row['group_id'] for row in cursor.fetchall()]
         
-        # Get all unique group IDs from transactions
+        # 獲取有交易記錄的群組（補充可能遺漏的群組）
         cursor.execute("SELECT DISTINCT group_id FROM otc_transactions WHERE group_id IS NOT NULL")
         transaction_group_ids = [row['group_id'] for row in cursor.fetchall()]
         
-        # Combine and get unique group IDs
+        # 合併並去重
         all_group_ids = list(set(configured_group_ids + transaction_group_ids))
         
         if not all_group_ids:
@@ -355,6 +356,7 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Verify bot is still in each group and get group info
         valid_groups = []
+        inactive_groups = []  # 記錄無法訪問的群組
         from keyboards.inline_keyboard import get_groups_list_keyboard_with_edit
         
         for group_id in all_group_ids[:50]:  # Limit to 50 groups for API calls
@@ -362,11 +364,11 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # Verify bot is still in the group
                 chat = await bot.get_chat(group_id)
                 
-                # Get group settings if exists
+                # Get group settings if exists (包括非活躍的)
                 cursor.execute("""
-                    SELECT group_title, markup, usdt_address, created_at, updated_at
+                    SELECT group_title, markup, usdt_address, is_active, created_at, updated_at
                     FROM group_settings
-                    WHERE group_id = ? AND is_active = 1
+                    WHERE group_id = ?
                 """, (group_id,))
                 setting_row = cursor.fetchone()
                 
@@ -421,31 +423,67 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     is_configured = True
                 
                 group_title = setting_row['group_title'] if setting_row and setting_row.get('group_title') else chat.title
+                is_active = setting_row['is_active'] if setting_row else True
                 
                 group_data = {
                     'group_id': group_id,
                     'group_title': group_title,
                     'markup': markup,
                     'is_configured': is_configured,
+                    'is_active': bool(is_active),
                     'join_date': join_date_str,
                     'tx_count': tx_count
                 }
                 
-                # Update group_title in database if different
-                if setting_row and setting_row.get('group_title') != chat.title:
-                    cursor.execute("""
-                        UPDATE group_settings 
-                        SET group_title = ? 
-                        WHERE group_id = ?
-                    """, (chat.title, group_id))
-                    conn.commit()
-                    group_data['group_title'] = chat.title
+                # Update group_title and status in database if different
+                if setting_row:
+                    needs_update = False
+                    updates = []
+                    params = []
+                    
+                    if setting_row.get('group_title') != chat.title:
+                        updates.append("group_title = ?")
+                        params.append(chat.title)
+                        needs_update = True
+                    
+                    if not bool(setting_row.get('is_active')):
+                        updates.append("is_active = 1")
+                        needs_update = True
+                    
+                    if needs_update:
+                        updates.append("updated_at = CURRENT_TIMESTAMP")
+                        params.append(group_id)
+                        cursor.execute(f"""
+                            UPDATE group_settings 
+                            SET {', '.join(updates)}
+                            WHERE group_id = ?
+                        """, tuple(params))
+                        conn.commit()
+                        group_data['group_title'] = chat.title
+                        group_data['is_active'] = True
+                else:
+                    # 群組不在 group_settings 中，創建記錄
+                    db.ensure_group_exists(group_id, chat.title)
+                    group_data['is_active'] = True
                 
                 valid_groups.append(group_data)
                 
             except Exception as e:
                 # Bot is not in this group or cannot access it
                 logger.debug(f"Bot not in group {group_id} or cannot access: {e}")
+                
+                # 記錄無法訪問的群組資訊
+                cursor.execute("""
+                    SELECT group_title, is_active FROM group_settings WHERE group_id = ?
+                """, (group_id,))
+                inactive_row = cursor.fetchone()
+                
+                if inactive_row:
+                    inactive_groups.append({
+                        'group_id': group_id,
+                        'group_title': inactive_row['group_title'] or f"群組 {group_id}",
+                        'is_active': bool(inactive_row['is_active'])
+                    })
                 continue
         
         # Don't close connection - Database class manages it as singleton
@@ -461,9 +499,12 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Sort by group_id for consistent ordering
         valid_groups.sort(key=lambda x: x['group_id'])
+        inactive_groups.sort(key=lambda x: x['group_id'])
         
         message = f"📊 <b>所有群组列表</b>\n\n"
-        message += f"共 {len(valid_groups)} 个群组（机器人当前在的群组）\n"
+        message += f"✅ 活跃群组: {len(valid_groups)} 个\n"
+        if inactive_groups:
+            message += f"⚠️ 无法访问: {len(inactive_groups)} 个\n"
         message += "────────────────────────\n\n"
         
         configured_count = sum(1 for g in valid_groups if g.get('is_configured'))
@@ -472,29 +513,43 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message += f"• 使用全局默认: {len(valid_groups) - configured_count} 个\n\n"
         message += "────────────────────────\n\n"
         
-        # Display groups (limit to 20 for message length)
-        display_groups = valid_groups[:20]
-        for idx, group in enumerate(display_groups, 1):
-            group_title = group.get('group_title') or f"群组 {group['group_id']}"
-            is_configured = group.get('is_configured', False)
-            group_id = group['group_id']
-            markup = group.get('markup', 0.0)
-            join_date = group.get('join_date', '未知')
-            tx_count = group.get('tx_count', 0)
+        # Display active groups (limit to 20 for message length)
+        if valid_groups:
+            message += "<b>✅ 活跃群组：</b>\n\n"
+            display_groups = valid_groups[:20]
+            for idx, group in enumerate(display_groups, 1):
+                group_title = group.get('group_title') or f"群组 {group['group_id']}"
+                is_configured = group.get('is_configured', False)
+                group_id = group['group_id']
+                markup = group.get('markup', 0.0)
+                join_date = group.get('join_date', '未知')
+                tx_count = group.get('tx_count', 0)
+                
+                # Status indicator
+                status_icon = "⚙️" if is_configured else "🌐"
+                
+                message += f"{status_icon} <b>{idx}. {group_title}</b>\n"
+                message += f"   ID: <code>{group_id}</code>\n"
+                message += f"   加入日期: {join_date}\n"
+                message += f"   上浮汇率: {markup:+.4f} USDT\n"
+                if tx_count > 0:
+                    message += f"   交易记录: {tx_count} 笔\n"
+                message += "\n"
             
-            # Status indicator
-            status_icon = "⚙️" if is_configured else "🌐"
-            
-            message += f"{status_icon} <b>{idx}. {group_title}</b>\n"
-            message += f"   ID: <code>{group_id}</code>\n"
-            message += f"   加入日期: {join_date}\n"
-            message += f"   上浮汇率: {markup:+.4f} USDT\n"
-            if tx_count > 0:
-                message += f"   交易记录: {tx_count} 笔\n"
-            message += "\n"
+            if len(valid_groups) > 20:
+                message += f"\n... 还有 {len(valid_groups) - 20} 个活跃群组未显示\n"
         
-        if len(valid_groups) > 20:
-            message += f"\n... 还有 {len(valid_groups) - 20} 个群组未显示\n"
+        # Display inactive groups (limit to 5)
+        if inactive_groups:
+            message += "\n────────────────────────\n\n"
+            message += "<b>⚠️ 无法访问的群组：</b>\n\n"
+            display_inactive = inactive_groups[:5]
+            for idx, group in enumerate(display_inactive, 1):
+                message += f"❌ {idx}. {group['group_title']}\n"
+                message += f"   ID: <code>{group['group_id']}</code>\n\n"
+            
+            if len(inactive_groups) > 5:
+                message += f"... 还有 {len(inactive_groups) - 5} 个无法访问的群组\n"
         
         # Use management menu keyboard for navigation (return to management menu)
         from keyboards.management_keyboard import get_management_menu_keyboard
