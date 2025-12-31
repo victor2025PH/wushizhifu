@@ -1284,6 +1284,126 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await handle_global_stats(update, context)
         return
     
+    # Handle management menu buttons (bottom keyboard)
+    if text == "📊 所有群组列表":
+        if not is_admin_user:
+            await update.message.reply_text("❌ 此功能仅限管理员使用")
+            return
+        
+        # Show groups list
+        await handle_admin_w7(update, context)
+        return
+    
+    if text == "📈 全局统计":
+        if not is_admin_user:
+            await update.message.reply_text("❌ 此功能仅限管理员使用")
+            return
+        
+        from handlers.stats_handlers import handle_global_stats
+        await handle_global_stats(update, context)
+        return
+    
+    if text == "👥 客服管理":
+        if not is_admin_user:
+            await update.message.reply_text("❌ 此功能仅限管理员使用")
+            return
+        
+        # Show customer service management menu with bottom keyboard
+        from keyboards.management_keyboard import get_customer_service_menu_keyboard
+        reply_keyboard = get_customer_service_menu_keyboard()
+        message = (
+            "👥 <b>客服管理</b>\n\n"
+            "请选择要执行的操作：\n\n"
+            "• <b>客服账号列表</b>：查看和管理所有客服账号\n"
+            "• <b>添加客服账号</b>：添加新的客服账号\n"
+            "• <b>分配策略设置</b>：配置客服分配方式\n"
+            "• <b>客服统计报表</b>：查看客服工作统计"
+        )
+        await update.message.reply_text(message, parse_mode="HTML", reply_markup=reply_keyboard)
+        return
+    
+    if text == "⚡ 管理员指令教程":
+        if not is_admin_user:
+            await update.message.reply_text("❌ 此功能仅限管理员使用")
+            return
+        
+        from handlers.admin_commands_handlers import handle_admin_commands_help
+        await handle_admin_commands_help(update, context)
+        return
+    
+    if text == "🔙 返回主菜单":
+        # Return to main menu
+        from keyboards.reply_keyboard import get_main_reply_keyboard
+        user = update.effective_user
+        user_info_dict = {
+            'id': user.id,
+            'first_name': user.first_name or '',
+            'username': user.username,
+            'language_code': user.language_code
+        }
+        is_group = chat.type in ['group', 'supergroup']
+        reply_keyboard = get_main_reply_keyboard(user.id, is_group=is_group, user_info=user_info_dict)
+        message = (
+            "🏠 <b>主菜单</b>\n\n"
+            "欢迎使用 OTC 群组管理 Bot\n\n"
+            "请选择要执行的操作："
+        )
+        await update.message.reply_text(message, parse_mode="HTML", reply_markup=reply_keyboard)
+        return
+    
+    if text == "🔙 返回管理菜单":
+        if not is_admin_user:
+            await update.message.reply_text("❌ 此功能仅限管理员使用")
+            return
+        
+        # Return to management menu
+        from keyboards.management_keyboard import get_management_menu_keyboard
+        reply_keyboard = get_management_menu_keyboard()
+        message = (
+            "🌐 <b>全局管理菜单</b>\n\n"
+            "请选择要执行的操作："
+        )
+        await update.message.reply_text(message, parse_mode="HTML", reply_markup=reply_keyboard)
+        return
+    
+    # Handle customer service management menu buttons
+    if text == "📋 客服账号列表":
+        if not is_admin_user:
+            await update.message.reply_text("❌ 此功能仅限管理员使用")
+            return
+        
+        await update.message.reply_text("📋 客服账号列表功能正在开发中，请使用指令或稍后再试")
+        return
+    
+    if text == "➕ 添加客服账号":
+        if not is_admin_user:
+            await update.message.reply_text("❌ 此功能仅限管理员使用")
+            return
+        
+        context.user_data['waiting_for'] = 'customer_service_username'
+        await update.message.reply_text(
+            "➕ <b>添加客服账号</b>\n\n"
+            "请输入客服的 Telegram 用户名（例如：@username）：",
+            parse_mode="HTML"
+        )
+        return
+    
+    if text == "⚙️ 分配策略设置":
+        if not is_admin_user:
+            await update.message.reply_text("❌ 此功能仅限管理员使用")
+            return
+        
+        await update.message.reply_text("⚙️ 分配策略设置功能正在开发中，请使用指令或稍后再试")
+        return
+    
+    if text == "📊 客服统计报表":
+        if not is_admin_user:
+            await update.message.reply_text("❌ 此功能仅限管理员使用")
+            return
+        
+        await update.message.reply_text("📊 客服统计报表功能正在开发中，请使用指令或稍后再试")
+        return
+    
     if text in ["🔗 收款地址", "🔗 地址"]:
         # Show help if needed
         if should_show_help(user_id, "🔗 地址"):
