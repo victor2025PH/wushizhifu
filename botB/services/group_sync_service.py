@@ -123,6 +123,7 @@ async def sync_groups_on_startup(bot) -> Dict[str, int]:
                     title_changed = existing['group_title'] != new_title
                     status_changed = existing['is_active'] != 1
                     
+                    # 驗證成功時，無論如何都要更新 updated_at 和確保 is_active = 1
                     if title_changed or status_changed:
                         # 更新群組標題和狀態
                         cursor.execute("""
@@ -134,19 +135,19 @@ async def sync_groups_on_startup(bot) -> Dict[str, int]:
                         """, (new_title, group_id))
                         conn.commit()
                         stats['updated'] += 1
-                        logger.debug(f"✅ 更新群組 {group_id}: 標題={title_changed}, 狀態={status_changed}")
+                        logger.info(f"✅ 更新群組 {group_id}: 標題={title_changed}, 狀態={status_changed}")
                     else:
-                        # 即使不需要更新，也確保 is_active = 1（驗證成功意味著機器人在群組中）
-                        # 這是一個安全措施，確保狀態正確
+                        # 即使標題和狀態都沒變，也要更新 updated_at（表示驗證成功）
+                        # 這確保了資料庫記錄是最新的
                         cursor.execute("""
                             UPDATE group_settings 
-                            SET is_active = 1
-                            WHERE group_id = ? AND is_active != 1
+                            SET updated_at = CURRENT_TIMESTAMP,
+                                is_active = 1
+                            WHERE group_id = ?
                         """, (group_id,))
-                        if cursor.rowcount > 0:
-                            conn.commit()
-                            stats['updated'] += 1
-                            logger.debug(f"✅ 強制更新群組 {group_id} 狀態為活躍")
+                        conn.commit()
+                        stats['updated'] += 1
+                        logger.debug(f"✅ 更新群組 {group_id} 的驗證時間戳")
                 else:
                     # 群組不在 group_settings 中，創建記錄
                     db.ensure_group_exists(group_id, new_title)

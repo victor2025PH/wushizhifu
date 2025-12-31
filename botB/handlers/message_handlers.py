@@ -376,9 +376,9 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         WHERE group_id = ?
                     """, (group_id,))
                     setting_row = cursor.fetchone()
-                    if setting_row and setting_row.get('is_active'):
+                    if setting_row and setting_row['is_active']:
                         # 如果資料庫中標記為活躍，即使無法驗證也顯示
-                        group_title = setting_row.get('group_title') or f"群組 {group_id}"
+                        group_title = setting_row['group_title'] if setting_row['group_title'] else f"群組 {group_id}"
                         # 使用資料庫中的資訊創建群組數據
                         # ... 繼續處理
                         raise Exception("Timeout but will handle in except block")
@@ -413,7 +413,7 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 # Determine join date (prefer group_settings.created_at, fallback to first transaction)
                 join_date = None
-                if setting_row and setting_row.get('created_at'):
+                if setting_row and setting_row['created_at']:
                     join_date = setting_row['created_at']
                 elif first_transaction:
                     join_date = first_transaction
@@ -436,14 +436,18 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         join_date_str = str(join_date)[:10] if join_date else "未知"
                 
                 # Get markup (group-specific or global)
-                markup = float(setting_row['markup']) if setting_row and setting_row.get('markup') is not None else None
+                # 修復：sqlite3.Row 不支持 .get()，使用字典式訪問
+                markup = None
+                if setting_row and setting_row['markup'] is not None:
+                    markup = float(setting_row['markup'])
+                
                 if markup is None:
                     markup = db.get_admin_markup()
                     is_configured = False
                 else:
                     is_configured = True
                 
-                group_title = setting_row['group_title'] if setting_row and setting_row.get('group_title') else chat.title
+                group_title = setting_row['group_title'] if setting_row and setting_row['group_title'] else chat.title
                 is_active = setting_row['is_active'] if setting_row else True
                 
                 group_data = {
@@ -462,12 +466,13 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     updates = []
                     params = []
                     
-                    if setting_row.get('group_title') != chat.title:
+                    # 修復：sqlite3.Row 不支持 .get()，使用字典式訪問
+                    if setting_row['group_title'] != chat.title:
                         updates.append("group_title = ?")
                         params.append(chat.title)
                         needs_update = True
                     
-                    if not bool(setting_row.get('is_active')):
+                    if not bool(setting_row['is_active']):
                         updates.append("is_active = 1")
                         needs_update = True
                     
@@ -517,8 +522,10 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             
                             if db_row:
                                 # 使用資料庫中的資訊創建群組數據
-                                markup = float(db_row['markup']) if db_row.get('markup') is not None else db.get_admin_markup()
-                                is_configured = db_row.get('markup') is not None
+                                # 修復：sqlite3.Row 不支持 .get()，使用字典式訪問
+                                markup_value = db_row['markup'] if db_row['markup'] is not None else None
+                                markup = float(markup_value) if markup_value is not None else db.get_admin_markup()
+                                is_configured = db_row['markup'] is not None
                                 
                                 # 獲取交易統計
                                 cursor.execute("""
@@ -530,7 +537,7 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 tx_count = tx_row['tx_count'] if tx_row else 0
                                 
                                 # 格式化加入日期
-                                join_date = db_row.get('created_at')
+                                join_date = db_row['created_at'] if db_row['created_at'] else None
                                 join_date_str = "未知"
                                 if join_date:
                                     try:
@@ -548,7 +555,7 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 
                                 group_data = {
                                     'group_id': group_id,
-                                    'group_title': db_row.get('group_title') or f"群組 {group_id}",
+                                    'group_title': db_row['group_title'] if db_row['group_title'] else f"群組 {group_id}",
                                     'markup': markup,
                                     'is_configured': is_configured,
                                     'is_active': True,  # 資料庫中標記為活躍
