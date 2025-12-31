@@ -361,63 +361,28 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         # Verify bot is still in each group and get group info
+        # 策略：只要機器人在群組中（能成功 get_chat），就顯示這個群組
         valid_groups = []
         inactive_groups = []  # 記錄無法訪問的群組
         from keyboards.inline_keyboard import get_groups_list_keyboard_with_edit
         
         for group_id in all_group_ids[:50]:  # Limit to 50 groups for API calls
             try:
-                # Verify bot is still in the group (添加超時處理)
-                # 使用更短的超時時間，避免長時間等待
+                # 驗證機器人是否在群組中：只要 get_chat 成功，就認為機器人在群組中
+                # 使用較長的超時時間，避免網絡問題導致誤判
                 try:
                     chat = await asyncio.wait_for(
                         bot.get_chat(group_id),
-                        timeout=5.0  # 減少到5秒超時
+                        timeout=10.0  # 增加到10秒超時，給網絡更多時間
                     )
                 except asyncio.TimeoutError:
-                    # 超時時，檢查資料庫中的狀態
-                    cursor.execute("""
-                        SELECT group_title, is_active, updated_at
-                        FROM group_settings
-                        WHERE group_id = ?
-                    """, (group_id,))
-                    setting_row = cursor.fetchone()
-                    
-                    if setting_row:
-                        # 檢查最後更新時間，如果很久沒更新，可能是群組不存在
-                        from datetime import datetime, timedelta
-                        updated_at = setting_row['updated_at']
-                        if updated_at:
-                            try:
-                                if isinstance(updated_at, str):
-                                    last_update = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
-                                else:
-                                    last_update = updated_at
-                                
-                                # 如果超過1小時沒更新，且標記為活躍，可能是群組不存在
-                                if datetime.now() - last_update.replace(tzinfo=None) > timedelta(hours=1):
-                                    logger.info(f"🗑️ 群組 {group_id} 超時且長時間未更新，標記為非活躍")
-                                    cursor.execute("""
-                                        UPDATE group_settings 
-                                        SET is_active = 0,
-                                            updated_at = CURRENT_TIMESTAMP
-                                        WHERE group_id = ?
-                                    """, (group_id,))
-                                    conn.commit()
-                                    continue
-                            except Exception as e:
-                                logger.debug(f"解析更新時間失敗: {e}")
-                        
-                        # 如果標記為活躍，可能是臨時網絡問題，從資料庫讀取
-                        if setting_row['is_active']:
-                            logger.warning(f"⚠️ 群組 {group_id} 驗證超時，從資料庫讀取資訊")
-                            raise Exception("Timeout but will handle in except block")
-                        else:
-                            # 非活躍群組，跳過
-                            continue
-                    else:
-                        # 資料庫中沒有記錄，跳過
-                        continue
+                    # 超時：可能是網絡問題，不標記為非活躍，跳過本次驗證
+                    logger.warning(f"⚠️ 群組 {group_id} 驗證超時（可能是網絡問題），跳過本次驗證")
+                    continue
+                except Exception as timeout_err:
+                    # 其他超時相關錯誤，也跳過
+                    logger.warning(f"⚠️ 群組 {group_id} 驗證時發生錯誤: {timeout_err}，跳過本次驗證")
+                    continue
                 
                 # Get group settings if exists (包括非活躍的)
                 cursor.execute("""
@@ -556,12 +521,12 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 error_msg = str(e).lower()
                 logger.debug(f"群組 {group_id} 驗證失敗: {e}")
                 
-                # 檢查錯誤類型，區分「群組不存在」和「網絡問題」
+                # 只處理明確的錯誤：群組不存在或機器人被移除
+                # 其他錯誤（如網絡問題）不標記為非活躍，跳過本次驗證
                 is_chat_not_found = (
                     'chat not found' in error_msg or 
                     'not found' in error_msg or
-                    'chat_id is empty' in error_msg or
-                    'bad request' in error_msg  # Bad Request 有時也表示群組不存在
+                    'chat_id is empty' in error_msg
                 )
                 is_unauthorized = (
                     'unauthorized' in error_msg or 
@@ -570,128 +535,31 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     'bot is not a member' in error_msg
                 )
                 
-                # 記錄無法訪問的群組資訊
-                cursor.execute("""
-                    SELECT group_title, is_active, updated_at FROM group_settings WHERE group_id = ?
-                """, (group_id,))
-                inactive_row = cursor.fetchone()
+                # 只有明確的錯誤才標記為非活躍
+                if is_chat_not_found or is_unauthorized:
+                    logger.info(f"🗑️ 群組 {group_id} 不存在或機器人已被移除，標記為非活躍")
+                    cursor.execute("""
+                        UPDATE group_settings 
+                        SET is_active = 0,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE group_id = ?
+                    """, (group_id,))
+                    conn.commit()
+                    # 記錄到 inactive_groups 但不顯示
+                    cursor.execute("""
+                        SELECT group_title FROM group_settings WHERE group_id = ?
+                    """, (group_id,))
+                    inactive_row = cursor.fetchone()
+                    if inactive_row:
+                        inactive_groups.append({
+                            'group_id': group_id,
+                            'group_title': inactive_row['group_title'] or f"群組 {group_id}",
+                            'is_active': False
+                        })
+                else:
+                    # 其他錯誤（可能是網絡問題），不標記為非活躍，跳過本次驗證
+                    logger.warning(f"⚠️ 群組 {group_id} 驗證失敗（可能是網絡問題）: {e}，跳過本次驗證")
                 
-                if inactive_row:
-                    # 如果群組不存在或被踢出，標記為非活躍
-                    if is_chat_not_found or is_unauthorized:
-                        logger.info(f"🗑️ 群組 {group_id} 不存在或機器人已被移除，標記為非活躍")
-                        cursor.execute("""
-                            UPDATE group_settings 
-                            SET is_active = 0,
-                                updated_at = CURRENT_TIMESTAMP
-                            WHERE group_id = ?
-                        """, (group_id,))
-                        conn.commit()
-                        # 不添加到 valid_groups，直接跳過
-                        continue
-                    
-                    # 檢查最後更新時間，如果很久沒更新且驗證失敗，可能是群組不存在
-                    from datetime import datetime, timedelta
-                    updated_at = inactive_row['updated_at']
-                    is_old_record = False
-                    if updated_at:
-                        try:
-                            if isinstance(updated_at, str):
-                                try:
-                                    last_update = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
-                                except:
-                                    last_update = datetime.strptime(updated_at[:19], '%Y-%m-%d %H:%M:%S')
-                            else:
-                                last_update = updated_at
-                            
-                            # 計算時間差
-                            if last_update.tzinfo:
-                                time_diff = datetime.now() - last_update.replace(tzinfo=None)
-                            else:
-                                time_diff = datetime.now() - last_update
-                            
-                            # 如果超過30分鐘沒更新，且驗證失敗，可能是群組不存在
-                            if time_diff > timedelta(minutes=30):
-                                is_old_record = True
-                                logger.info(f"🗑️ 群組 {group_id} 驗證失敗且長時間未更新（{time_diff}），標記為非活躍")
-                                cursor.execute("""
-                                    UPDATE group_settings 
-                                    SET is_active = 0,
-                                        updated_at = CURRENT_TIMESTAMP
-                                    WHERE group_id = ?
-                                """, (group_id,))
-                                conn.commit()
-                                continue
-                        except Exception as e:
-                            logger.debug(f"解析更新時間失敗: {e}")
-                    
-                    # 如果資料庫中標記為活躍，但驗證失敗，可能是臨時網絡問題
-                    # 仍然顯示，但標記為可能無法訪問
-                    if inactive_row['is_active'] and not is_old_record:
-                        logger.warning(f"⚠️ 群組 {group_id} 在資料庫中標記為活躍，但驗證失敗（可能是網絡問題）")
-                        # 仍然添加到 valid_groups，但標記為可能無法訪問
-                        try:
-                            # 嘗試從資料庫獲取基本信息
-                            cursor.execute("""
-                                SELECT group_title, markup, usdt_address, created_at
-                                FROM group_settings
-                                WHERE group_id = ?
-                            """, (group_id,))
-                            db_row = cursor.fetchone()
-                            
-                            if db_row:
-                                # 使用資料庫中的資訊創建群組數據
-                                # 修復：sqlite3.Row 不支持 .get()，使用字典式訪問
-                                markup_value = db_row['markup'] if db_row['markup'] is not None else None
-                                markup = float(markup_value) if markup_value is not None else db.get_admin_markup()
-                                is_configured = db_row['markup'] is not None
-                                
-                                # 獲取交易統計
-                                cursor.execute("""
-                                    SELECT COUNT(*) as tx_count, MIN(created_at) as first_transaction
-                                    FROM otc_transactions
-                                    WHERE group_id = ?
-                                """, (group_id,))
-                                tx_row = cursor.fetchone()
-                                tx_count = tx_row['tx_count'] if tx_row else 0
-                                
-                                # 格式化加入日期
-                                join_date = db_row['created_at'] if db_row['created_at'] else None
-                                join_date_str = "未知"
-                                if join_date:
-                                    try:
-                                        from datetime import datetime
-                                        if isinstance(join_date, str):
-                                            try:
-                                                dt = datetime.fromisoformat(join_date.replace('Z', '+00:00'))
-                                            except:
-                                                dt = datetime.strptime(join_date[:10], '%Y-%m-%d')
-                                        else:
-                                            dt = join_date
-                                        join_date_str = dt.strftime('%Y-%m-%d')
-                                    except:
-                                        join_date_str = str(join_date)[:10] if join_date else "未知"
-                                
-                                group_data = {
-                                    'group_id': group_id,
-                                    'group_title': db_row['group_title'] if db_row['group_title'] else f"群組 {group_id}",
-                                    'markup': markup,
-                                    'is_configured': is_configured,
-                                    'is_active': True,  # 資料庫中標記為活躍
-                                    'join_date': join_date_str,
-                                    'tx_count': tx_count,
-                                    'warning': True  # 標記為可能有問題
-                                }
-                                valid_groups.append(group_data)
-                                continue
-                        except Exception as db_err:
-                            logger.error(f"從資料庫讀取群組 {group_id} 資訊失敗: {db_err}")
-                    
-                    inactive_groups.append({
-                        'group_id': group_id,
-                        'group_title': inactive_row['group_title'] or f"群組 {group_id}",
-                        'is_active': bool(inactive_row['is_active'])
-                    })
                 continue
         
         # Don't close connection - Database class manages it as singleton
@@ -1837,7 +1705,31 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ 此功能仅限管理员使用")
             return
         
-        await update.message.reply_text("⚙️ 分配策略设置功能正在开发中，请使用指令或稍后再试")
+        # Display customer service assignment strategy settings
+        try:
+            from services.customer_service_service import customer_service
+            from keyboards.inline_keyboard import get_customer_service_strategy_keyboard
+            
+            # Get current strategy from settings (default: smart)
+            all_settings = db.get_all_settings()
+            current_method = all_settings.get('customer_service_strategy', 'smart')
+            
+            # Format message
+            method_display = customer_service.get_assignment_method_display_name(current_method)
+            message = f"⚙️ <b>分配策略设置</b>\n\n"
+            message += f"当前策略：<b>{method_display}</b>\n\n"
+            message += "可选策略：\n"
+            message += "• <b>智能混合分配</b>：综合考虑在线状态、工作量、权重（推荐）\n"
+            message += "• <b>简单轮询</b>：按顺序依次分配\n"
+            message += "• <b>最少任务优先</b>：分配给当前接待最少的客服\n"
+            message += "• <b>权重分配</b>：按权重比例分配\n"
+            
+            reply_markup = get_customer_service_strategy_keyboard(current_method=current_method)
+            await update.message.reply_text(message, parse_mode="HTML", reply_markup=reply_markup)
+            logger.info(f"Admin {user_id} viewed customer service strategy settings")
+        except Exception as e:
+            logger.error(f"Error displaying customer service strategy settings: {e}", exc_info=True)
+            await update.message.reply_text(f"❌ 显示分配策略设置时出错: {str(e)}")
         return
     
     if text == "📊 客服统计报表":
