@@ -782,6 +782,11 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_admin_user = is_admin(user_id)
     chat = update.effective_chat
     
+    # Auto-track groups: ensure group exists in database when bot receives group messages
+    # This allows "所有群组列表" to detect all groups bot is in, not just those with transactions/settings
+    if chat.type in ['group', 'supergroup']:
+        db.ensure_group_exists(chat.id, chat.title)
+    
     # Update user last active timestamp
     db.update_user_last_active(user_id)
     

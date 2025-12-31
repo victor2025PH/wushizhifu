@@ -635,6 +635,53 @@ class Database:
             logger.error(f"Error setting group address: {e}", exc_info=True)
             return False
     
+    def ensure_group_exists(self, group_id: int, group_title: str = None) -> bool:
+        """
+        Ensure group record exists in database (auto-create if not exists).
+        This is called automatically when bot receives messages from groups to track all groups.
+        
+        Args:
+            group_id: Telegram group ID
+            group_title: Optional group title
+            
+        Returns:
+            True if successful
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            # Check if group already exists
+            cursor.execute("""
+                SELECT id FROM group_settings WHERE group_id = ?
+            """, (group_id,))
+            
+            if cursor.fetchone():
+                # Group exists, just update title if provided and different
+                if group_title:
+                    cursor.execute("""
+                        UPDATE group_settings 
+                        SET group_title = COALESCE(?, group_title),
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE group_id = ? AND (group_title IS NULL OR group_title != ?)
+                    """, (group_title, group_id, group_title))
+                    conn.commit()
+                return True
+            
+            # Group doesn't exist, create it
+            cursor.execute("""
+                INSERT INTO group_settings (group_id, group_title, is_active, created_at, updated_at)
+                VALUES (?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """, (group_id, group_title))
+            
+            conn.commit()
+            logger.debug(f"Auto-created group record: {group_id} - {group_title or 'Unknown'}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error ensuring group exists: {e}", exc_info=True)
+            return False
+    
     def reset_group_settings(self, group_id: int) -> bool:
         """
         Reset group settings to use global defaults (deactivate group-specific settings).
