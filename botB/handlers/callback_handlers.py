@@ -493,6 +493,9 @@ async def handle_global_management_menu(update: Update, context: ContextTypes.DE
         from keyboards.inline_keyboard import get_button_help_keyboard
         
         if callback_data == "global_groups_list":
+            # Answer callback first to prevent timeout
+            await query.answer()
+            
             # Show help if needed
             if should_show_help(query.from_user.id, "所有群组列表"):
                 help_message = format_button_help_message("所有群组列表")
@@ -501,10 +504,14 @@ async def handle_global_management_menu(update: Update, context: ContextTypes.DE
                     await query.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
                     mark_help_shown(query.from_user.id, "所有群组列表", shown=True)
             
-            # Call handle_admin_w7, which will handle query.answer() internally
+            # Call handle_admin_w7 to show groups list
+            # handle_admin_w7 will edit the original message (global management menu) to show groups list
             from handlers.message_handlers import handle_admin_w7
-            await handle_admin_w7(update, context)
-            # Note: handle_admin_w7 already calls query.answer(), so we don't call it here
+            try:
+                await handle_admin_w7(update, context)
+            except Exception as e:
+                logger.error(f"Error calling handle_admin_w7 from callback: {e}", exc_info=True)
+                await query.message.reply_text(f"❌ 错误: {str(e)}", parse_mode="HTML")
             return
         
         elif callback_data == "global_stats":
