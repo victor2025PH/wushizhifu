@@ -80,58 +80,7 @@ async def cmd_start(message: Message):
         else:
             logger.warning("Logo file not found, skipping image step")
         
-        # Delay before next step (1 second per block)
-        await asyncio.sleep(1.0)
-        
-        # === STEP 2: Personalized Welcome Message ===
-        try:
-            welcome_card = MessageService.generate_welcome_card(user, is_new_user)
-            await message.answer(
-                text=welcome_card,
-                parse_mode="MarkdownV2"
-            )
-        except Exception as e:
-            logger.error(f"Error sending welcome card: {e}", exc_info=True)
-        
-        await asyncio.sleep(1.0)
-        
-        # === STEP 3: System Status Panel ===
-        try:
-            status_panel = MessageService.generate_system_status_panel()
-            await message.answer(
-                text=status_panel,
-                parse_mode="MarkdownV2"
-            )
-        except Exception as e:
-            logger.error(f"Error sending status panel: {e}", exc_info=True)
-        
-        await asyncio.sleep(1.0)
-        
-        # === STEP 4: Service Highlights (Direct Display) ===
-        try:
-            highlights = MessageService.generate_service_highlights()
-            await message.answer(
-                text=highlights,
-                parse_mode="MarkdownV2"
-            )
-        except Exception as e:
-            logger.error(f"Error sending highlights: {e}", exc_info=True)
-        
-        await asyncio.sleep(1.0)
-        
-        # === STEP 5: Exchange Rate Card ===
-        try:
-            rate_card = MessageService.generate_exchange_rate_card()
-            await message.answer(
-                text=rate_card,
-                parse_mode="MarkdownV2"
-            )
-        except Exception as e:
-            logger.error(f"Error sending rate card: {e}", exc_info=True)
-        
-        await asyncio.sleep(1.0)
-        
-        # === STEP 7: Action Prompt + Keyboard ===
+        # === STEP 2: Action Prompt + Keyboard ===
         try:
             action_prompt = MessageService.generate_action_prompt()
             
