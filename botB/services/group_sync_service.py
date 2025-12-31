@@ -118,13 +118,13 @@ async def sync_groups_on_startup(bot) -> Dict[str, int]:
                 needs_update = False
                 
                 if existing:
-                    # 更新群組標題和狀態
-                    if existing['group_title'] != new_title:
-                        needs_update = True
-                    if existing['is_active'] != 1:
-                        needs_update = True
+                    # 驗證成功意味著機器人在群組中，必須確保 is_active = 1
+                    # 檢查是否需要更新
+                    title_changed = existing['group_title'] != new_title
+                    status_changed = existing['is_active'] != 1
                     
-                    if needs_update:
+                    if title_changed or status_changed:
+                        # 更新群組標題和狀態
                         cursor.execute("""
                             UPDATE group_settings 
                             SET group_title = ?,
@@ -134,9 +134,29 @@ async def sync_groups_on_startup(bot) -> Dict[str, int]:
                         """, (new_title, group_id))
                         conn.commit()
                         stats['updated'] += 1
+                        logger.debug(f"✅ 更新群組 {group_id}: 標題={title_changed}, 狀態={status_changed}")
+                    else:
+                        # 即使不需要更新，也確保 is_active = 1（驗證成功意味著機器人在群組中）
+                        # 這是一個安全措施，確保狀態正確
+                        cursor.execute("""
+                            UPDATE group_settings 
+                            SET is_active = 1
+                            WHERE group_id = ? AND is_active != 1
+                        """, (group_id,))
+                        if cursor.rowcount > 0:
+                            conn.commit()
+                            stats['updated'] += 1
+                            logger.debug(f"✅ 強制更新群組 {group_id} 狀態為活躍")
                 else:
                     # 群組不在 group_settings 中，創建記錄
                     db.ensure_group_exists(group_id, new_title)
+                    # 確保新創建的記錄 is_active = 1
+                    cursor.execute("""
+                        UPDATE group_settings 
+                        SET is_active = 1
+                        WHERE group_id = ?
+                    """, (group_id,))
+                    conn.commit()
                     stats['updated'] += 1
                 
             except Exception as e:

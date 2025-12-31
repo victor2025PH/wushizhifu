@@ -361,8 +361,29 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         for group_id in all_group_ids[:50]:  # Limit to 50 groups for API calls
             try:
-                # Verify bot is still in the group
-                chat = await bot.get_chat(group_id)
+                # Verify bot is still in the group (添加超時處理)
+                try:
+                    chat = await asyncio.wait_for(
+                        bot.get_chat(group_id),
+                        timeout=10.0  # 10秒超時
+                    )
+                except asyncio.TimeoutError:
+                    logger.warning(f"獲取群組 {group_id} 資訊超時")
+                    # 即使超時，也嘗試從資料庫讀取資訊顯示
+                    cursor.execute("""
+                        SELECT group_title, markup, usdt_address, is_active, created_at, updated_at
+                        FROM group_settings
+                        WHERE group_id = ?
+                    """, (group_id,))
+                    setting_row = cursor.fetchone()
+                    if setting_row and setting_row.get('is_active'):
+                        # 如果資料庫中標記為活躍，即使無法驗證也顯示
+                        group_title = setting_row.get('group_title') or f"群組 {group_id}"
+                        # 使用資料庫中的資訊創建群組數據
+                        # ... 繼續處理
+                        raise Exception("Timeout but will handle in except block")
+                    else:
+                        raise Exception("Timeout and not active")
                 
                 # Get group settings if exists (包括非活躍的)
                 cursor.execute("""
@@ -470,7 +491,8 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
             except Exception as e:
                 # Bot is not in this group or cannot access it
-                logger.debug(f"Bot not in group {group_id} or cannot access: {e}")
+                error_msg = str(e).lower()
+                logger.debug(f"群組 {group_id} 驗證失敗: {e}")
                 
                 # 記錄無法訪問的群組資訊
                 cursor.execute("""
@@ -479,6 +501,66 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 inactive_row = cursor.fetchone()
                 
                 if inactive_row:
+                    # 如果資料庫中標記為活躍，但驗證失敗，可能是臨時網絡問題
+                    # 仍然顯示，但標記為可能無法訪問
+                    if inactive_row['is_active']:
+                        logger.warning(f"⚠️ 群組 {group_id} 在資料庫中標記為活躍，但驗證失敗（可能是網絡問題）")
+                        # 仍然添加到 valid_groups，但標記為可能無法訪問
+                        try:
+                            # 嘗試從資料庫獲取基本信息
+                            cursor.execute("""
+                                SELECT group_title, markup, usdt_address, created_at
+                                FROM group_settings
+                                WHERE group_id = ?
+                            """, (group_id,))
+                            db_row = cursor.fetchone()
+                            
+                            if db_row:
+                                # 使用資料庫中的資訊創建群組數據
+                                markup = float(db_row['markup']) if db_row.get('markup') is not None else db.get_admin_markup()
+                                is_configured = db_row.get('markup') is not None
+                                
+                                # 獲取交易統計
+                                cursor.execute("""
+                                    SELECT COUNT(*) as tx_count, MIN(created_at) as first_transaction
+                                    FROM otc_transactions
+                                    WHERE group_id = ?
+                                """, (group_id,))
+                                tx_row = cursor.fetchone()
+                                tx_count = tx_row['tx_count'] if tx_row else 0
+                                
+                                # 格式化加入日期
+                                join_date = db_row.get('created_at')
+                                join_date_str = "未知"
+                                if join_date:
+                                    try:
+                                        from datetime import datetime
+                                        if isinstance(join_date, str):
+                                            try:
+                                                dt = datetime.fromisoformat(join_date.replace('Z', '+00:00'))
+                                            except:
+                                                dt = datetime.strptime(join_date[:10], '%Y-%m-%d')
+                                        else:
+                                            dt = join_date
+                                        join_date_str = dt.strftime('%Y-%m-%d')
+                                    except:
+                                        join_date_str = str(join_date)[:10] if join_date else "未知"
+                                
+                                group_data = {
+                                    'group_id': group_id,
+                                    'group_title': db_row.get('group_title') or f"群組 {group_id}",
+                                    'markup': markup,
+                                    'is_configured': is_configured,
+                                    'is_active': True,  # 資料庫中標記為活躍
+                                    'join_date': join_date_str,
+                                    'tx_count': tx_count,
+                                    'warning': True  # 標記為可能有問題
+                                }
+                                valid_groups.append(group_data)
+                                continue
+                        except Exception as db_err:
+                            logger.error(f"從資料庫讀取群組 {group_id} 資訊失敗: {db_err}")
+                    
                     inactive_groups.append({
                         'group_id': group_id,
                         'group_title': inactive_row['group_title'] or f"群組 {group_id}",
