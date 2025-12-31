@@ -1512,6 +1512,19 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_paid_transactions(update, context, chat.id)
         return
     
+    if text == "📊 群组统计":
+        if not is_admin_user:
+            await update.message.reply_text("❌ 此功能仅限管理员使用")
+            return
+        
+        if chat.type not in ['group', 'supergroup']:
+            await update.message.reply_text("❌ 此功能仅在群组中可用")
+            return
+        
+        from handlers.stats_handlers import handle_group_stats
+        await handle_group_stats(update, context)
+        return
+    
     if text == "📥 导出报表":
         if not is_admin_user:
             await update.message.reply_text("❌ 此功能仅限管理员使用")
