@@ -272,10 +272,17 @@ async def verify_group(bot, group_id: int, known_title: str = None, max_retries:
         except Exception as e:
             # 其他錯誤（如群組不存在、無權訪問等）
             error_msg = str(e).lower()
-            if 'chat not found' in error_msg or 'not found' in error_msg:
+            
+            # 群組不存在或被刪除
+            if 'chat not found' in error_msg or 'not found' in error_msg or 'chat_id is empty' in error_msg:
+                logger.info(f"🗑️ 群組 {group_id} 不存在（chat not found），將標記為非活躍")
                 return None
-            if 'unauthorized' in error_msg or 'forbidden' in error_msg:
+            
+            # 機器人無權訪問或被踢出
+            if 'unauthorized' in error_msg or 'forbidden' in error_msg or 'bot was kicked' in error_msg:
+                logger.info(f"🚫 群組 {group_id} 機器人無權訪問或被移除，將標記為非活躍")
                 return None
+            
             # 其他錯誤記錄但不重試
             logger.debug(f"群組 {group_id} 驗證失敗: {e}")
             return None

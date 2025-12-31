@@ -333,9 +333,15 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn = db.connect()
         cursor = conn.cursor()
         
-        # 獲取所有群組（包括非活躍的，以便顯示完整列表）
-        cursor.execute("SELECT DISTINCT group_id FROM group_settings")
+        # 獲取所有群組（優先獲取活躍的，非活躍的用於顯示但會標記）
+        # 只獲取活躍的群組，避免顯示已不存在的群組
+        cursor.execute("SELECT DISTINCT group_id FROM group_settings WHERE is_active = 1")
         configured_group_ids = [row['group_id'] for row in cursor.fetchall()]
+        
+        # 如果沒有活躍群組，也檢查非活躍的（可能是臨時網絡問題）
+        if not configured_group_ids:
+            cursor.execute("SELECT DISTINCT group_id FROM group_settings")
+            configured_group_ids = [row['group_id'] for row in cursor.fetchall()]
         
         # 獲取有交易記錄的群組（補充可能遺漏的群組）
         cursor.execute("SELECT DISTINCT group_id FROM otc_transactions WHERE group_id IS NOT NULL")
@@ -522,6 +528,18 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 error_msg = str(e).lower()
                 logger.debug(f"群組 {group_id} 驗證失敗: {e}")
                 
+                # 檢查錯誤類型，區分「群組不存在」和「網絡問題」
+                is_chat_not_found = (
+                    'chat not found' in error_msg or 
+                    'not found' in error_msg or
+                    'chat_id is empty' in error_msg
+                )
+                is_unauthorized = (
+                    'unauthorized' in error_msg or 
+                    'forbidden' in error_msg or
+                    'bot was kicked' in error_msg
+                )
+                
                 # 記錄無法訪問的群組資訊
                 cursor.execute("""
                     SELECT group_title, is_active FROM group_settings WHERE group_id = ?
@@ -529,6 +547,19 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 inactive_row = cursor.fetchone()
                 
                 if inactive_row:
+                    # 如果群組不存在或被踢出，標記為非活躍
+                    if is_chat_not_found or is_unauthorized:
+                        logger.info(f"🗑️ 群組 {group_id} 不存在或機器人已被移除，標記為非活躍")
+                        cursor.execute("""
+                            UPDATE group_settings 
+                            SET is_active = 0,
+                                updated_at = CURRENT_TIMESTAMP
+                            WHERE group_id = ?
+                        """, (group_id,))
+                        conn.commit()
+                        # 不添加到 valid_groups，直接跳過
+                        continue
+                    
                     # 如果資料庫中標記為活躍，但驗證失敗，可能是臨時網絡問題
                     # 仍然顯示，但標記為可能無法訪問
                     if inactive_row['is_active']:
