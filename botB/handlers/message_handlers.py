@@ -724,10 +724,27 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if query:
             # If called from callback, edit the message
             inline_keyboard = get_groups_list_keyboard_with_edit(display_groups)
-            await query.edit_message_text(message, parse_mode="HTML", reply_markup=inline_keyboard)
-            await query.answer()
+            try:
+                await query.edit_message_text(message, parse_mode="HTML", reply_markup=inline_keyboard)
+                await query.answer()
+            except Exception as edit_error:
+                # 如果消息內容完全相同，Telegram 會拋出 BadRequest 錯誤
+                # 這種情況下只需要回答回調查詢即可
+                error_msg = str(edit_error).lower()
+                if 'message is not modified' in error_msg:
+                    # 消息未修改，這是正常的，只需要回答回調查詢
+                    await query.answer()
+                    logger.debug(f"消息未修改（內容相同），已忽略: {edit_error}")
+                else:
+                    # 其他錯誤，記錄並回答
+                    logger.warning(f"編輯消息失敗: {edit_error}")
+                    await query.answer("⚠️ 更新消息時發生錯誤", show_alert=False)
+            
             # Also send a message with reply keyboard for navigation
-            await query.message.reply_text("💡 使用底部按钮返回管理菜单", reply_markup=reply_keyboard)
+            try:
+                await query.message.reply_text("💡 使用底部按钮返回管理菜单", reply_markup=reply_keyboard)
+            except Exception as e:
+                logger.debug(f"發送導航消息失敗（可能已存在）: {e}")
         else:
             # If called from message, send new message with both keyboards
             inline_keyboard = get_groups_list_keyboard_with_edit(display_groups)
@@ -741,32 +758,16 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Error in handle_admin_w7: {e}", exc_info=True)
         error_msg = f"❌ 错误: {str(e)}"
         if query:
-            await query.answer(error_msg, show_alert=True)
+            try:
+                await query.answer(error_msg, show_alert=True)
+            except Exception:
+                # 如果回答失敗，嘗試發送新消息
+                try:
+                    await query.message.reply_text(error_msg)
+                except Exception:
+                    pass
         else:
             await send_group_message(update, error_msg)
-            tx_count = group.get('tx_count', 0)
-            last_active = group.get('last_active', '')
-            if last_active:
-                last_active = last_active[:16] if len(last_active) > 16 else last_active
-                message += f"   交易: {tx_count} 笔 | 最后活跃: {last_active[-10:]}\n"
-            else:
-                message += f"   交易: {tx_count} 笔\n"
-            
-            message += "\n"
-        
-        if len(groups) > 20:
-            message += f"\n... 还有 {len(groups) - 20} 个群组未显示"
-        
-        # Add inline keyboard for group management with edit buttons for each group
-        from keyboards.inline_keyboard import get_groups_list_keyboard_with_edit
-        reply_markup = get_groups_list_keyboard_with_edit(valid_groups)
-        
-        await send_group_message(update, message, parse_mode="HTML", inline_keyboard=reply_markup)
-        logger.info(f"Admin {update.effective_user.id} executed w7/CKQL, showing {len(valid_groups)} groups")
-        
-    except Exception as e:
-        logger.error(f"Error in handle_admin_w7: {e}", exc_info=True)
-        await send_group_message(update, f"❌ 错误: {str(e)}")
 
 
 async def handle_admin_w8(update: Update, context: ContextTypes.DEFAULT_TYPE):
