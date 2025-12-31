@@ -1935,31 +1935,10 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     if text in ["📞 联系客服", "📞 客服"]:
-        # Show help if needed
-        if should_show_help(user_id, "📞 客服"):
-            help_message = format_button_help_message("📞 客服")
-            if help_message:
-                help_keyboard = get_button_help_keyboard("📞 客服")
-                if chat.type in ['group', 'supergroup']:
-                    from keyboards.reply_keyboard import get_main_reply_keyboard
-                    user = update.effective_user
-                    user_info_dict = {
-                        'id': user.id,
-                        'first_name': user.first_name or '',
-                        'username': user.username,
-                        'language_code': user.language_code
-                    }
-                    reply_keyboard = get_main_reply_keyboard(user.id, is_group=True, user_info=user_info_dict)
-                    await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
-                    # Send reply keyboard - already using visible emoji, good!
-                    await update.message.reply_text("💡", reply_markup=reply_keyboard)
-                else:
-                    await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
-                mark_help_shown(user_id, "📞 客服", shown=True)
-        
         # Handle customer service assignment based on chat type
         if chat.type in ['group', 'supergroup']:
-            # In group: assign customer service and create link to private chat
+            # In group: assign customer service and directly jump to private chat
+            # Skip help message and contact panel, go directly to customer service
             try:
                 from services.customer_service_service import customer_service
                 
@@ -1980,6 +1959,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 if service_account:
                     # Create inline keyboard with link to customer service
+                    # Use https://t.me/username for direct chat opening
                     keyboard = [
                         [InlineKeyboardButton(
                             f"💬 联系客服 @{service_account}",
@@ -1988,39 +1968,38 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     ]
                     reply_markup = InlineKeyboardMarkup(keyboard)
                     
-                    contact_message = (
-                        f"📞 <b>联系人工客服</b>\n\n"
-                        f"已为您分配客服：<b>@{service_account}</b>\n\n"
-                        f"💡 点击下方按钮跳转到与客服的私聊对话\n\n"
-                        f"• 工作时间：7×24小时\n"
-                        f"• 响应时间：通常在5分钟内"
+                    # Send minimal message with button - user clicks button to jump directly to customer service chat
+                    # No help message, no contact panel, just the jump button
+                    await update.message.reply_text(
+                        f"💬 <a href='https://t.me/{service_account}'>联系客服 @{service_account}</a>",
+                        parse_mode="HTML",
+                        reply_markup=reply_markup
                     )
-                    await send_group_message(update, contact_message, parse_mode="HTML", reply_markup=reply_markup)
-                    logger.info(f"Assigned customer service @{service_account} to user {user.id} in group {chat.id}")
+                    logger.info(f"Assigned customer service @{service_account} to user {user.id} in group {chat.id}, direct jump enabled")
                 else:
-                    # No available customer service
-                    contact_message = (
-                        "📞 <b>联系人工客服</b>\n\n"
-                        "⚠️ 当前没有可用的客服账号，请联系管理员：\n"
-                        "@wushizhifu_jianglai\n\n"
-                        "或稍后再试。"
+                    # No available customer service - show error message
+                    await update.message.reply_text(
+                        "⚠️ 当前没有可用的客服账号，请联系管理员：@wushizhifu_jianglai",
+                        parse_mode="HTML"
                     )
-                    await send_group_message(update, contact_message, parse_mode="HTML")
                     logger.warning(f"No available customer service for user {user.id} in group {chat.id}")
             except Exception as e:
                 logger.error(f"Error assigning customer service: {e}", exc_info=True)
                 # Fallback to default message
-                contact_message = (
-                    "📞 <b>联系人工客服</b>\n\n"
-                    "如有任何问题，请联系管理员：\n"
-                    "@wushizhifu_jianglai\n\n"
-                    "或使用以下方式：\n"
-                    "• 工作时间：7×24小时\n"
-                    "• 响应时间：通常在5分钟内"
+                await update.message.reply_text(
+                    "❌ 客服分配失败，请联系管理员：@wushizhifu_jianglai",
+                    parse_mode="HTML"
                 )
-                await send_group_message(update, contact_message, parse_mode="HTML")
         else:
-            # In private chat: show contact information
+            # In private chat: show help if needed, then show contact information
+            if should_show_help(user_id, "📞 客服"):
+                help_message = format_button_help_message("📞 客服")
+                if help_message:
+                    help_keyboard = get_button_help_keyboard("📞 客服")
+                    await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
+                    mark_help_shown(user_id, "📞 客服", shown=True)
+            
+            # Show contact information in private chat
             contact_message = (
                 "📞 <b>联系人工客服</b>\n\n"
                 "如有任何问题，请联系管理员：\n"
