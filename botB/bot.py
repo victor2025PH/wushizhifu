@@ -422,7 +422,13 @@ def main():
     logger.info(f"USDT address: {db.get_usdt_address() or 'Not set'}")
     
     # Start the bot
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    # Reduce long polling timeout to avoid connection being closed by intermediate devices
+    # Default timeout is 20s, reducing to 10s helps prevent NAT/firewall from closing idle connections
+    application.run_polling(
+        allowed_updates=Update.ALL_TYPES,
+        timeout=10,  # Reduce from default 20s to 10s to prevent connection timeout issues
+        poll_interval=1.0  # Add 1s interval between polls to avoid excessive requests
+    )
 
 
 if __name__ == "__main__":
