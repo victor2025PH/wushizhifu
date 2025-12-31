@@ -1227,8 +1227,9 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from handlers.admin_commands_handlers import handle_admin_commands_help
         await handle_admin_commands_help(update, context)
         
-        # 然后显示管理菜单
+        # 然后显示管理菜单（使用底部键盘）
         if is_group := chat.type in ['group', 'supergroup']:
+            # 群组设置菜单 - 暂时保留内联键盘（群组设置功能较简单）
             from keyboards.inline_keyboard import get_group_settings_menu
             reply_markup = get_group_settings_menu()
             message = (
@@ -1236,17 +1237,17 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "请选择要执行的操作：\n\n"
                 "💡 <i>提示：上方已显示完整指令教程，也可以点击「⚡ 管理员指令教程」再次查看</i>"
             )
+            await send_group_message(update, message, parse_mode="HTML", inline_keyboard=reply_markup)
         else:
-            from keyboards.inline_keyboard import get_global_management_menu
-            reply_markup = get_global_management_menu()
+            # 全局管理菜单 - 使用底部键盘
+            from keyboards.management_keyboard import get_management_menu_keyboard
+            reply_keyboard = get_management_menu_keyboard()
             message = (
                 "🌐 <b>全局管理菜单</b>\n\n"
                 "请选择要执行的操作：\n\n"
                 "💡 <i>提示：上方已显示完整指令教程，也可以点击「⚡ 管理员指令教程」再次查看</i>"
             )
-        
-        # Use send_group_message to ensure reply keyboard is shown in groups
-        await send_group_message(update, message, parse_mode="HTML", inline_keyboard=reply_markup)
+            await update.message.reply_text(message, parse_mode="HTML", reply_markup=reply_keyboard)
         return
     
     if text in ["📈 统计", "📊 数据"]:
