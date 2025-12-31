@@ -501,9 +501,10 @@ async def handle_global_management_menu(update: Update, context: ContextTypes.DE
                     await query.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
                     mark_help_shown(query.from_user.id, "所有群组列表", shown=True)
             
+            # Call handle_admin_w7, which will handle query.answer() internally
             from handlers.message_handlers import handle_admin_w7
             await handle_admin_w7(update, context)
-            await query.answer()
+            # Note: handle_admin_w7 already calls query.answer(), so we don't call it here
             return
         
         elif callback_data == "global_stats":
