@@ -560,17 +560,19 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 is_chat_not_found = (
                     'chat not found' in error_msg or 
                     'not found' in error_msg or
-                    'chat_id is empty' in error_msg
+                    'chat_id is empty' in error_msg or
+                    'bad request' in error_msg  # Bad Request 有時也表示群組不存在
                 )
                 is_unauthorized = (
                     'unauthorized' in error_msg or 
                     'forbidden' in error_msg or
-                    'bot was kicked' in error_msg
+                    'bot was kicked' in error_msg or
+                    'bot is not a member' in error_msg
                 )
                 
                 # 記錄無法訪問的群組資訊
                 cursor.execute("""
-                    SELECT group_title, is_active FROM group_settings WHERE group_id = ?
+                    SELECT group_title, is_active, updated_at FROM group_settings WHERE group_id = ?
                 """, (group_id,))
                 inactive_row = cursor.fetchone()
                 
@@ -588,9 +590,44 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         # 不添加到 valid_groups，直接跳過
                         continue
                     
+                    # 檢查最後更新時間，如果很久沒更新且驗證失敗，可能是群組不存在
+                    from datetime import datetime, timedelta
+                    updated_at = inactive_row['updated_at']
+                    is_old_record = False
+                    if updated_at:
+                        try:
+                            if isinstance(updated_at, str):
+                                try:
+                                    last_update = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
+                                except:
+                                    last_update = datetime.strptime(updated_at[:19], '%Y-%m-%d %H:%M:%S')
+                            else:
+                                last_update = updated_at
+                            
+                            # 計算時間差
+                            if last_update.tzinfo:
+                                time_diff = datetime.now() - last_update.replace(tzinfo=None)
+                            else:
+                                time_diff = datetime.now() - last_update
+                            
+                            # 如果超過30分鐘沒更新，且驗證失敗，可能是群組不存在
+                            if time_diff > timedelta(minutes=30):
+                                is_old_record = True
+                                logger.info(f"🗑️ 群組 {group_id} 驗證失敗且長時間未更新（{time_diff}），標記為非活躍")
+                                cursor.execute("""
+                                    UPDATE group_settings 
+                                    SET is_active = 0,
+                                        updated_at = CURRENT_TIMESTAMP
+                                    WHERE group_id = ?
+                                """, (group_id,))
+                                conn.commit()
+                                continue
+                        except Exception as e:
+                            logger.debug(f"解析更新時間失敗: {e}")
+                    
                     # 如果資料庫中標記為活躍，但驗證失敗，可能是臨時網絡問題
                     # 仍然顯示，但標記為可能無法訪問
-                    if inactive_row['is_active']:
+                    if inactive_row['is_active'] and not is_old_record:
                         logger.warning(f"⚠️ 群組 {group_id} 在資料庫中標記為活躍，但驗證失敗（可能是網絡問題）")
                         # 仍然添加到 valid_groups，但標記為可能無法訪問
                         try:
