@@ -447,7 +447,25 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 else:
                     is_configured = True
                 
-                group_title = setting_row['group_title'] if setting_row and setting_row['group_title'] else chat.title
+                # 優先使用驗證時獲取的實際標題，如果沒有則使用資料庫中的標題
+                actual_chat_title = chat.title if chat.title else None
+                db_title = setting_row['group_title'] if setting_row and setting_row['group_title'] else None
+                
+                # 如果驗證獲取的標題與資料庫不同，更新資料庫
+                if actual_chat_title and db_title and actual_chat_title != db_title:
+                    logger.info(f"🔄 群組 {group_id} 標題不一致，更新: '{db_title}' -> '{actual_chat_title}'")
+                    cursor.execute("""
+                        UPDATE group_settings 
+                        SET group_title = ?,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE group_id = ?
+                    """, (actual_chat_title, group_id))
+                    conn.commit()
+                    group_title = actual_chat_title
+                else:
+                    # 使用實際獲取的標題或資料庫標題
+                    group_title = actual_chat_title if actual_chat_title else (db_title if db_title else f"群組 {group_id}")
+                
                 is_active = setting_row['is_active'] if setting_row else True
                 
                 group_data = {
@@ -467,10 +485,15 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     params = []
                     
                     # 修復：sqlite3.Row 不支持 .get()，使用字典式訪問
-                    if setting_row['group_title'] != chat.title:
+                    # 檢查標題是否需要更新（使用實際獲取的標題）
+                    actual_chat_title = chat.title if chat.title else None
+                    db_title = setting_row['group_title'] if setting_row['group_title'] else None
+                    
+                    if actual_chat_title and db_title and actual_chat_title != db_title:
                         updates.append("group_title = ?")
-                        params.append(chat.title)
+                        params.append(actual_chat_title)
                         needs_update = True
+                        logger.info(f"🔄 群組 {group_id} 標題不一致，將更新: '{db_title}' -> '{actual_chat_title}'")
                     
                     if not bool(setting_row['is_active']):
                         updates.append("is_active = 1")
@@ -606,16 +629,35 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if valid_groups:
             message += "<b>✅ 活跃群组：</b>\n\n"
             display_groups = valid_groups[:20]
+            
+            # 檢查標題重複，如果重複則添加區分標識
+            title_count = {}
+            for group in display_groups:
+                title = group.get('group_title') or f"群组 {group['group_id']}"
+                if title in title_count:
+                    title_count[title] += 1
+                else:
+                    title_count[title] = 1
+            
             for idx, group in enumerate(display_groups, 1):
-                group_title = group.get('group_title') or f"群组 {group['group_id']}"
+                base_title = group.get('group_title') or f"群组 {group['group_id']}"
                 is_configured = group.get('is_configured', False)
                 group_id = group['group_id']
                 markup = group.get('markup', 0.0)
                 join_date = group.get('join_date', '未知')
                 tx_count = group.get('tx_count', 0)
+                has_warning = group.get('warning', False)
+                
+                # 如果標題重複，添加群組 ID 後綴作為區分
+                if title_count.get(base_title, 0) > 1:
+                    group_title = f"{base_title} (ID: {abs(group_id)})"
+                else:
+                    group_title = base_title
                 
                 # Status indicator
                 status_icon = "⚙️" if is_configured else "🌐"
+                if has_warning:
+                    status_icon = "⚠️"  # 標記為可能有網絡問題
                 
                 message += f"{status_icon} <b>{idx}. {group_title}</b>\n"
                 message += f"   ID: <code>{group_id}</code>\n"
@@ -623,6 +665,8 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 message += f"   上浮汇率: {markup:+.4f} USDT\n"
                 if tx_count > 0:
                     message += f"   交易记录: {tx_count} 笔\n"
+                if has_warning:
+                    message += f"   ⚠️ 驗證時遇到網絡問題，顯示的是資料庫中的資訊\n"
                 message += "\n"
             
             if len(valid_groups) > 20:

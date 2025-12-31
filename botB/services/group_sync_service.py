@@ -114,17 +114,33 @@ async def sync_groups_on_startup(bot) -> Dict[str, int]:
                 """, (group_id,))
                 existing = cursor.fetchone()
                 
+                # 獲取驗證時獲取的實際標題
                 new_title = group_info.get('title')
-                needs_update = False
+                
+                # 添加日誌記錄，追蹤標題獲取情況
+                if new_title:
+                    logger.info(f"📝 群組 {group_id} 驗證獲取的標題: '{new_title}'")
+                else:
+                    logger.warning(f"⚠️ 群組 {group_id} 驗證成功但未獲取到標題")
                 
                 if existing:
+                    old_title = existing['group_title']
+                    logger.debug(f"📋 群組 {group_id} 資料庫中的標題: '{old_title}'")
+                    
                     # 驗證成功意味著機器人在群組中，必須確保 is_active = 1
                     # 檢查是否需要更新
-                    title_changed = existing['group_title'] != new_title
+                    title_changed = False
+                    if new_title and new_title != old_title:
+                        title_changed = True
+                        logger.info(f"🔄 群組 {group_id} 標題變化: '{old_title}' -> '{new_title}'")
+                    
                     status_changed = existing['is_active'] != 1
                     
                     # 驗證成功時，無論如何都要更新 updated_at 和確保 is_active = 1
                     if title_changed or status_changed:
+                        # 確保使用有效的標題
+                        update_title = new_title if new_title else old_title
+                        
                         # 更新群組標題和狀態
                         cursor.execute("""
                             UPDATE group_settings 
@@ -132,10 +148,10 @@ async def sync_groups_on_startup(bot) -> Dict[str, int]:
                                 is_active = 1,
                                 updated_at = CURRENT_TIMESTAMP
                             WHERE group_id = ?
-                        """, (new_title, group_id))
+                        """, (update_title, group_id))
                         conn.commit()
                         stats['updated'] += 1
-                        logger.info(f"✅ 更新群組 {group_id}: 標題={title_changed}, 狀態={status_changed}")
+                        logger.info(f"✅ 更新群組 {group_id}: 標題={title_changed}, 狀態={status_changed}, 新標題='{update_title}'")
                     else:
                         # 即使標題和狀態都沒變，也要更新 updated_at（表示驗證成功）
                         # 這確保了資料庫記錄是最新的
@@ -147,16 +163,20 @@ async def sync_groups_on_startup(bot) -> Dict[str, int]:
                         """, (group_id,))
                         conn.commit()
                         stats['updated'] += 1
-                        logger.debug(f"✅ 更新群組 {group_id} 的驗證時間戳")
+                        logger.debug(f"✅ 更新群組 {group_id} 的驗證時間戳（標題未變: '{old_title}'）")
                 else:
                     # 群組不在 group_settings 中，創建記錄
-                    db.ensure_group_exists(group_id, new_title)
+                    # 確保使用有效的標題
+                    create_title = new_title if new_title else f"群組 {group_id}"
+                    logger.info(f"🆕 創建新群組記錄 {group_id}，標題: '{create_title}'")
+                    db.ensure_group_exists(group_id, create_title)
                     # 確保新創建的記錄 is_active = 1
                     cursor.execute("""
                         UPDATE group_settings 
-                        SET is_active = 1
+                        SET is_active = 1,
+                            group_title = ?
                         WHERE group_id = ?
-                    """, (group_id,))
+                    """, (create_title, group_id))
                     conn.commit()
                     stats['updated'] += 1
                 
@@ -214,9 +234,16 @@ async def verify_group(bot, group_id: int, known_title: str = None, max_retries:
             if chat.type not in ['group', 'supergroup']:
                 return None
             
+            # 獲取實際的群組標題
+            actual_title = chat.title if chat.title else None
+            if actual_title:
+                logger.debug(f"✅ 群組 {group_id} 驗證成功，標題: '{actual_title}'")
+            else:
+                logger.warning(f"⚠️ 群組 {group_id} 驗證成功但標題為空")
+            
             return {
                 'group_id': group_id,
-                'title': chat.title,
+                'title': actual_title,
                 'type': chat.type,
                 'accessible': True
             }
