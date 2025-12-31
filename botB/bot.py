@@ -32,6 +32,12 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     user = update.effective_user
     is_admin_user = check_admin(user.id)
+    chat = update.effective_chat
+    
+    # Auto-track groups: ensure group exists in database when bot receives group messages
+    # This allows "所有群组列表" to detect all groups bot is in
+    if chat.type in ['group', 'supergroup']:
+        db.ensure_group_exists(chat.id, chat.title)
     
     # Check if new user and show onboarding
     if not db.is_onboarding_completed(user.id):
@@ -130,6 +136,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     user = update.effective_user
     is_admin_user = check_admin(user.id)
+    chat = update.effective_chat
+    
+    # Auto-track groups
+    if chat.type in ['group', 'supergroup']:
+        db.ensure_group_exists(chat.id, chat.title)
     
     help_text = (
         "📚 <b>Bot B 完整帮助指南</b>\n\n"
@@ -210,6 +221,11 @@ async def price_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /settings command - display current settings"""
+    # Auto-track groups
+    chat = update.effective_chat
+    if chat.type in ['group', 'supergroup']:
+        db.ensure_group_exists(chat.id, chat.title)
+    
     admin_markup = db.get_admin_markup()
     usdt_address = db.get_usdt_address()
     
@@ -268,6 +284,11 @@ async def address_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def support_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /support or /客服 command - show support info"""
+    # Auto-track groups
+    chat = update.effective_chat
+    if chat.type in ['group', 'supergroup']:
+        db.ensure_group_exists(chat.id, chat.title)
+    
     contact_message = (
         "📞 <b>联系人工客服</b>\n\n"
         "如有任何问题，请联系管理员：\n"
@@ -282,7 +303,10 @@ async def support_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def mybills_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /mybills or /我的账单 command - show personal bills (private chat only)"""
     chat = update.effective_chat
-    if chat.type not in ['private']:
+    
+    # Auto-track groups (even though this command is private-only, track if called in group)
+    if chat.type in ['group', 'supergroup']:
+        db.ensure_group_exists(chat.id, chat.title)
         await update.message.reply_text("❌ 此功能仅在私聊中可用")
         return
     
