@@ -89,9 +89,9 @@ async def send_with_reply_keyboard(update: Update, text: str,
                 reply_markup=inline_keyboard
             )
             # Then send minimal message with reply keyboard to ensure it's shown
-            # Note: Using visible emoji for better reliability than zero-width space
+            # Using zero-width space for invisible placeholder
             try:
-                await message_target.reply_text("💡", reply_markup=reply_keyboard)
+                await message_target.reply_text("\u200B", reply_markup=reply_keyboard)
             except Exception as e:
                 logger.warning(f"Failed to send reply keyboard: {e}")
             return message

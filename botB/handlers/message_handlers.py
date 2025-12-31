@@ -76,9 +76,9 @@ async def send_group_message(update: Update, text: str, parse_mode: Optional[str
                 reply_markup=inline_markup
             )
             # Then send a minimal message with reply keyboard to ensure it's shown
-            # Using visible emoji for better reliability than zero-width space
+            # Using zero-width space for invisible placeholder
             try:
-                await message_target.reply_text("💡", reply_markup=reply_keyboard)
+                await message_target.reply_text("\u200B", reply_markup=reply_keyboard)
             except Exception as e:
                 logger.warning(f"Failed to send reply keyboard after message with inline keyboard: {e}")
         else:
@@ -1906,8 +1906,8 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     # Combine inline and reply keyboards - use inline for help close button
                     await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
                     # Also send a hidden message with reply keyboard to ensure it's shown
-                    # Send reply keyboard - already using visible emoji, good!
-                    await update.message.reply_text("💡", reply_markup=reply_keyboard)
+                    # Using zero-width space for invisible placeholder
+                    await update.message.reply_text("\u200B", reply_markup=reply_keyboard)
                 else:
                     await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
                 mark_help_shown(user_id, "🔗 地址", shown=True)
