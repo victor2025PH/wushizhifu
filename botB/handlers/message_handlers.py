@@ -4,6 +4,7 @@ Handles admin shortcuts, w0-w9 commands, pinyin commands, and math/settlement pr
 """
 import re
 import logging
+import asyncio
 from typing import Optional
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import MessageHandler, filters, ContextTypes
