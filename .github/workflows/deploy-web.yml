@@ -59,7 +59,7 @@ jobs:
             echo "📥 安装依赖..."
             npm install --production=false || npm ci || exit 1
             
-            # Build project
+            # Build project (output will be in web/dist)
             echo "🔨 构建项目..."
             npm run build || exit 1
             
@@ -69,31 +69,30 @@ jobs:
               exit 1
             fi
             
-            # Create target dist directory if not exists
-            mkdir -p ${WEB_DIST}
-            
-            # Copy build output to target directory
-            echo "📦 复制构建文件..."
-            cp -r dist/* ${WEB_DIST}/ || rsync -av --delete dist/ ${WEB_DIST}/
-            
-            # Set proper permissions
+            # Set proper permissions for dist directory
             echo "🔒 设置文件权限..."
-            sudo chown -R www-data:www-data ${WEB_DIST} || true
-            sudo chmod -R 755 ${WEB_DIST} || true
+            sudo chown -R www-data:www-data dist || true
+            sudo chmod -R 755 dist || true
             
             # Update Nginx configuration if needed
             NGINX_CONFIG="/etc/nginx/sites-available/wushizhifu"
             if [ -f "${NGINX_CONFIG}" ]; then
-              # Update root path if different
-              if ! grep -q "${WEB_DIST}" ${NGINX_CONFIG}; then
-                echo "⚙️ 更新Nginx配置..."
-                sudo sed -i "s|root /.*/web/dist;|root ${WEB_DIST};|g" ${NGINX_CONFIG}
-                sudo sed -i "s|root /.*/frontend/dist;|root ${WEB_DIST};|g" ${NGINX_CONFIG}
+              # Update root path if different (build output is in web/dist)
+              CURRENT_ROOT=$(grep -E "^\s*root\s+" ${NGINX_CONFIG} | head -1 | awk '{print $2}' | sed 's/;//')
+              if [ "$CURRENT_ROOT" != "${WEB_DIST}" ]; then
+                echo "⚙️ 更新Nginx配置，从 $CURRENT_ROOT 到 ${WEB_DIST}..."
+                sudo sed -i "s|root .*;|root ${WEB_DIST};|g" ${NGINX_CONFIG}
                 # Test configuration
-                sudo nginx -t || echo "⚠️ Nginx配置测试失败"
+                if sudo nginx -t; then
+                  echo "✅ Nginx配置更新成功"
+                else
+                  echo "⚠️ Nginx配置测试失败，请手动检查"
+                fi
+              else
+                echo "✅ Nginx配置已正确指向 ${WEB_DIST}"
               fi
             else
-              echo "⚠️ Nginx配置文件不存在，可能需要手动配置"
+              echo "⚠️ Nginx配置文件不存在，需要手动配置指向 ${WEB_DIST}"
             fi
             
             # Reload Nginx
