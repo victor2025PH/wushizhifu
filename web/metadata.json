@@ -1,0 +1,5 @@
+{
+  "name": "PayShield - USDT Payment Gateway",
+  "description": "A secure, USDT-settled payment collection system for Telegram merchants featuring auto-complaint defense and instant settlement.",
+  "requestFramePermissions": []
+}

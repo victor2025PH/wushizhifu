@@ -1,0 +1,75 @@
+name: Deploy Web Frontend
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'web/**'
+      - '.github/workflows/deploy-web.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: web/package.json
+      
+      - name: Install dependencies
+        working-directory: ./web
+        run: |
+          npm ci
+      
+      - name: Build project
+        working-directory: ./web
+        run: |
+          npm run build
+      
+      - name: Deploy to server
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          source: "web/dist/*"
+          target: "/home/ubuntu/wushizhifu/web/dist/"
+          strip_components: 2
+      
+      - name: Configure Nginx and Restart
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          timeout: 120s
+          script: |
+            # Create web directory if not exists
+            mkdir -p /home/ubuntu/wushizhifu/web/dist
+            
+            # Set proper permissions
+            sudo chown -R www-data:www-data /home/ubuntu/wushizhifu/web/dist || true
+            
+            # Update Nginx configuration if needed
+            WEB_ROOT="/home/ubuntu/wushizhifu/web/dist"
+            if [ -f "/etc/nginx/sites-available/wushizhifu" ]; then
+              # Check if web root needs update
+              if ! grep -q "$WEB_ROOT" /etc/nginx/sites-available/wushizhifu; then
+                echo "⚠️ Nginx配置可能需要更新，请手动检查"
+              fi
+            fi
+            
+            # Test and reload Nginx
+            sudo nginx -t && sudo systemctl reload nginx || echo "⚠️ Nginx重载失败"
+            
+            echo "✅ Web前端部署完成"
