@@ -3,7 +3,18 @@ Customer Service Management Service
 Handles customer service account management and assignment logic
 """
 import logging
+import sys
+import os
 from typing import Optional, List, Dict
+from pathlib import Path
+
+# Ensure we import from botB's database module (which has assign_customer_service)
+# Add botB to path if not already there
+botb_dir = Path(__file__).parent.parent
+if str(botb_dir) not in sys.path:
+    sys.path.insert(0, str(botb_dir))
+
+# Import botB's database module
 from database import db
 
 logger = logging.getLogger(__name__)
