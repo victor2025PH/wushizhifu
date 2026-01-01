@@ -19,12 +19,16 @@ from database.user_repository import UserRepository
 from database.transaction_repository import TransactionRepository
 from database.rate_repository import RateRepository
 from database.video_repository import VideoRepository
+from database.db import Database
 import httpx
 import requests
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Initialize database connection for customer service
+db = Database()
 
 app = FastAPI(title="WuShiPay API", version="1.0.0")
 
@@ -679,6 +683,151 @@ class CustomerServiceAssignResponse(BaseModel):
     message: Optional[str] = None
 
 
+# ============================================================================
+# Customer Service Assignment Functions (Direct Implementation)
+# ============================================================================
+
+def get_assignment_strategy() -> str:
+    """
+    Get customer service assignment strategy from settings.
+    
+    Returns:
+        Assignment method string (round_robin, smart, least_busy, weighted)
+    """
+    try:
+        conn = db.connect()
+        cursor = conn.cursor()
+        
+        # Try to get strategy from settings table
+        cursor.execute("""
+            SELECT value FROM settings 
+            WHERE key = 'customer_service_assignment_method'
+        """)
+        row = cursor.fetchone()
+        
+        if row:
+            method = row[0]
+            if method in ['round_robin', 'smart', 'least_busy', 'weighted']:
+                return method
+        
+        # Default to round_robin if not found or invalid
+        return 'round_robin'
+    except Exception as e:
+        logger.warning(f"Failed to get assignment strategy from settings: {e}, using default")
+        return 'round_robin'
+
+
+def assign_customer_service(user_id: int, username: str, assignment_method: str = 'round_robin') -> Optional[str]:
+    """
+    Assign a customer service account to a user.
+    
+    Args:
+        user_id: User ID
+        username: Username
+        assignment_method: Assignment method (round_robin, smart, least_busy, weighted)
+        
+    Returns:
+        Service account username or None
+    """
+    try:
+        conn = db.connect()
+        cursor = conn.cursor()
+        
+        # Get available accounts based on method
+        row = None
+        
+        if assignment_method == 'smart':
+            # Smart hybrid: available + online + not maxed out, then least busy, then by weight
+            cursor.execute("""
+                SELECT * FROM customer_service_accounts 
+                WHERE is_active = 1 
+                AND status IN ('available', 'busy')
+                AND current_count < max_concurrent
+                ORDER BY current_count ASC, weight DESC, created_at ASC
+                LIMIT 1
+            """)
+            row = cursor.fetchone()
+            
+            # Fallback to round-robin if no available account
+            if not row:
+                cursor.execute("""
+                    SELECT * FROM customer_service_accounts 
+                    WHERE is_active = 1
+                    ORDER BY created_at ASC
+                    LIMIT 1
+                """)
+                row = cursor.fetchone()
+                
+        elif assignment_method == 'least_busy':
+            cursor.execute("""
+                SELECT * FROM customer_service_accounts 
+                WHERE is_active = 1 
+                AND status IN ('available', 'busy')
+                AND current_count < max_concurrent
+                ORDER BY current_count ASC
+                LIMIT 1
+            """)
+            row = cursor.fetchone()
+            
+        elif assignment_method == 'weighted':
+            cursor.execute("""
+                SELECT * FROM customer_service_accounts 
+                WHERE is_active = 1 
+                AND status IN ('available', 'busy')
+                AND current_count < max_concurrent
+                ORDER BY weight DESC, current_count ASC
+                LIMIT 1
+            """)
+            row = cursor.fetchone()
+            
+        else:  # round_robin (default)
+            # Simple round-robin: get account with least recent assignment
+            cursor.execute("""
+                SELECT csa.* FROM customer_service_accounts csa
+                LEFT JOIN (
+                    SELECT service_account, MAX(assigned_at) as last_assigned
+                    FROM customer_service_assignments
+                    WHERE status = 'active'
+                    GROUP BY service_account
+                ) last_assign ON csa.username = last_assign.service_account
+                WHERE csa.is_active = 1
+                ORDER BY last_assign.last_assigned ASC NULLS FIRST, csa.created_at ASC
+                LIMIT 1
+            """)
+            row = cursor.fetchone()
+        
+        if not row:
+            logger.warning("No customer service account available for assignment")
+            return None
+        
+        service_account = row['username']
+        
+        # Update current_count
+        cursor.execute("""
+            UPDATE customer_service_accounts 
+            SET current_count = current_count + 1,
+                total_served = total_served + 1,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE username = ?
+        """, (service_account,))
+        
+        # Record assignment
+        cursor.execute("""
+            INSERT INTO customer_service_assignments 
+            (user_id, username, service_account, assignment_method, status)
+            VALUES (?, ?, ?, ?, 'active')
+        """, (user_id, username, service_account, assignment_method))
+        
+        conn.commit()
+        logger.info(f"Assigned customer service {service_account} to user {user_id} (method: {assignment_method})")
+        return service_account
+        
+    except Exception as e:
+        logger.error(f"Error assigning customer service: {e}", exc_info=True)
+        conn.rollback()
+        return None
+
+
 @app.post("/api/customer-service/assign", response_model=CustomerServiceAssignResponse)
 async def assign_customer_service(
     request: Optional[CustomerServiceAssignRequest] = None,
@@ -736,67 +885,15 @@ async def assign_customer_service(
             else:
                 username = f"user_{user_id}"
         
-        # Import customer service from botB (which has the correct database module)
-        import sys
-        from pathlib import Path
-        
-        try:
-            # Try to import from botB's services first
-            botb_path = Path(__file__).parent / "botB"
-            if str(botb_path) not in sys.path:
-                sys.path.insert(0, str(botb_path))
-            
-            # Import from botB's services (which uses botB's database module)
-            from services.customer_service_service import customer_service
-            
-            # Verify the service has required methods
-            if not hasattr(customer_service, 'get_assignment_strategy'):
-                raise AttributeError("customer_service missing get_assignment_strategy method")
-            if not hasattr(customer_service, 'assign_service'):
-                raise AttributeError("customer_service missing assign_service method")
-            
-        except (ImportError, AttributeError) as e:
-            logger.error(f"Failed to import customer_service_service from botB: {e}")
-            # Fallback: try to import from root services directory
-            try:
-                root_path = Path(__file__).parent
-                if str(root_path) not in sys.path:
-                    sys.path.insert(0, str(root_path))
-                from services.customer_service_service import customer_service
-                logger.info("Successfully imported customer_service_service from root services")
-            except ImportError as e2:
-                logger.error(f"Failed to import customer_service_service from root: {e2}")
-                # Final fallback: use database directly
-                from database.db import db
-                if hasattr(db, 'assign_customer_service'):
-                    # Use database method directly
-                    service_account = db.assign_customer_service(user_id=user_id, method='round_robin')
-                    if service_account:
-                        return CustomerServiceAssignResponse(
-                            service_account=service_account,
-                            assignment_method='round_robin',
-                            success=True,
-                            message=f"Assigned to @{service_account}"
-                        )
-                    else:
-                        raise HTTPException(status_code=500, detail="No available customer service account")
-                else:
-                    raise HTTPException(status_code=500, detail=f"Customer service module not available: {e}, {e2}")
-        
         # Get assignment strategy from settings
-        try:
-            assignment_method = customer_service.get_assignment_strategy()
-        except Exception as e:
-            logger.warning(f"Failed to get assignment strategy, using default: {e}")
-            assignment_method = 'round_robin'
+        assignment_method = get_assignment_strategy()
         
-        # Assign customer service account
-        try:
-            service_account = customer_service.assign_service(
-                user_id=user_id,
-                username=username,
-                method=assignment_method
-            )
+        # Assign customer service account using direct implementation
+        service_account = assign_customer_service(
+            user_id=user_id,
+            username=username,
+            assignment_method=assignment_method
+        )
         except Exception as e:
             logger.error(f"Error in assign_service: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Failed to assign customer service: {str(e)}")
