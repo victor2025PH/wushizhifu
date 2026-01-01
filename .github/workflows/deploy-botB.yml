@@ -8,7 +8,7 @@ on:
       - 'botB/**'
       - 'services/**'
       - 'database/**'
-      - '.github/workflows/deploy-botb.yml'
+      - '.github/workflows/deploy-botB.yml'
   workflow_dispatch:
 
 jobs:
@@ -24,11 +24,6 @@ jobs:
         with:
           python-version: '3.11'
       
-      - name: Install dependencies
-        run: |
-          cd botB
-          pip install -r requirements.txt
-      
       - name: Deploy to server
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -42,23 +37,54 @@ jobs:
           ssh-keyscan -H $SERVER_HOST >> ~/.ssh/known_hosts
           
           # Create deployment script
-          cat > deploy.sh << 'EOF'
+          cat > /tmp/deploy_botb.sh << 'DEPLOY_EOF'
           #!/bin/bash
           set -e
           
-          cd $SERVER_PATH
-          git pull origin main
+          echo "=========================================="
+          echo "🚀 Bot B 自动部署"
+          echo "=========================================="
           
-          cd botB
-          source venv/bin/activate || python3 -m venv venv && source venv/bin/activate
+          cd $SERVER_PATH || exit 1
+          echo "📁 当前目录: $(pwd)"
+          
+          # 拉取最新代码
+          echo "📥 拉取最新代码..."
+          git pull origin main || exit 1
+          
+          # 进入botB目录
+          cd botB || exit 1
+          
+          # 激活虚拟环境或创建
+          if [ ! -d "venv" ]; then
+            echo "📦 创建虚拟环境..."
+            python3 -m venv venv
+          fi
+          
+          source venv/bin/activate
+          
+          # 安装依赖
+          echo "📦 安装依赖..."
+          pip install --upgrade pip
           pip install -r requirements.txt
           
-          # Restart service
-          sudo systemctl restart otc-bot.service || true
+          # 重启服务
+          echo "🔄 重启服务..."
+          sudo systemctl restart otc-bot.service || echo "⚠️ 服务重启失败，请手动检查"
           
-          echo "Deployment completed successfully"
-          EOF
+          # 检查服务状态
+          sleep 2
+          if systemctl is-active --quiet otc-bot.service; then
+            echo "✅ 服务运行正常"
+          else
+            echo "⚠️ 服务可能未正常运行，请检查日志"
+          fi
           
-          chmod +x deploy.sh
-          scp deploy.sh $SERVER_USER@$SERVER_HOST:/tmp/deploy_botb.sh
+          echo "=========================================="
+          echo "✅ 部署完成"
+          echo "=========================================="
+          DEPLOY_EOF
+          
+          chmod +x /tmp/deploy_botb.sh
+          scp /tmp/deploy_botb.sh $SERVER_USER@$SERVER_HOST:/tmp/deploy_botb.sh
           ssh $SERVER_USER@$SERVER_HOST "bash /tmp/deploy_botb.sh"
