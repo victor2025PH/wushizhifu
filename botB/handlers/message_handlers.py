@@ -2146,7 +2146,27 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await handle_admin_w7(update, context)
             return
         
-        if text == "✅ 群组审核":
+        if text == "⚙️ 群组配置":
+            await send_group_message(update,
+                "💡 使用命令配置群组：\n"
+                "<code>/group_mode &lt;group_id&gt; &lt;mode&gt;</code>\n\n"
+                "模式：auto（自动通过）、manual（手动审核）、question（问题验证）\n\n"
+                "示例：\n"
+                "<code>/group_mode -1001234567890 manual</code>",
+                parse_mode="HTML"
+            )
+            return
+        
+        if text == "🗑️ 删除群组":
+            await send_group_message(update,
+                "💡 使用命令删除群组：\n"
+                "<code>/delgroup &lt;group_id&gt;</code>\n\n"
+                "示例：\n"
+                "<code>/delgroup -1001234567890</code>\n\n"
+                "⚠️ 删除操作不可恢复，请谨慎操作",
+                parse_mode="HTML"
+            )
+            return
             await handle_group_verification(update, context)
             return
         
@@ -2662,6 +2682,165 @@ async def handle_verify_all_reject(update: Update, context: ContextTypes.DEFAULT
 
 
 # ========== Admin Panel Handlers ==========
+
+async def handle_unified_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle unified statistics menu (combines system stats and global stats)"""
+    from telegram import ReplyKeyboardMarkup, KeyboardButton
+    
+    try:
+        text = (
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "  📊 数据统计\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "<b>📈 统计功能</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "📊 <b>系统统计</b>：查看系统整体数据\n"
+            "📈 <b>全局统计</b>：查看所有群组统计\n"
+            "📅 <b>时间统计</b>：按时间段查看数据\n"
+            "📋 <b>详细报表</b>：查看详细分析报告\n\n"
+            "请选择要查看的统计类型："
+        )
+        
+        keyboard = [
+            [
+                KeyboardButton("📊 系统统计"),
+                KeyboardButton("📈 全局统计")
+            ],
+            [
+                KeyboardButton("📅 时间统计"),
+                KeyboardButton("📋 详细报表")
+            ],
+            [
+                KeyboardButton("📋 操作日志"),
+                KeyboardButton("🔙 返回管理面板")
+            ]
+        ]
+        reply_markup = ReplyKeyboardMarkup(
+            keyboard=keyboard,
+            resize_keyboard=True,
+            one_time_keyboard=False
+        )
+        await send_group_message(update, text, parse_mode="HTML", reply_markup=reply_markup)
+        
+    except Exception as e:
+        logger.error(f"Error in handle_unified_stats: {e}", exc_info=True)
+        await send_group_message(update, "❌ 系统错误，请稍后再试", parse_mode="HTML")
+
+
+async def handle_group_management(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle group management menu (combines group list, verification, and settings)"""
+    from telegram import ReplyKeyboardMarkup, KeyboardButton
+    
+    try:
+        text = (
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "  📋 群组管理\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "<b>🎯 群组功能</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "📋 <b>群组列表</b>：查看所有群组\n"
+            "✅ <b>群组审核</b>：审核新成员\n"
+            "⚙️ <b>群组配置</b>：管理群组设置\n\n"
+            "请选择要执行的操作："
+        )
+        
+        keyboard = [
+            [
+                KeyboardButton("📋 群组列表"),
+                KeyboardButton("✅ 群组审核")
+            ],
+            [
+                KeyboardButton("➕ 添加群组"),
+                KeyboardButton("🔍 搜索群组")
+            ],
+            [
+                KeyboardButton("⚙️ 群组配置"),
+                KeyboardButton("🗑️ 删除群组")
+            ],
+            [
+                KeyboardButton("🔙 返回管理面板")
+            ]
+        ]
+        reply_markup = ReplyKeyboardMarkup(
+            keyboard=keyboard,
+            resize_keyboard=True,
+            one_time_keyboard=False
+        )
+        await send_group_message(update, text, parse_mode="HTML", reply_markup=reply_markup)
+        
+    except Exception as e:
+        logger.error(f"Error in handle_group_management: {e}", exc_info=True)
+        await send_group_message(update, "❌ 系统错误，请稍后再试", parse_mode="HTML")
+
+
+async def handle_system_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle system settings menu (combines admin management and system config)"""
+    from telegram import ReplyKeyboardMarkup, KeyboardButton
+    
+    try:
+        text = (
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "  ⚙️ 系统设置\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "<b>🎯 系统功能</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "👤 <b>管理员管理</b>：添加/删除管理员\n"
+            "⚙️ <b>系统配置</b>：系统参数设置\n\n"
+            "请选择要执行的操作："
+        )
+        
+        keyboard = [
+            [
+                KeyboardButton("➕ 添加管理员"),
+                KeyboardButton("🗑️ 删除管理员")
+            ],
+            [
+                KeyboardButton("📋 管理员列表"),
+                KeyboardButton("🔙 返回管理面板")
+            ]
+        ]
+        reply_markup = ReplyKeyboardMarkup(
+            keyboard=keyboard,
+            resize_keyboard=True,
+            one_time_keyboard=False
+        )
+        await send_group_message(update, text, parse_mode="HTML", reply_markup=reply_markup)
+        
+    except Exception as e:
+        logger.error(f"Error in handle_system_settings: {e}", exc_info=True)
+        await send_group_message(update, "❌ 系统错误，请稍后再试", parse_mode="HTML")
+
+
+async def handle_admin_help_center(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle admin help center (combines command tutorial and help)"""
+    try:
+        from handlers.admin_commands_handlers import handle_admin_commands_help
+        await handle_admin_commands_help(update, context)
+        
+        text = (
+            "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "  ⚡ 帮助中心\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "💡 更多帮助信息：\n"
+            "• 使用 <code>/admin_help</code> 查看详细指令帮助\n"
+            "• 使用 <code>/help</code> 查看普通用户帮助\n"
+        )
+        
+        from keyboards.admin_keyboard import get_admin_panel_keyboard
+        user = update.effective_user
+        user_info = {
+            'id': user.id,
+            'first_name': user.first_name or '',
+            'username': user.username,
+            'language_code': user.language_code
+        }
+        reply_markup = get_admin_panel_keyboard(user_info)
+        await send_group_message(update, text, parse_mode="HTML", reply_markup=reply_markup)
+        
+    except Exception as e:
+        logger.error(f"Error in handle_admin_help_center: {e}", exc_info=True)
+        await send_group_message(update, "❌ 系统错误，请稍后再试", parse_mode="HTML")
+
 
 async def handle_admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle admin panel entry (using reply keyboard)"""
