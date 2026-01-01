@@ -2203,12 +2203,14 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 'language_code': user.language_code
             }
             reply_markup = get_main_reply_keyboard(user.id, is_group, user_info)
+            
+            # Simple main menu message
             text = (
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 "  🏠 主菜单\n"
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                "已返回主菜单，请使用下方按钮进行操作\n\n"
-                "💡 <i>提示：点击「⚙️ 管理」按钮可重新进入管理员面板</i>"
+                "欢迎使用 WuShiPay Bot！\n\n"
+                "请使用下方按钮进行操作。"
             )
             await send_group_message(update, text, parse_mode="HTML", reply_markup=reply_markup)
             return

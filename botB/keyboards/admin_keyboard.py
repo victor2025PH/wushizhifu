@@ -61,11 +61,7 @@ def get_admin_panel_keyboard(user_info: Optional[dict] = None) -> ReplyKeyboardM
         ],
         [
             KeyboardButton("⚡ 帮助中心"),
-            KeyboardButton("🔙 返回主菜单"),
-            KeyboardButton(
-                "💎 打开应用",
-                web_app=WebAppInfo(url=get_webapp_url())
-            )
+            KeyboardButton("🔙 返回主菜单")
         ]
     ]
     
