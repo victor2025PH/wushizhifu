@@ -717,7 +717,7 @@ def get_assignment_strategy() -> str:
         return 'round_robin'
 
 
-def assign_customer_service(user_id: int, username: str, assignment_method: str = 'round_robin') -> Optional[str]:
+def _assign_customer_service_internal(user_id: int, username: str, assignment_method: str = 'round_robin') -> Optional[str]:
     """
     Assign a customer service account to a user.
     
@@ -893,7 +893,7 @@ async def assign_customer_service(
         
         # Assign customer service account using direct implementation
         try:
-            service_account = assign_customer_service(
+            service_account = _assign_customer_service_internal(
                 user_id=user_id,
                 username=username,
                 assignment_method=assignment_method
