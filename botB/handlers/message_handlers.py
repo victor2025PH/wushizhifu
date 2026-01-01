@@ -1866,14 +1866,25 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             # 获取群组地址
             group_setting = db.get_group_setting(group_id)
-            if group_setting and group_setting.get('usdt_address'):
-                usdt_address = group_setting['usdt_address']
-                address_source = "群组独立"
+            
+            # 检查群组是否设置了地址（注意：空字符串也算未设置）
+            if group_setting:
+                # 使用字典访问方式（因为get_group_setting返回的是字典）
+                group_addr = group_setting.get('usdt_address', '')
+                # 如果地址存在且不是空字符串，使用群组地址
+                if group_addr and isinstance(group_addr, str) and group_addr.strip():
+                    usdt_address = group_addr.strip()
+                    address_source = "群组独立"
+                    logger.info(f"Using group address for {group_id}: {usdt_address[:15]}...")
             
             # 如果没有群组地址，使用全局地址
             if not usdt_address:
                 usdt_address = db.get_usdt_address()
                 address_source = "全局默认"
+                if usdt_address:
+                    logger.info(f"Using global address for group {group_id}")
+                else:
+                    logger.info(f"No address found for group {group_id} (neither group nor global)")
             
             # 构建美化的消息
             if usdt_address:
