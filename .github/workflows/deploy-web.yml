@@ -63,8 +63,18 @@ jobs:
             echo "🔨 构建项目..."
             npm run build || exit 1
             
-            # Create dist directory if not exists
+            # Check if dist directory was created
+            if [ ! -d "dist" ]; then
+              echo "❌ 构建失败: dist目录不存在"
+              exit 1
+            fi
+            
+            # Create target dist directory if not exists
             mkdir -p ${WEB_DIST}
+            
+            # Copy build output to target directory
+            echo "📦 复制构建文件..."
+            cp -r dist/* ${WEB_DIST}/ || rsync -av --delete dist/ ${WEB_DIST}/
             
             # Set proper permissions
             echo "🔒 设置文件权限..."
