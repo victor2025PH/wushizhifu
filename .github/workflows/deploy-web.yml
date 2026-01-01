@@ -150,27 +150,13 @@ jobs:
               
               # 启用站点
               sudo ln -sf ${NGINX_CONFIG} /etc/nginx/sites-enabled/web-5050
+              
+              # 测试并重载Nginx（使用模板的情况）
+              echo "🔄 测试并重载Nginx..."
+              sudo nginx -t && sudo systemctl reload nginx || echo "⚠️ Nginx重载失败"
             fi
             
-            # Enable site
-            sudo ln -sf ${NGINX_CONFIG} /etc/nginx/sites-enabled/
-            
-            # Check if SSL certificate exists
-            if [ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]; then
-              echo "✅ SSL证书已存在，启用HTTPS配置..."
-              sudo sed -i "s|# ssl_certificate|ssl_certificate|g" ${NGINX_CONFIG}
-              sudo sed -i "s|# ssl_certificate_key|ssl_certificate_key|g" ${NGINX_CONFIG}
-            else
-              echo "⚠️ SSL证书不存在，先使用HTTP配置"
-              echo "💡 请运行以下命令申请SSL证书："
-              echo "   sudo certbot --nginx -d ${DOMAIN}"
-            fi
-            
-            # Reload Nginx
-            echo "🔄 重载Nginx..."
-            sudo nginx -t && sudo systemctl reload nginx || echo "⚠️ Nginx重载失败"
-            
-            # 验证配置
+            # 验证配置（无论是使用脚本还是模板，都需要验证）
             echo "🔍 验证Nginx配置..."
             echo "检查5050.usdt2026.cc的root配置:"
             ROOT_5050=$(sudo nginx -T 2>/dev/null | grep -A 10 "server_name 5050.usdt2026.cc" | grep "root" | head -1 | awk '{print $2}' | sed 's/;//')
@@ -181,9 +167,17 @@ jobs:
               echo "✅ 5050配置正确"
             else
               echo "❌ 5050配置错误！正在修复..."
-              sudo sed -i "s|root .*;|root ${WEB_DIST};|g" ${NGINX_CONFIG}
-              sudo nginx -t && sudo systemctl reload nginx
-              echo "✅ 已修复5050配置"
+              # 如果使用脚本但配置仍然错误，再次运行脚本
+              if [ -f "${SERVER_PATH}/deploy/fix_5050_complete.sh" ]; then
+                echo "🔧 再次运行修复脚本..."
+                chmod +x "${SERVER_PATH}/deploy/fix_5050_complete.sh"
+                "${SERVER_PATH}/deploy/fix_5050_complete.sh" || echo "⚠️ 修复脚本执行完成（可能有警告）"
+              else
+                # 使用sed直接修复
+                sudo sed -i "s|root .*;|root ${WEB_DIST};|g" ${NGINX_CONFIG}
+                sudo nginx -t && sudo systemctl reload nginx
+                echo "✅ 已修复5050配置"
+              fi
             fi
             
             # 检查50zf配置（确保不会冲突）
