@@ -6,11 +6,46 @@ from telegram import ReplyKeyboardMarkup, KeyboardButton
 from typing import Optional
 
 
-def get_admin_panel_keyboard() -> ReplyKeyboardMarkup:
+def get_admin_panel_keyboard(user_info: Optional[dict] = None) -> ReplyKeyboardMarkup:
     """
     Get admin panel reply keyboard with all management functions.
     Layout: 3 buttons per row
+    
+    Args:
+        user_info: Optional user info dict for WebApp URL generation
     """
+    def get_webapp_url():
+        base_url = Config.get_miniapp_url("dashboard")
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        if user_info and user_info.get('id'):
+            user_id_value = user_info.get('id')
+            if user_id_value and str(user_id_value).strip() and str(user_id_value) != 'None':
+                params = {
+                    'user_id': str(user_id_value).strip(),
+                }
+                
+                first_name = (user_info.get('first_name') or '').strip()
+                if first_name:
+                    params['first_name'] = first_name
+                
+                username = (user_info.get('username') or '').strip()
+                if username:
+                    params['user_name'] = username
+                
+                language_code = (user_info.get('language_code') or '').strip()
+                if language_code:
+                    params['language_code'] = language_code
+                
+                if params.get('user_id'):
+                    param_string = urlencode(params, doseq=False)
+                    final_url = f"{base_url}&{param_string}"
+                    logger.info(f"Generated WebApp URL for admin panel: user_id={params.get('user_id')}")
+                    return final_url
+        
+        return base_url
+    
     keyboard = [
         [
             KeyboardButton("👥 用户管理"),
@@ -24,7 +59,11 @@ def get_admin_panel_keyboard() -> ReplyKeyboardMarkup:
         ],
         [
             KeyboardButton("📋 群组列表"),
-            KeyboardButton("🔙 返回主菜单")
+            KeyboardButton("🔙 返回主菜单"),
+            KeyboardButton(
+                "💎 打开应用",
+                web_app=WebAppInfo(url=get_webapp_url())
+            )
         ]
     ]
     

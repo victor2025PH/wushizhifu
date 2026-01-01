@@ -2195,6 +2195,29 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await handle_admin_panel(update, context)
             return
         
+        if text == "🔙 返回主菜单":
+            # Return to main menu
+            from keyboards.reply_keyboard import get_main_reply_keyboard
+            user = update.effective_user
+            chat = update.effective_chat
+            is_group = chat.type in ['group', 'supergroup']
+            user_info = {
+                'id': user.id,
+                'first_name': user.first_name or '',
+                'username': user.username,
+                'language_code': user.language_code
+            }
+            reply_markup = get_main_reply_keyboard(user.id, is_group, user_info)
+            text = (
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                "  🏠 主菜单\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "已返回主菜单，请使用下方按钮进行操作\n\n"
+                "💡 <i>提示：点击「⚙️ 管理」按钮可重新进入管理员面板</i>"
+            )
+            await send_group_message(update, text, parse_mode="HTML", reply_markup=reply_markup)
+            return
+        
         # Handle admin submenu buttons
         if text == "🔍 搜索用户":
             await handle_admin_user_search(update, context)
@@ -2661,6 +2684,14 @@ async def handle_admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE)
     from keyboards.admin_keyboard import get_admin_panel_keyboard
     
     try:
+        user = update.effective_user
+        user_info = {
+            'id': user.id,
+            'first_name': user.first_name or '',
+            'username': user.username,
+            'language_code': user.language_code
+        }
+        
         text = (
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             "  ⚙️ 管理员面板\n"
@@ -2677,7 +2708,7 @@ async def handle_admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE)
             "请选择要管理的功能："
         )
         
-        reply_markup = get_admin_panel_keyboard()
+        reply_markup = get_admin_panel_keyboard(user_info)
         await send_group_message(update, text, parse_mode="HTML", reply_markup=reply_markup)
         
     except Exception as e:

@@ -90,14 +90,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"可以关闭帮助提示，也可在此重新打开\n\n"
     )
     
-    if is_admin_user:
-        welcome_message += (
-            f"🔐 <b>管理员提示：</b>\n"
-            f"点击「⚙️ 管理」或「⚙️ 设置」按钮查看管理员功能和指令教程\n\n"
-        )
-    
-    welcome_message += "祝您使用愉快！✨"
-    
     is_group = update.effective_chat.type in ['group', 'supergroup']
     # Pass user info to keyboard so it can be included in WebApp URL
     user_info = {
@@ -106,7 +98,25 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'username': user.username,
         'language_code': user.language_code
     }
-    reply_markup = get_main_reply_keyboard(user.id, is_group, user_info)
+    
+    # For admins in private chat, show admin panel keyboard directly
+    if is_admin_user and not is_group:
+        from keyboards.admin_keyboard import get_admin_panel_keyboard
+        reply_markup = get_admin_panel_keyboard(user_info)
+        welcome_message += (
+            f"🔐 <b>管理员提示：</b>\n"
+            f"您已进入管理员面板，请使用下方按钮进行管理操作\n\n"
+            f"💡 <i>提示：点击「🔙 返回主菜单」可返回普通用户界面</i>\n\n"
+        )
+    else:
+        reply_markup = get_main_reply_keyboard(user.id, is_group, user_info)
+        if is_admin_user:
+            welcome_message += (
+                f"🔐 <b>管理员提示：</b>\n"
+                f"点击「⚙️ 管理」或「⚙️ 设置」按钮查看管理员功能和指令教程\n\n"
+            )
+    
+    welcome_message += "祝您使用愉快！✨"
     
     # Add inline keyboard for resetting help
     from telegram import InlineKeyboardMarkup, InlineKeyboardButton
