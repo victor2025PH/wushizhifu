@@ -1524,16 +1524,10 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # "📊 所有群组列表" is now merged into "📋 群组列表"
     # Removed this handler - functionality merged
     
-    if text == "📈 全局统计":
-        if not is_admin_user:
-            await update.message.reply_text("❌ 此功能仅限管理员使用")
-            return
-        
-        from handlers.stats_handlers import handle_global_stats
-        await handle_global_stats(update, context)
-        return
+    # "📈 全局统计" is now merged into "📊 数据统计"
+    # Removed this handler - functionality merged
     
-    if text == "👥 客服管理":
+    if text == "📞 客服管理":
         if not is_admin_user:
             await update.message.reply_text("❌ 此功能仅限管理员使用")
             return
@@ -1542,7 +1536,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from keyboards.management_keyboard import get_customer_service_menu_keyboard
         reply_keyboard = get_customer_service_menu_keyboard()
         message = (
-            "👥 <b>客服管理</b>\n\n"
+            "📞 <b>客服管理</b>\n\n"
             "请选择要执行的操作：\n\n"
             "• <b>客服账号列表</b>：查看和管理所有客服账号\n"
             "• <b>添加客服账号</b>：添加新的客服账号\n"
@@ -2123,12 +2117,20 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await handle_admin_users(update, context)
             return
         
-        if text == "📊 系统统计":
-            await handle_admin_stats(update, context)
+        if text == "📊 数据统计":
+            await handle_unified_stats(update, context)
             return
         
-        if text == "👤 添加管理员":
-            await handle_admin_add(update, context)
+        if text == "📋 群组管理":
+            await handle_group_management(update, context)
+            return
+        
+        if text == "⚙️ 系统设置":
+            await handle_system_settings(update, context)
+            return
+        
+        if text == "⚡ 帮助中心":
+            await handle_admin_help_center(update, context)
             return
         
         if text == "🚫 敏感词管理":
@@ -2142,6 +2144,10 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if text == "📋 群组列表":
             # Merge 群组列表 and 所有群组列表 - use handle_admin_w7 to show all groups
             await handle_admin_w7(update, context)
+            return
+        
+        if text == "✅ 群组审核":
+            await handle_group_verification(update, context)
             return
         
         if text == "🔍 搜索群组":
@@ -2226,11 +2232,20 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
         
+        if text == "📊 系统统计":
+            await handle_admin_stats(update, context)
+            return
+        
+        if text == "📈 全局统计":
+            from handlers.stats_handlers import handle_global_stats
+            await handle_global_stats(update, context)
+            return
+        
         if text == "📅 时间统计":
             await handle_admin_stats_time(update, context)
             return
         
-        if text == "📊 详细报表":
+        if text == "📋 详细报表":
             await handle_admin_stats_detail(update, context)
             return
         
@@ -2668,14 +2683,12 @@ async def handle_admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE)
             "<b>🎯 管理功能</b>\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             "👥 <b>用户管理</b>：查看和管理用户\n"
-            "📊 <b>系统统计</b>：查看系统数据\n"
-            "👤 <b>添加管理员</b>：添加新管理员\n"
+            "📋 <b>群组管理</b>：群组列表、审核、设置\n"
             "🚫 <b>敏感词管理</b>：管理敏感词\n"
-            "✅ <b>群组审核</b>：审核群组成员\n"
-            "📋 <b>群组列表</b>：查看和管理所有群组\n"
-            "📈 <b>全局统计</b>：查看全局统计数据\n"
-            "👥 <b>客服管理</b>：管理客服账号\n"
-            "⚡ <b>管理员指令教程</b>：查看指令帮助\n\n"
+            "📊 <b>数据统计</b>：系统统计、全局统计、详细报表\n"
+            "📞 <b>客服管理</b>：管理客服账号\n"
+            "⚙️ <b>系统设置</b>：管理员管理、系统配置\n"
+            "⚡ <b>帮助中心</b>：指令教程、使用帮助\n\n"
             "请选择要管理的功能："
         )
         

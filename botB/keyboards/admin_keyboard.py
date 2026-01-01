@@ -51,20 +51,16 @@ def get_admin_panel_keyboard(user_info: Optional[dict] = None) -> ReplyKeyboardM
     keyboard = [
         [
             KeyboardButton("👥 用户管理"),
-            KeyboardButton("📊 系统统计"),
-            KeyboardButton("👤 添加管理员")
+            KeyboardButton("📋 群组管理"),
+            KeyboardButton("🚫 敏感词管理")
         ],
         [
-            KeyboardButton("🚫 敏感词管理"),
-            KeyboardButton("✅ 群组审核"),
-            KeyboardButton("📋 群组列表")
+            KeyboardButton("📊 数据统计"),
+            KeyboardButton("📞 客服管理"),
+            KeyboardButton("⚙️ 系统设置")
         ],
         [
-            KeyboardButton("📈 全局统计"),
-            KeyboardButton("👥 客服管理"),
-            KeyboardButton("⚡ 管理员指令教程")
-        ],
-        [
+            KeyboardButton("⚡ 帮助中心"),
             KeyboardButton("🔙 返回主菜单"),
             KeyboardButton(
                 "💎 打开应用",
