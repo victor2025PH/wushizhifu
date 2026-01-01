@@ -2782,21 +2782,11 @@ async def handle_system_settings(update: Update, context: ContextTypes.DEFAULT_T
 
 
 async def handle_admin_help_center(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle admin help center (combines command tutorial and help)"""
+    """Handle admin help center with guided tutorial"""
     try:
-        from handlers.admin_commands_handlers import handle_admin_commands_help
-        await handle_admin_commands_help(update, context)
-        
-        text = (
-            "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "  ⚡ 帮助中心\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            "💡 更多帮助信息：\n"
-            "• 使用 <code>/admin_help</code> 查看详细指令帮助\n"
-            "• 使用 <code>/help</code> 查看普通用户帮助\n"
-        )
-        
+        from utils.help_generator import HelpGenerator
         from keyboards.admin_keyboard import get_admin_panel_keyboard
+        
         user = update.effective_user
         user_info = {
             'id': user.id,
@@ -2804,6 +2794,9 @@ async def handle_admin_help_center(update: Update, context: ContextTypes.DEFAULT
             'username': user.username,
             'language_code': user.language_code
         }
+        
+        # Show guided tutorial menu
+        text = HelpGenerator.get_guided_tutorial_menu()
         reply_markup = get_admin_panel_keyboard(user_info)
         await send_group_message(update, text, parse_mode="HTML", reply_markup=reply_markup)
         
