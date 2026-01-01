@@ -1831,7 +1831,9 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     if text in ["🔗 收款地址", "🔗 地址"]:
-        # Show help if needed
+        chat = update.effective_chat
+        
+        # Show help if needed (only once, then show address)
         if should_show_help(user_id, "🔗 地址"):
             help_message = format_button_help_message("🔗 地址")
             if help_message:
@@ -1855,8 +1857,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 else:
                     await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
                 mark_help_shown(user_id, "🔗 地址", shown=True)
-        
-        chat = update.effective_chat
+                # 注意：这里不return，继续执行后面的地址显示逻辑
         
         # 在群组中：显示当前群组的地址（美化显示 + 安全提示）
         if chat.type in ['group', 'supergroup']:
