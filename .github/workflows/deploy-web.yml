@@ -183,4 +183,28 @@ jobs:
               fi
             fi
             
+            # 运行诊断脚本（如果存在）
+            if [ -f "${SERVER_PATH}/deploy/diagnose_and_fix_5050.sh" ]; then
+              echo "🔍 运行诊断脚本..."
+              chmod +x "${SERVER_PATH}/deploy/diagnose_and_fix_5050.sh"
+              "${SERVER_PATH}/deploy/diagnose_and_fix_5050.sh" || echo "⚠️ 诊断脚本执行完成（可能有警告）"
+            fi
+            
+            # 最终验证：检查Nginx是否运行
+            echo ""
+            echo "🔍 最终验证..."
+            if systemctl is-active --quiet nginx; then
+              echo "✅ Nginx服务运行正常"
+            else
+              echo "❌ Nginx服务未运行！"
+              sudo systemctl start nginx || echo "⚠️ 无法启动Nginx"
+            fi
+            
+            # 检查端口监听
+            if sudo ss -tlnp 2>/dev/null | grep -q ":80 "; then
+              echo "✅ 端口80正在监听"
+            else
+              echo "⚠️ 端口80未监听，这可能导致连接被拒绝"
+            fi
+            
             echo "✅ Web前端部署完成"
