@@ -892,13 +892,14 @@ async def assign_customer_service(
         assignment_method = get_assignment_strategy()
         
         # Assign customer service account using direct implementation
-        service_account = assign_customer_service(
-            user_id=user_id,
-            username=username,
-            assignment_method=assignment_method
-        )
+        try:
+            service_account = assign_customer_service(
+                user_id=user_id,
+                username=username,
+                assignment_method=assignment_method
+            )
         except Exception as e:
-            logger.error(f"Error in assign_service: {e}", exc_info=True)
+            logger.error(f"Error in assign_customer_service: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Failed to assign customer service: {str(e)}")
         
         if service_account:
