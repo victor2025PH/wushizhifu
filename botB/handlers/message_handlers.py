@@ -1497,28 +1497,8 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # This will be handled by the handle_admin_panel function below
         # Don't return here, let it fall through to the handle_admin_panel call
     
-    if text in ["📈 统计", "📊 数据"]:
-        # Show help if needed
-        button_text = "📈 统计" if chat.type in ['group', 'supergroup'] else "📊 数据"
-        if should_show_help(user_id, button_text):
-            help_message = format_button_help_message(button_text)
-            if help_message:
-                help_keyboard = get_button_help_keyboard(button_text)
-                await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
-                mark_help_shown(user_id, button_text, shown=True)
-        
-        # Show statistics (admin only)
-        if not is_admin_user:
-            await update.message.reply_text("❌ 此功能仅限管理员使用")
-            return
-        
-        if chat.type in ['group', 'supergroup']:
-            from handlers.stats_handlers import handle_group_stats
-            await handle_group_stats(update, context)
-        else:
-            from handlers.stats_handlers import handle_global_stats
-            await handle_global_stats(update, context)
-        return
+    # "📈 统计" and "📊 数据" buttons removed from main menu
+    # Statistics functionality is now only available in admin panel as "📊 数据统计"
     
     # Handle management menu buttons (bottom keyboard)
     # "📊 所有群组列表" is now merged into "📋 群组列表"
