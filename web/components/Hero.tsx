@@ -44,7 +44,7 @@ export const Hero: React.FC = () => {
 
         <div className="flex flex-col sm:flex-row justify-center gap-4 mb-16">
           <a
-            href="https://t.me/PayShieldBot"
+            href="https://t.me/hulv50_bot"
             target="_blank"
             rel="noreferrer"
             className="group flex items-center justify-center gap-2 bg-blue-600 text-white dark:bg-brand-blue dark:text-slate-950 px-8 py-4 rounded-xl text-lg font-bold hover:bg-blue-700 dark:hover:bg-cyan-300 transition-all shadow-lg shadow-blue-600/20 dark:shadow-[0_0_20px_rgba(0,240,255,0.3)] transform hover:-translate-y-1"
