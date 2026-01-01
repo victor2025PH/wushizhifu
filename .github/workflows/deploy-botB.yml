@@ -1,0 +1,69 @@
+name: Deploy Bot B
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'botB/**'
+      - 'services/**'
+      - 'database/**'
+      - '.github/workflows/deploy-botB.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Pull Code
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          timeout: 300s
+          script: |
+            cd /home/ubuntu/wushizhifu || cd ${{ secrets.SERVER_PATH || '/home/ubuntu/wushizhifu' }}
+            if [ -d ".git" ]; then
+              git stash || true
+              git pull origin main || echo "⚠️ Git pull失败，继续部署"
+            else
+              echo "⚠️ 当前目录不是Git仓库，跳过git pull"
+            fi
+      
+      - name: Install Dependencies and Restart
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          timeout: 180s
+          script: |
+            cd /home/ubuntu/wushizhifu/botB || cd ${{ secrets.SERVER_PATH || '/home/ubuntu/wushizhifu' }}/botB
+            if [ ! -d "venv" ]; then
+              echo "📦 创建虚拟环境..."
+              python3 -m venv venv
+            fi
+            source venv/bin/activate
+            pip install --upgrade pip -q
+            pip install -r requirements.txt -q
+            sleep 3
+            sudo systemctl restart otc-bot.service || echo "⚠️ 服务重启失败"
+            sudo systemctl enable otc-bot.service || true
+            sleep 2
+            if systemctl is-active --quiet otc-bot.service; then
+              echo "✅ 服务运行正常"
+            else
+              echo "⚠️ 服务可能未正常运行，请检查日志"
+            fi
