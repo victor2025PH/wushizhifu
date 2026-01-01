@@ -74,25 +74,71 @@ jobs:
             sudo chown -R www-data:www-data dist || true
             sudo chmod -R 755 dist || true
             
-            # Update Nginx configuration if needed
-            NGINX_CONFIG="/etc/nginx/sites-available/wushizhifu"
-            if [ -f "${NGINX_CONFIG}" ]; then
-              # Update root path if different (build output is in web/dist)
-              CURRENT_ROOT=$(grep -E "^\s*root\s+" ${NGINX_CONFIG} | head -1 | awk '{print $2}' | sed 's/;//')
-              if [ "$CURRENT_ROOT" != "${WEB_DIST}" ]; then
-                echo "⚙️ 更新Nginx配置，从 $CURRENT_ROOT 到 ${WEB_DIST}..."
-                sudo sed -i "s|root .*;|root ${WEB_DIST};|g" ${NGINX_CONFIG}
-                # Test configuration
-                if sudo nginx -t; then
-                  echo "✅ Nginx配置更新成功"
-                else
-                  echo "⚠️ Nginx配置测试失败，请手动检查"
-                fi
-              else
-                echo "✅ Nginx配置已正确指向 ${WEB_DIST}"
-              fi
+            # Update Nginx configuration for web domain
+            NGINX_CONFIG="/etc/nginx/sites-available/web-5050"
+            DOMAIN="5050.usdt2026.cc"
+            
+            echo "⚙️ 配置Nginx站点..."
+            # Create Nginx configuration file
+            sudo tee ${NGINX_CONFIG} > /dev/null <<EOF
+# Nginx 配置文件 - Web前端网站
+# 域名: ${DOMAIN}
+
+server {
+    listen 80;
+    server_name ${DOMAIN};
+    
+    # 重定向到 HTTPS（Certbot 會自動添加）
+    return 301 https://\$server_name\$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name ${DOMAIN};
+    
+    # SSL 證書路徑（Certbot 會自動配置）
+    # ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+    # ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+    
+    # SSL 配置
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+    
+    # Web前端靜態文件
+    root ${WEB_DIST};
+    index index.html;
+    
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+    
+    # 靜態資源緩存
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+    
+    # Gzip 壓縮
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml+rss application/json;
+}
+EOF
+            
+            # Enable site
+            sudo ln -sf ${NGINX_CONFIG} /etc/nginx/sites-enabled/
+            
+            # Check if SSL certificate exists
+            if [ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]; then
+              echo "✅ SSL证书已存在，启用HTTPS配置..."
+              sudo sed -i "s|# ssl_certificate|ssl_certificate|g" ${NGINX_CONFIG}
+              sudo sed -i "s|# ssl_certificate_key|ssl_certificate_key|g" ${NGINX_CONFIG}
             else
-              echo "⚠️ Nginx配置文件不存在，需要手动配置指向 ${WEB_DIST}"
+              echo "⚠️ SSL证书不存在，先使用HTTP配置"
+              echo "💡 请运行以下命令申请SSL证书："
+              echo "   sudo certbot --nginx -d ${DOMAIN}"
             fi
             
             # Reload Nginx
