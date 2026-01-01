@@ -28,11 +28,12 @@ export function getSupportAccount(): string {
 }
 
 /**
- * 获取用户 ID（从 Telegram WebApp）
- * @returns 用户 ID 或 null
+ * 获取或生成用户 ID
+ * @returns 用户 ID（从Telegram获取，或在浏览器环境下生成临时ID）
  */
-function getUserId(): number | null {
+function getUserId(): number {
   try {
+    // 优先从 Telegram WebApp 获取
     if (window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
       return window.Telegram.WebApp.initDataUnsafe.user.id;
     }
@@ -43,16 +44,45 @@ function getUserId(): number | null {
       if (userParam) {
         try {
           const user = JSON.parse(decodeURIComponent(userParam));
-          return user.id || null;
+          if (user.id) {
+            return user.id;
+          }
         } catch (e) {
           console.warn('Failed to parse user from initData:', e);
         }
       }
     }
   } catch (e) {
-    console.warn('Failed to get user ID:', e);
+    console.warn('Failed to get user ID from Telegram:', e);
   }
-  return null;
+  
+  // 浏览器环境下：生成或获取临时用户ID（基于sessionStorage）
+  // 使用负数ID以区分真实Telegram用户（正数）和临时用户（负数）
+  const TEMP_USER_ID_KEY = 'temp_user_id';
+  let tempUserId = sessionStorage.getItem(TEMP_USER_ID_KEY);
+  
+  if (!tempUserId) {
+    // 生成临时ID：使用时间戳的负值，确保唯一性
+    // 格式：-YYYYMMDDHHmmss（例如：-20260102120000）
+    const timestamp = Date.now();
+    tempUserId = `-${timestamp}`;
+    sessionStorage.setItem(TEMP_USER_ID_KEY, tempUserId);
+  }
+  
+  // 转换为数字（如果太大，使用hash）
+  const numericId = parseInt(tempUserId);
+  if (isNaN(numericId) || numericId > 0) {
+    // 如果解析失败或不是负数，使用hash生成负数ID
+    let hash = 0;
+    for (let i = 0; i < tempUserId.length; i++) {
+      const char = tempUserId.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return -Math.abs(hash); // 确保是负数
+  }
+  
+  return numericId;
 }
 
 /**
@@ -77,7 +107,10 @@ export async function assignCustomerService(): Promise<CustomerServiceAssignment
 
     // Call backend API to assign customer service
     // Use same API base URL as api.ts (50zf.usdt2026.cc/api)
-    const apiUrl = import.meta.env.VITE_API_URL || 'https://50zf.usdt2026.cc/api';
+    // 注意：如果访问的是HTTP，使用HTTP API；如果是HTTPS，使用HTTPS API
+    const isHttps = window.location.protocol === 'https:';
+    const apiUrl = import.meta.env.VITE_API_URL || 
+      (isHttps ? 'https://50zf.usdt2026.cc/api' : 'http://50zf.usdt2026.cc/api');
     
     // Prepare headers with authentication if available
     const headers: HeadersInit = {
@@ -110,14 +143,25 @@ export async function assignCustomerService(): Promise<CustomerServiceAssignment
         return {
           success: false,
           service_account: null,
-          error: '当前没有可用的客服账号，请联系管理员：@wushizhifu_jianglai'
+          error: data.message || '当前没有可用的客服账号，请联系管理员：@wushizhifu_jianglai'
         };
       }
     } else {
+      // 尝试解析错误信息
+      let errorMessage = '客服分配失败，请联系管理员：@wushizhifu_jianglai';
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.detail || errorData.message || errorMessage;
+      } catch (e) {
+        // 如果无法解析JSON，使用默认错误信息
+        console.warn('Failed to parse error response:', e);
+      }
+      
+      console.error(`API error (${response.status}):`, errorMessage);
       return {
         success: false,
         service_account: null,
-        error: '客服分配失败，请联系管理员：@wushizhifu_jianglai'
+        error: errorMessage
       };
     }
   } catch (error) {
@@ -125,7 +169,7 @@ export async function assignCustomerService(): Promise<CustomerServiceAssignment
     return {
       success: false,
       service_account: null,
-      error: '客服分配失败，请联系管理员：@wushizhifu_jianglai'
+      error: `网络错误：${error instanceof Error ? error.message : '未知错误'}，请联系管理员：@wushizhifu_jianglai`
     };
   }
 }

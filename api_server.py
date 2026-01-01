@@ -715,11 +715,26 @@ async def assign_customer_service(
             user_id = None
             username = None
         
+        # Handle anonymous users (browser access without Telegram context)
+        # Generate a temporary user_id if not provided
         if not user_id:
-            raise HTTPException(status_code=400, detail="User ID is required")
+            # Generate a temporary negative user_id for anonymous users
+            # This distinguishes them from real Telegram users (positive IDs)
+            import time
+            import hashlib
+            # Use session-based hash to generate consistent temp ID
+            # In a real scenario, you might want to use session ID or IP-based hash
+            temp_id_source = f"anon_{time.time()}"
+            temp_id_hash = int(hashlib.md5(temp_id_source.encode()).hexdigest()[:8], 16)
+            user_id = -temp_id_hash  # Negative ID for anonymous users
+            logger.info(f"Generated temporary user_id for anonymous user: {user_id}")
         
         if not username:
-            username = f"user_{user_id}"
+            # Generate username based on user_id
+            if user_id < 0:
+                username = f"guest_{abs(user_id) % 10000}"  # Anonymous user
+            else:
+                username = f"user_{user_id}"
         
         # Import customer service from botB (which has the correct database module)
         import sys
