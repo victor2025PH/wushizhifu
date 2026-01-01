@@ -28,8 +28,15 @@ jobs:
           timeout: 600s
           script: |
             cd /home/ubuntu/wushizhifu
+            # 强制处理本地修改，确保可以pull
             git stash || true
-            git pull origin main
+            git reset --hard HEAD || true
+            git clean -fd || true
+            git pull origin main || {
+              echo "⚠️ Git pull失败，尝试强制重置..."
+              git fetch origin main
+              git reset --hard origin/main
+            }
             
             # 进入 wushizhifu-full 目录（统一使用 wushizhifu-full，不再使用 repo/wushizhifu-full）
             if [ ! -d "wushizhifu-full" ]; then
@@ -51,6 +58,28 @@ jobs:
               rm -rf node_modules package-lock.json
               npm install --production=false
             }
+            
+            # 修复dist目录权限
+            echo "🔧 修复dist目录权限..."
+            if [ -d "dist" ]; then
+              # 更改所有权到当前用户
+              sudo chown -R ${USER}:${USER} dist 2>/dev/null || true
+              # 删除dist目录
+              rm -rf dist || sudo rm -rf dist || true
+            fi
+            mkdir -p dist
+            chmod -R 755 dist || true
+            
+            # 修复dist目录权限
+            echo "🔧 修复dist目录权限..."
+            if [ -d "dist" ]; then
+              # 更改所有权到当前用户
+              sudo chown -R ${USER}:${USER} dist 2>/dev/null || true
+              # 删除dist目录
+              rm -rf dist || sudo rm -rf dist || true
+            fi
+            mkdir -p dist
+            chmod -R 755 dist || true
             
             # 构建项目
             echo "🔨 构建项目..."

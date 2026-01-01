@@ -740,23 +740,66 @@ async def assign_customer_service(
         import sys
         from pathlib import Path
         
-        # Add botB to path
-        botb_path = Path(__file__).parent / "botB"
-        if str(botb_path) not in sys.path:
-            sys.path.insert(0, str(botb_path))
-        
-        # Import from botB's services (which uses botB's database module)
-        from services.customer_service_service import customer_service
+        try:
+            # Try to import from botB's services first
+            botb_path = Path(__file__).parent / "botB"
+            if str(botb_path) not in sys.path:
+                sys.path.insert(0, str(botb_path))
+            
+            # Import from botB's services (which uses botB's database module)
+            from services.customer_service_service import customer_service
+            
+            # Verify the service has required methods
+            if not hasattr(customer_service, 'get_assignment_strategy'):
+                raise AttributeError("customer_service missing get_assignment_strategy method")
+            if not hasattr(customer_service, 'assign_service'):
+                raise AttributeError("customer_service missing assign_service method")
+            
+        except (ImportError, AttributeError) as e:
+            logger.error(f"Failed to import customer_service_service from botB: {e}")
+            # Fallback: try to import from root services directory
+            try:
+                root_path = Path(__file__).parent
+                if str(root_path) not in sys.path:
+                    sys.path.insert(0, str(root_path))
+                from services.customer_service_service import customer_service
+                logger.info("Successfully imported customer_service_service from root services")
+            except ImportError as e2:
+                logger.error(f"Failed to import customer_service_service from root: {e2}")
+                # Final fallback: use database directly
+                from database.db import db
+                if hasattr(db, 'assign_customer_service'):
+                    # Use database method directly
+                    service_account = db.assign_customer_service(user_id=user_id, method='round_robin')
+                    if service_account:
+                        return CustomerServiceAssignResponse(
+                            service_account=service_account,
+                            assignment_method='round_robin',
+                            success=True,
+                            message=f"Assigned to @{service_account}"
+                        )
+                    else:
+                        raise HTTPException(status_code=500, detail="No available customer service account")
+                else:
+                    raise HTTPException(status_code=500, detail=f"Customer service module not available: {e}, {e2}")
         
         # Get assignment strategy from settings
-        assignment_method = customer_service.get_assignment_strategy()
+        try:
+            assignment_method = customer_service.get_assignment_strategy()
+        except Exception as e:
+            logger.warning(f"Failed to get assignment strategy, using default: {e}")
+            assignment_method = 'round_robin'
         
         # Assign customer service account
-        service_account = customer_service.assign_service(
-            user_id=user_id,
-            username=username,
-            method=assignment_method
-        )
+        try:
+            service_account = customer_service.assign_service(
+                user_id=user_id,
+                username=username,
+                method=assignment_method
+            )
+        except Exception as e:
+            logger.error(f"Error in assign_service: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to assign customer service: {str(e)}")
         
         if service_account:
             logger.info(f"Assigned customer service @{service_account} to user {user_id} via API")
