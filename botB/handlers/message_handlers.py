@@ -1521,14 +1521,8 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     # Handle management menu buttons (bottom keyboard)
-    if text == "📊 所有群组列表":
-        if not is_admin_user:
-            await update.message.reply_text("❌ 此功能仅限管理员使用")
-            return
-        
-        # Show groups list
-        await handle_admin_w7(update, context)
-        return
+    # "📊 所有群组列表" is now merged into "📋 群组列表"
+    # Removed this handler - functionality merged
     
     if text == "📈 全局统计":
         if not is_admin_user:
@@ -2146,17 +2140,14 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         if text == "📋 群组列表":
-            await handle_group_list(update, context)
+            # Merge 群组列表 and 所有群组列表 - use handle_admin_w7 to show all groups
+            await handle_admin_w7(update, context)
             return
         
         if text == "🔍 搜索群组":
             from utils.help_generator import HelpGenerator
             help_text = HelpGenerator.get_feature_help('group_search')
             await send_group_message(update, help_text, parse_mode="HTML")
-            return
-        
-        if text == "⚙️ 群组设置":
-            await handle_group_settings(update, context)
             return
         
         # Handle approve/reject all (using reply keyboard)
@@ -2681,9 +2672,7 @@ async def handle_admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE)
             "👤 <b>添加管理员</b>：添加新管理员\n"
             "🚫 <b>敏感词管理</b>：管理敏感词\n"
             "✅ <b>群组审核</b>：审核群组成员\n"
-            "⚙️ <b>群组设置</b>：管理群组配置\n"
-            "📋 <b>群组列表</b>：查看所有群组\n"
-            "📊 <b>所有群组列表</b>：查看所有已配置群组\n"
+            "📋 <b>群组列表</b>：查看和管理所有群组\n"
             "📈 <b>全局统计</b>：查看全局统计数据\n"
             "👥 <b>客服管理</b>：管理客服账号\n"
             "⚡ <b>管理员指令教程</b>：查看指令帮助\n\n"
