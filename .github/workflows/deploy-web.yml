@@ -62,7 +62,9 @@ jobs:
             # Fix permissions for dist directory before build
             echo "🔧 修复dist目录权限..."
             if [ -d "dist" ]; then
-              sudo rm -rf dist || rm -rf dist || true
+              # Change ownership to current user before removing
+              sudo chown -R ${USER}:${USER} dist 2>/dev/null || true
+              rm -rf dist || sudo rm -rf dist || true
             fi
             mkdir -p dist
             chmod -R 755 dist || true
@@ -104,11 +106,17 @@ jobs:
               sudo sh -c "echo '    return 301 https://\\\$server_name\\\$request_uri;' >> ${NGINX_CONFIG}"
               sudo sh -c "echo '}' >> ${NGINX_CONFIG}"
               sudo sh -c "echo '' >> ${NGINX_CONFIG}"
-              sudo sh -c "echo 'server {' >> ${NGINX_CONFIG}"
-              sudo sh -c "echo '    listen 443 ssl http2;' >> ${NGINX_CONFIG}"
-              sudo sh -c "echo '    server_name ${DOMAIN};' >> ${NGINX_CONFIG}"
-              sudo sh -c "echo '    # ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;' >> ${NGINX_CONFIG}"
-              sudo sh -c "echo '    # ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;' >> ${NGINX_CONFIG}"
+              # Only add HTTPS block if SSL certificate exists
+              if [ "$HAS_SSL" = true ]; then
+                sudo sh -c "echo 'server {' >> ${NGINX_CONFIG}"
+                sudo sh -c "echo '    listen 443 ssl http2;' >> ${NGINX_CONFIG}"
+                sudo sh -c "echo '    server_name ${DOMAIN};' >> ${NGINX_CONFIG}"
+                sudo sh -c "echo '    ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;' >> ${NGINX_CONFIG}"
+                sudo sh -c "echo '    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;' >> ${NGINX_CONFIG}"
+              else
+                sudo sh -c "echo '# HTTPS server block disabled - SSL certificate not found' >> ${NGINX_CONFIG}"
+                sudo sh -c "echo '# Run: sudo certbot --nginx -d ${DOMAIN}' >> ${NGINX_CONFIG}"
+              fi
               sudo sh -c "echo '    ssl_protocols TLSv1.2 TLSv1.3;' >> ${NGINX_CONFIG}"
               sudo sh -c "echo '    ssl_ciphers HIGH:!aNULL:!MD5;' >> ${NGINX_CONFIG}"
               sudo sh -c "echo '    ssl_prefer_server_ciphers on;' >> ${NGINX_CONFIG}"
