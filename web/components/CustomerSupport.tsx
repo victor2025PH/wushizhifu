@@ -1,6 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageCircle, X, Send, Phone, User, Bot, Loader2 } from 'lucide-react';
 
+// API base URL - adjust this to match your backend API
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://50zf.usdt2026.cc/api';
+
 interface Message {
   id: string;
   text: string;
@@ -14,6 +17,7 @@ export const CustomerSupport: React.FC = () => {
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [showTooltip, setShowTooltip] = useState(true);
+  const [isAssigning, setIsAssigning] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [messages, setMessages] = useState<Message[]>([
@@ -46,6 +50,64 @@ export const CustomerSupport: React.FC = () => {
       setShowTooltip(false);
     }
   }, [isOpen]);
+
+  const assignCustomerService = async (): Promise<string | null> => {
+    try {
+      setIsAssigning(true);
+      
+      // Get user info from Telegram WebApp if available
+      const tg = (window as any).Telegram?.WebApp;
+      let user_id: number | undefined;
+      let username: string | undefined;
+      
+      if (tg?.initDataUnsafe?.user) {
+        user_id = tg.initDataUnsafe.user.id;
+        username = tg.initDataUnsafe.user.username;
+      }
+      
+      // Prepare request body
+      const requestBody: any = {};
+      if (user_id) requestBody.user_id = user_id;
+      if (username) requestBody.username = username;
+      
+      // Call API to assign customer service
+      const response = await fetch(`${API_BASE_URL}/customer-service/assign`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(tg?.initData ? { 'X-Telegram-Init-Data': tg.initData } : {})
+        },
+        body: JSON.stringify(requestBody)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API call failed: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      return data.username || data.service_username || null;
+    } catch (error) {
+      console.error('Error assigning customer service:', error);
+      return null;
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
+  const handleTelegramClick = async (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    
+    // Assign customer service
+    const assignedUsername = await assignCustomerService();
+    
+    if (assignedUsername) {
+      // Open Telegram with assigned customer service
+      window.open(`https://t.me/${assignedUsername.replace('@', '')}`, '_blank');
+    } else {
+      // Fallback to default customer service
+      window.open('https://t.me/PayShieldSupport', '_blank');
+    }
+  };
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -152,19 +214,24 @@ export const CustomerSupport: React.FC = () => {
                           
                           <a 
                             href="https://t.me/PayShieldSupport" 
-                            target="_blank" 
-                            rel="noreferrer"
-                            className="flex items-center gap-3 p-3 rounded-xl bg-[#0088cc]/10 hover:bg-[#0088cc]/20 border border-[#0088cc]/20 transition-all group"
+                            onClick={handleTelegramClick}
+                            className={`flex items-center gap-3 p-3 rounded-xl bg-[#0088cc]/10 hover:bg-[#0088cc]/20 border border-[#0088cc]/20 transition-all group ${isAssigning ? 'opacity-50 cursor-wait' : 'cursor-pointer'}`}
                           >
                             <div className="w-9 h-9 rounded-full bg-[#0088cc] flex items-center justify-center text-white shrink-0 shadow-lg shadow-[#0088cc]/20">
-                              <Send className="w-4 h-4 ml-0.5" />
+                              {isAssigning ? (
+                                <Loader2 className="w-4 h-4 ml-0.5 animate-spin" />
+                              ) : (
+                                <Send className="w-4 h-4 ml-0.5" />
+                              )}
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between">
                                 <span className="font-bold text-slate-900 dark:text-white text-sm">Telegram</span>
                                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 font-bold">推荐</span>
                               </div>
-                              <div className="text-xs text-slate-500 dark:text-slate-400 truncate">@PayShieldSupport</div>
+                              <div className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                                {isAssigning ? '正在分配客服...' : '点击分配客服'}
+                              </div>
                             </div>
                           </a>
 
