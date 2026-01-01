@@ -1475,49 +1475,27 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
                 mark_help_shown(user_id, button_text, shown=True)
         
-        # Show group settings menu (admin only)
+        # Check admin permission
         if not is_admin_user:
             await update.message.reply_text("❌ 此功能仅限管理员使用")
             return
         
-        # 首先显示完整的指令教程（带错误处理，即使失败也继续显示菜单）
-        try:
-            from handlers.admin_commands_handlers import handle_admin_commands_help
-            # 确保 update.message 存在
-            if update.message:
-                await handle_admin_commands_help(update, context)
-            else:
-                logger.warning(f"Admin {user_id} clicked management button but update.message is None")
-        except Exception as e:
-            logger.error(f"Error showing admin commands help: {e}", exc_info=True)
-            # 即使顯示幫助失敗，也繼續顯示管理菜單
+        # For group chats, show group settings menu
+        if chat.type in ['group', 'supergroup']:
+            # 群组设置菜单 - 使用底部键盘
+            from keyboards.management_keyboard import get_group_settings_menu_keyboard
+            reply_keyboard = get_group_settings_menu_keyboard()
+            message = (
+                "⚙️ <b>群组设置菜单</b>\n\n"
+                "请选择要执行的操作：\n\n"
+                "💡 <i>提示：上方已显示完整指令教程，也可以点击「⚡ 管理员指令教程」再次查看</i>"
+            )
+            await update.message.reply_text(message, parse_mode="HTML", reply_markup=reply_keyboard)
+            return
         
-        # 然后显示管理菜单（使用底部键盘）
-        try:
-            if is_group := chat.type in ['group', 'supergroup']:
-                # 群组设置菜单 - 使用底部键盘
-                from keyboards.management_keyboard import get_group_settings_menu_keyboard
-                reply_keyboard = get_group_settings_menu_keyboard()
-                message = (
-                    "⚙️ <b>群组设置菜单</b>\n\n"
-                    "请选择要执行的操作：\n\n"
-                    "💡 <i>提示：上方已显示完整指令教程，也可以点击「⚡ 管理员指令教程」再次查看</i>"
-                )
-                await update.message.reply_text(message, parse_mode="HTML", reply_markup=reply_keyboard)
-            else:
-                # 全局管理菜单 - 使用底部键盘
-                from keyboards.management_keyboard import get_management_menu_keyboard
-                reply_keyboard = get_management_menu_keyboard()
-                message = (
-                    "🌐 <b>全局管理菜单</b>\n\n"
-                    "请选择要执行的操作：\n\n"
-                    "💡 <i>提示：上方已显示完整指令教程，也可以点击「⚡ 管理员指令教程」再次查看</i>"
-                )
-                await update.message.reply_text(message, parse_mode="HTML", reply_markup=reply_keyboard)
-        except Exception as e:
-            logger.error(f"Error showing management menu: {e}", exc_info=True)
-            await update.message.reply_text("❌ 显示管理菜单时出错，请稍后重试")
-        return
+        # For private chats, show admin panel with all management functions
+        # This will be handled by the handle_admin_panel function below
+        # Don't return here, let it fall through to the handle_admin_panel call
     
     if text in ["📈 统计", "📊 数据"]:
         # Show help if needed
