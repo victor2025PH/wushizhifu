@@ -111,47 +111,45 @@ jobs:
             DOMAIN="5050.usdt2026.cc"
             
             echo "⚙️ 配置Nginx站点..."
-            # Check if SSL certificate exists
-            HAS_SSL=false
-            if [ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ] && [ -f "/etc/letsencrypt/live/${DOMAIN}/privkey.pem" ]; then
-              HAS_SSL=true
-              echo "✅ SSL证书存在，将配置HTTPS"
+            # 直接使用fix_5050_complete.sh脚本来配置Nginx（最可靠的方法）
+            if [ -f "${SERVER_PATH}/deploy/fix_5050_complete.sh" ]; then
+              echo "📋 使用fix_5050_complete.sh脚本配置Nginx..."
+              chmod +x "${SERVER_PATH}/deploy/fix_5050_complete.sh"
+              # 只执行Nginx配置部分，跳过构建（因为已经构建完成）
+              # 但脚本会自动检测dist目录，如果存在就跳过构建
+              "${SERVER_PATH}/deploy/fix_5050_complete.sh" || {
+                echo "⚠️ 修复脚本执行完成（可能有警告），继续部署流程..."
+              }
             else
-              echo "⚠️ SSL证书不存在，只配置HTTP"
-            fi
-            
-            # Create Nginx configuration file using template file
-            if [ -f "${SERVER_PATH}/deploy/nginx-web.conf" ]; then
-              echo "📋 使用部署目录中的nginx-web.conf模板..."
-              sudo cp "${SERVER_PATH}/deploy/nginx-web.conf" ${NGINX_CONFIG}
-              
-              # 替换占位符
-              sudo sed -i "s|DOMAIN_PLACEHOLDER|${DOMAIN}|g" ${NGINX_CONFIG}
-              sudo sed -i "s|WEB_DIST_PLACEHOLDER|${WEB_DIST}|g" ${NGINX_CONFIG}
-              
-              # 如果SSL证书存在，启用HTTPS配置
-              if [ "$HAS_SSL" = true ]; then
-                echo "🔐 启用HTTPS配置..."
-                # 取消注释HTTPS_START和HTTPS_END之间的所有行
-                sudo sed -i '/#HTTPS_START/,/#HTTPS_END/s/^#//' ${NGINX_CONFIG}
-                # 删除HTTPS_START和HTTPS_END标记行
-                sudo sed -i '/#HTTPS_START/d; /#HTTPS_END/d' ${NGINX_CONFIG}
-                # 启用HTTP到HTTPS重定向
-                sudo sed -i 's|# return 301 https://$server_name$request_uri;|return 301 https://$server_name$request_uri;|g' ${NGINX_CONFIG}
-              else
-                echo "ℹ️ SSL证书不存在，注释HTTPS配置..."
-                # 注释掉HTTPS_START和HTTPS_END之间的所有行（如果还没注释）
-                sudo sed -i '/#HTTPS_START/,/#HTTPS_END/s/^[^#]/#&/' ${NGINX_CONFIG}
-              fi
-            else
-              echo "⚠️ 模板文件不存在，使用fix_5050_complete.sh脚本..."
-              if [ -f "${SERVER_PATH}/deploy/fix_5050_complete.sh" ]; then
-                chmod +x "${SERVER_PATH}/deploy/fix_5050_complete.sh"
-                "${SERVER_PATH}/deploy/fix_5050_complete.sh" || echo "⚠️ 修复脚本执行完成（可能有警告）"
+              echo "⚠️ fix_5050_complete.sh脚本不存在，使用模板文件..."
+              if [ -f "${SERVER_PATH}/deploy/nginx-web.conf" ]; then
+                echo "📋 使用nginx-web.conf模板..."
+                sudo cp "${SERVER_PATH}/deploy/nginx-web.conf" ${NGINX_CONFIG}
+                # 替换占位符
+                sudo sed -i "s|DOMAIN_PLACEHOLDER|${DOMAIN}|g" ${NGINX_CONFIG}
+                sudo sed -i "s|WEB_DIST_PLACEHOLDER|${WEB_DIST}|g" ${NGINX_CONFIG}
+                
+                # 检查SSL证书并启用HTTPS
+                if [ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ] && [ -f "/etc/letsencrypt/live/${DOMAIN}/privkey.pem" ]; then
+                  echo "🔐 SSL证书存在，启用HTTPS配置..."
+                  # 取消注释HTTPS_START和HTTPS_END之间的所有行
+                  sudo sed -i '/#HTTPS_START/,/#HTTPS_END/s/^#//' ${NGINX_CONFIG}
+                  # 删除HTTPS_START和HTTPS_END标记行
+                  sudo sed -i '/#HTTPS_START/d; /#HTTPS_END/d' ${NGINX_CONFIG}
+                  # 启用HTTP到HTTPS重定向
+                  sudo sed -i 's|# return 301 https://$server_name$request_uri;|return 301 https://$server_name$request_uri;|g' ${NGINX_CONFIG}
+                else
+                  echo "ℹ️ SSL证书不存在，保持HTTPS配置为注释状态"
+                  # 注释掉HTTPS_START和HTTPS_END标记行之间的内容
+                  sudo sed -i '/#HTTPS_START/,/#HTTPS_END/s/^[^#]/#&/' ${NGINX_CONFIG}
+                fi
               else
                 echo "❌ 模板文件和修复脚本都不存在，无法配置Nginx"
                 exit 1
               fi
+              
+              # 启用站点
+              sudo ln -sf ${NGINX_CONFIG} /etc/nginx/sites-enabled/web-5050
             fi
             
             # Enable site
