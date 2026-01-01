@@ -52,6 +52,10 @@ def get_admin_submenu_keyboard(submenu: str = None) -> ReplyKeyboardMarkup:
                 KeyboardButton("📊 用户报表")
             ],
             [
+                KeyboardButton("👤 用户详情"),
+                KeyboardButton("⚙️ 用户操作")
+            ],
+            [
                 KeyboardButton("🔙 返回管理面板")
             ]
         ]
@@ -63,6 +67,7 @@ def get_admin_submenu_keyboard(submenu: str = None) -> ReplyKeyboardMarkup:
                 KeyboardButton("📊 详细报表")
             ],
             [
+                KeyboardButton("📋 操作日志"),
                 KeyboardButton("🔙 返回管理面板")
             ]
         ]
@@ -71,9 +76,14 @@ def get_admin_submenu_keyboard(submenu: str = None) -> ReplyKeyboardMarkup:
         keyboard = [
             [
                 KeyboardButton("➕ 添加敏感词"),
+                KeyboardButton("✏️ 编辑敏感词")
+            ],
+            [
+                KeyboardButton("🗑️ 删除敏感词"),
                 KeyboardButton("📋 导出列表")
             ],
             [
+                KeyboardButton("💾 完整导出"),
                 KeyboardButton("🔙 返回管理面板")
             ]
         ]
@@ -85,6 +95,10 @@ def get_admin_submenu_keyboard(submenu: str = None) -> ReplyKeyboardMarkup:
                 KeyboardButton("❌ 全部拒绝")
             ],
             [
+                KeyboardButton("👤 审核详情"),
+                KeyboardButton("📋 审核历史")
+            ],
+            [
                 KeyboardButton("🔙 返回管理面板")
             ]
         ]
@@ -94,6 +108,22 @@ def get_admin_submenu_keyboard(submenu: str = None) -> ReplyKeyboardMarkup:
             [
                 KeyboardButton("➕ 添加群组"),
                 KeyboardButton("📋 群组列表")
+            ],
+            [
+                KeyboardButton("🔍 搜索群组"),
+                KeyboardButton("⚙️ 群组配置")
+            ],
+            [
+                KeyboardButton("🗑️ 删除群组"),
+                KeyboardButton("🔙 返回管理面板")
+            ]
+        ]
+    elif submenu == "add":
+        # Add admin submenu
+        keyboard = [
+            [
+                KeyboardButton("➕ 添加管理员"),
+                KeyboardButton("🗑️ 删除管理员")
             ],
             [
                 KeyboardButton("🔙 返回管理面板")

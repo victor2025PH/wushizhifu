@@ -119,3 +119,49 @@ class SensitiveWordsRepository:
                 return word_data
         
         return None
+    
+    @staticmethod
+    def update_word(word_id: int, action: str = None, word: str = None) -> bool:
+        """Update sensitive word by ID"""
+        conn = db.connect()
+        cursor = conn.cursor()
+        
+        try:
+            updates = []
+            params = []
+            
+            if action:
+                updates.append("action = ?")
+                params.append(action)
+            
+            if word:
+                updates.append("word = ?")
+                params.append(word.lower())
+            
+            if not updates:
+                return False
+            
+            params.append(word_id)
+            query = f"UPDATE sensitive_words SET {', '.join(updates)} WHERE word_id = ?"
+            cursor.execute(query, tuple(params))
+            conn.commit()
+            return cursor.rowcount > 0
+            
+        except Exception as e:
+            logger.error(f"Error updating sensitive word: {e}")
+            conn.rollback()
+            return False
+        finally:
+            cursor.close()
+    
+    @staticmethod
+    def get_word_by_id(word_id: int) -> Optional[dict]:
+        """Get sensitive word by ID"""
+        conn = db.connect()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT * FROM sensitive_words WHERE word_id = ?", (word_id,))
+            word = cursor.fetchone()
+            return dict(word) if word else None
+        finally:
+            cursor.close()

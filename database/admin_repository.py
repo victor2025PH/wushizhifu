@@ -30,14 +30,16 @@ class AdminRepository:
     
     @staticmethod
     def add_admin(user_id: int, role: str = "admin", 
-                  added_by: Optional[int] = None) -> bool:
+                  added_by: Optional[int] = None,
+                  permissions: Optional[str] = None) -> bool:
         """
         Add admin.
         
         Args:
             user_id: Telegram user ID
-            role: Admin role
+            role: Admin role (admin or super_admin)
             added_by: User ID who added this admin
+            permissions: JSON string of permissions (optional)
             
         Returns:
             True if successful
@@ -46,13 +48,18 @@ class AdminRepository:
         cursor = conn.cursor()
         
         try:
+            # If admin exists, update role and permissions
             cursor.execute("""
-                INSERT OR IGNORE INTO admins (user_id, role, added_by)
-                VALUES (?, ?, ?)
-            """, (user_id, role, added_by))
+                INSERT INTO admins (user_id, role, added_by, permissions, status)
+                VALUES (?, ?, ?, ?, 'active')
+                ON CONFLICT(user_id) DO UPDATE SET
+                    role = excluded.role,
+                    permissions = excluded.permissions,
+                    status = 'active'
+            """, (user_id, role, added_by, permissions))
             
             conn.commit()
-            return cursor.rowcount > 0
+            return True
             
         except Exception as e:
             logger.error(f"Error adding admin: {e}")

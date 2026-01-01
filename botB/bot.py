@@ -130,6 +130,21 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+async def admin_help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /admin_help command - show admin commands help"""
+    from admin_checker import is_admin
+    from utils.help_generator import HelpGenerator
+    
+    user = update.effective_user
+    
+    if not is_admin(user.id):
+        await update.message.reply_text("❌ 此命令仅管理员可用")
+        return
+    
+    help_text = HelpGenerator.get_admin_command_help()
+    await update.message.reply_text(help_text, parse_mode="HTML")
+
+
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /help command - show detailed help"""
     from config import Config
@@ -376,6 +391,7 @@ def main():
     # Register command handlers
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("admin_help", admin_help_command))
     application.add_handler(CommandHandler("price", price_command))
     application.add_handler(CommandHandler("settings", settings_command))
     
@@ -427,7 +443,16 @@ def main():
                 cursor.close()
                 return
             
-            # Add admin
+            # Check permission
+            from services.permission_service import PermissionService
+            if not PermissionService.can_manage_admins(user.id):
+                await update.message.reply_text(
+                    "❌ 您没有权限添加管理员\n\n"
+                    "💡 只有超级管理员可以添加或删除管理员"
+                )
+                return
+            
+            # Add admin (default role is 'admin')
             from datetime import datetime
             now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
             cursor.execute("""
@@ -437,11 +462,16 @@ def main():
             conn.commit()
             cursor.close()
             
+            # Also add to shared database
+            from database.admin_repository import AdminRepository
+            AdminRepository.add_admin(user_id, role="admin", added_by=user.id)
+            
             await update.message.reply_text(
-                f"✅ 已添加管理员：{user_id}\n\n"
+                f"✅ 已添加管理员：{user_id}\n"
+                f"角色：普通管理员\n\n"
                 f"📝 此管理员已同步到 Bot A 和 Bot B，无需重启服务即可生效。"
             )
-            logger.info(f"Admin {user.id} added admin {user_id}")
+            logger.info(f"Super admin {user.id} added admin {user_id}")
             
         except ValueError:
             await update.message.reply_text("❌ 无效的用户ID")
@@ -450,7 +480,7 @@ def main():
             await update.message.reply_text("❌ 添加失败，请稍后再试")
     
     async def addword_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /addword command - add sensitive word"""
+        """Handle /addword command - add sensitive word(s)"""
         from admin_checker import is_admin
         from repositories.sensitive_words_repository import SensitiveWordsRepository
         
@@ -463,11 +493,53 @@ def main():
         args = context.args
         if not args or len(args) < 1:
             await update.message.reply_text(
-                "❌ 请提供敏感词\n格式：`/addword <词语> [action]`\n动作：warn, delete, ban",
+                "❌ 请提供敏感词\n格式：`/addword <词语> [action]`\n"
+                "批量添加：`/addword batch <词语1,词语2,词语3> [action]`\n"
+                "动作：warn, delete, ban",
                 parse_mode="MarkdownV2"
             )
             return
         
+        # Check if batch mode
+        if args[0].lower() == "batch" and len(args) >= 2:
+            # Batch add mode
+            words_str = args[1]
+            action = args[2] if len(args) > 2 else "warn"
+            
+            if action not in ["warn", "delete", "ban"]:
+                action = "warn"
+            
+            # Split by comma or newline
+            words = [w.strip() for w in words_str.replace('\n', ',').split(',') if w.strip()]
+            
+            if not words:
+                await update.message.reply_text("❌ 未找到有效的敏感词")
+                return
+            
+            if len(words) > 50:
+                await update.message.reply_text("❌ 批量添加最多支持50个敏感词")
+                return
+            
+            # Add words
+            success_count = 0
+            failed_count = 0
+            for word in words:
+                if SensitiveWordsRepository.add_word(None, word, action, user.id):
+                    success_count += 1
+                else:
+                    failed_count += 1
+            
+            await update.message.reply_text(
+                f"✅ 批量添加完成\n"
+                f"成功：{success_count} 个\n"
+                f"失败：{failed_count} 个（可能已存在）\n"
+                f"动作：{action}",
+                parse_mode="MarkdownV2"
+            )
+            logger.info(f"Admin {user.id} batch added {success_count} sensitive words")
+            return
+        
+        # Single word mode
         word = args[0]
         action = args[1] if len(args) > 1 else "warn"
         
@@ -475,11 +547,29 @@ def main():
             action = "warn"
         
         if SensitiveWordsRepository.add_word(None, word, action, user.id):
+            # Log operation
+            from repositories.admin_logs_repository import AdminLogsRepository
+            AdminLogsRepository.log_operation(
+                admin_id=user.id,
+                operation_type="add_word",
+                target_type="sensitive_word",
+                details=f"word={word}, action={action}",
+                result="success"
+            )
             await update.message.reply_text(
                 f"✅ 已添加敏感词：`{word}` (动作：{action})",
                 parse_mode="MarkdownV2"
             )
         else:
+            # Log failed operation
+            from repositories.admin_logs_repository import AdminLogsRepository
+            AdminLogsRepository.log_operation(
+                admin_id=user.id,
+                operation_type="add_word",
+                target_type="sensitive_word",
+                details=f"word={word}, action={action}",
+                result="failed"
+            )
             await update.message.reply_text("❌ 添加失败（可能已存在）")
     
     async def addgroup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -557,6 +647,1671 @@ def main():
     application.add_handler(CommandHandler("addadmin", addadmin_command))
     application.add_handler(CommandHandler("addword", addword_command))
     application.add_handler(CommandHandler("addgroup", addgroup_command))
+    
+    # User search command
+    async def search_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /search_user command - search users"""
+        from admin_checker import is_admin
+        from handlers.message_handlers import handle_admin_user_search_result
+        
+        user = update.effective_user
+        
+        if not is_admin(user.id):
+            await update.message.reply_text("❌ 您不是管理员，无权限执行此操作")
+            return
+        
+        args = context.args
+        if not args or len(args) < 1:
+            await update.message.reply_text(
+                "❌ 请提供搜索条件\n格式：`/search_user <条件>`\n\n"
+                "示例：\n"
+                "• `/search_user 123456789` (按ID)\n"
+                "• `/search_user @username` (按用户名)\n"
+                "• `/search_user vip:1` (VIP等级)\n"
+                "• `/search_user date:2025-12-26` (注册日期)",
+                parse_mode="MarkdownV2"
+            )
+            return
+        
+        search_query = " ".join(args)
+        await handle_admin_user_search_result(update, context, search_query)
+    
+    application.add_handler(CommandHandler("search_user", search_user_command))
+    
+    # User detail command
+    async def user_detail_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /user_detail command - show user details"""
+        from admin_checker import is_admin
+        from handlers.message_handlers import handle_admin_user_detail
+        
+        user = update.effective_user
+        
+        if not is_admin(user.id):
+            await update.message.reply_text("❌ 您不是管理员，无权限执行此操作")
+            return
+        
+        args = context.args
+        if not args or len(args) < 1:
+            await update.message.reply_text(
+                "❌ 请提供用户ID\n格式：`/user_detail <user_id>`",
+                parse_mode="MarkdownV2"
+            )
+            return
+        
+        try:
+            user_id = int(args[0])
+            await handle_admin_user_detail(update, context, user_id)
+        except ValueError:
+            await update.message.reply_text("❌ 无效的用户ID")
+        except Exception as e:
+            logger.error(f"Error in user_detail_command: {e}", exc_info=True)
+            await update.message.reply_text("❌ 查看失败，请稍后再试")
+    
+    # Set VIP command
+    async def set_vip_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /set_vip command - set user VIP level"""
+        from admin_checker import is_admin
+        from database import db
+        
+        user = update.effective_user
+        
+        if not is_admin(user.id):
+            await update.message.reply_text("❌ 您不是管理员，无权限执行此操作")
+            return
+        
+        args = context.args
+        if not args or len(args) < 2:
+            await update.message.reply_text(
+                "❌ 请提供用户ID和VIP等级\n格式：`/set_vip <user_id> <level>`\n\n"
+                "示例：`/set_vip 123456789 1`",
+                parse_mode="MarkdownV2"
+            )
+            return
+        
+        try:
+            user_id = int(args[0])
+            vip_level = int(args[1])
+            
+            if vip_level < 0 or vip_level > 10:
+                await update.message.reply_text("❌ VIP等级必须在 0-10 之间")
+                return
+            
+            conn = db.connect()
+            cursor = conn.cursor()
+            
+            # Update VIP level
+            cursor.execute("""
+                UPDATE users 
+                SET vip_level = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = ?
+            """, (vip_level, user_id))
+            conn.commit()
+            
+            if cursor.rowcount > 0:
+                await update.message.reply_text(
+                    f"✅ 已设置用户 {user_id} 的VIP等级为 {vip_level}"
+                )
+                logger.info(f"Admin {user.id} set VIP level {vip_level} for user {user_id}")
+            else:
+                await update.message.reply_text("❌ 用户不存在")
+            
+            cursor.close()
+            
+        except ValueError:
+            await update.message.reply_text("❌ 无效的用户ID或VIP等级")
+        except Exception as e:
+            logger.error(f"Error in set_vip_command: {e}", exc_info=True)
+            await update.message.reply_text("❌ 设置失败，请稍后再试")
+    
+    # Disable/Enable user commands
+    async def disable_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /disable_user command - disable user"""
+        from admin_checker import is_admin
+        from database import db
+        
+        user = update.effective_user
+        
+        if not is_admin(user.id):
+            await update.message.reply_text("❌ 您不是管理员，无权限执行此操作")
+            return
+        
+        args = context.args
+        if not args or len(args) < 1:
+            await update.message.reply_text(
+                "❌ 请提供用户ID\n格式：`/disable_user <user_id>`",
+                parse_mode="MarkdownV2"
+            )
+            return
+        
+        try:
+            user_id = int(args[0])
+            conn = db.connect()
+            cursor = conn.cursor()
+            
+            try:
+                # Check for confirmation
+                from services.confirmation_service import ConfirmationService
+                confirmation = ConfirmationService.get_confirmation(user.id)
+                
+                if confirmation and confirmation['operation'] == 'disable_user' and confirmation['data'].get('user_id') == user_id:
+                    # Confirmed, proceed
+                    ConfirmationService.confirm_operation(user.id)  # Clear confirmation
+                    
+                    cursor.execute("""
+                        UPDATE users 
+                        SET status = 'disabled', updated_at = CURRENT_TIMESTAMP
+                        WHERE user_id = ?
+                    """, (user_id,))
+                    conn.commit()
+                    
+                    if cursor.rowcount > 0:
+                        # Log operation
+                        from repositories.admin_logs_repository import AdminLogsRepository
+                        AdminLogsRepository.log_operation(
+                            admin_id=user.id,
+                            operation_type="update_user",
+                            target_type="user",
+                            target_id=user_id,
+                            details="disable_user",
+                            result="success"
+                        )
+                        await update.message.reply_text(f"✅ 已禁用用户 {user_id}")
+                        logger.info(f"Admin {user.id} disabled user {user_id}")
+                    else:
+                        await update.message.reply_text("❌ 用户不存在")
+                else:
+                    # First time, require confirmation
+                    ConfirmationService.create_confirmation(
+                        user.id,
+                        'disable_user',
+                        {'user_id': user_id}
+                    )
+                    await update.message.reply_text(
+                        f"⚠️ <b>确认禁用用户</b>\n\n"
+                        f"您将要禁用用户：<code>{user_id}</code>\n\n"
+                        f"请再次执行相同命令确认：\n"
+                        f"<code>/disable_user {user_id}</code>\n\n"
+                        f"或者发送 <code>/confirm</code> 确认禁用",
+                        parse_mode="HTML"
+                    )
+            finally:
+                cursor.close()
+            
+        except ValueError:
+            from utils.error_helper import ErrorHelper
+            error_msg = ErrorHelper.get_user_friendly_error('invalid_user_id', {'command': '/disable_user'})
+            await update.message.reply_text(error_msg, parse_mode="HTML")
+        except Exception as e:
+            logger.error(f"Error in disable_user_command: {e}", exc_info=True)
+            from utils.error_helper import ErrorHelper
+            error_msg = ErrorHelper.get_user_friendly_error('system_error')
+            await update.message.reply_text(error_msg, parse_mode="HTML")
+    
+    # Batch user operations
+    async def batch_set_vip_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /batch_set_vip command - batch set VIP level for multiple users"""
+        from admin_checker import is_admin
+        from services.batch_user_service import BatchUserService
+        from services.confirmation_service import ConfirmationService
+        from repositories.admin_logs_repository import AdminLogsRepository
+        
+        user = update.effective_user
+        
+        if not is_admin(user.id):
+            from utils.error_helper import ErrorHelper
+            error_msg = ErrorHelper.get_user_friendly_error('permission_denied')
+            await update.message.reply_text(error_msg, parse_mode="HTML")
+            return
+        
+        args = context.args
+        if not args or len(args) < 2:
+            await update.message.reply_text(
+                "❌ <b>格式错误</b>\n\n"
+                "💡 <b>使用方法：</b>\n"
+                "<code>/batch_set_vip &lt;user_ids&gt; &lt;vip_level&gt;</code>\n\n"
+                "<b>参数说明：</b>\n"
+                "• user_ids: 用户ID列表，用逗号分隔（最多50个）\n"
+                "• vip_level: VIP等级（0-10）\n\n"
+                "<b>示例：</b>\n"
+                "• <code>/batch_set_vip 123456789,987654321,111222333 1</code>\n"
+                "• <code>/batch_set_vip 123456789,987654321 0</code>\n\n"
+                "⚠️ 此操作需要确认",
+                parse_mode="HTML"
+            )
+            return
+        
+        try:
+            user_ids_str = args[0]
+            vip_level = int(args[1])
+            
+            # Validate VIP level
+            if vip_level < 0 or vip_level > 10:
+                from utils.error_helper import ErrorHelper
+                error_msg = ErrorHelper.get_user_friendly_error('invalid_vip_level')
+                await update.message.reply_text(error_msg, parse_mode="HTML")
+                return
+            
+            # Parse and validate user IDs
+            try:
+                user_ids = BatchUserService.validate_user_ids(user_ids_str)
+            except ValueError as e:
+                await update.message.reply_text(
+                    f"❌ <b>用户ID格式错误</b>\n\n"
+                    f"💡 <b>错误：</b>{str(e)}\n\n"
+                    f"<b>正确格式：</b>用逗号分隔的数字，例如：<code>123456789,987654321</code>\n"
+                    f"最多支持50个用户",
+                    parse_mode="HTML"
+                )
+                return
+            
+            # Check for confirmation
+            confirmation = ConfirmationService.get_confirmation(user.id)
+            confirmation_key = f"batch_set_vip_{vip_level}_{','.join(map(str, sorted(user_ids)))}"
+            
+            if confirmation and confirmation['operation'] == 'batch_set_vip' and confirmation['data'].get('key') == confirmation_key:
+                # Confirmed, proceed
+                ConfirmationService.confirm_operation(user.id)
+                
+                result = BatchUserService.batch_set_vip(user_ids, vip_level)
+                
+                # Log operation
+                AdminLogsRepository.log_operation(
+                    admin_id=user.id,
+                    operation_type="batch_update_user",
+                    target_type="user",
+                    target_id=0,
+                    details=f"batch_set_vip level={vip_level} count={result['success_count']}",
+                    result="success" if result['failed_count'] == 0 else "partial"
+                )
+                
+                # Format result message
+                message = (
+                    f"✅ <b>批量设置VIP完成</b>\n\n"
+                    f"成功：{result['success_count']} 个用户\n"
+                )
+                
+                if result['failed_count'] > 0:
+                    message += f"失败：{result['failed_count']} 个用户\n"
+                    if result['failed_users']:
+                        failed_list = ', '.join(map(str, result['failed_users'][:10]))
+                        if len(result['failed_users']) > 10:
+                            failed_list += f" 等{len(result['failed_users'])}个"
+                        message += f"失败用户ID：{failed_list}\n"
+                
+                message += f"\nVIP等级已设置为：{vip_level}"
+                
+                await update.message.reply_text(message, parse_mode="HTML")
+                logger.info(f"Admin {user.id} batch set VIP level {vip_level} for {result['success_count']} users")
+            else:
+                # First time, require confirmation
+                ConfirmationService.create_confirmation(
+                    user.id,
+                    'batch_set_vip',
+                    {'key': confirmation_key, 'user_ids': user_ids, 'vip_level': vip_level}
+                )
+                
+                await update.message.reply_text(
+                    f"⚠️ <b>确认批量设置VIP</b>\n\n"
+                    f"您将要为 <b>{len(user_ids)}</b> 个用户设置VIP等级为 <code>{vip_level}</code>\n\n"
+                    f"用户ID：<code>{user_ids_str}</code>\n\n"
+                    f"⚠️ 此操作将影响多个用户，请确认无误！\n\n"
+                    f"请再次执行相同命令确认：\n"
+                    f"<code>/batch_set_vip {user_ids_str} {vip_level}</code>\n\n"
+                    f"或者发送 <code>/confirm</code> 确认操作",
+                    parse_mode="HTML"
+                )
+        
+        except ValueError:
+            from utils.error_helper import ErrorHelper
+            error_msg = ErrorHelper.get_user_friendly_error('invalid_vip_level')
+            await update.message.reply_text(error_msg, parse_mode="HTML")
+        except Exception as e:
+            logger.error(f"Error in batch_set_vip_command: {e}", exc_info=True)
+            from utils.error_helper import ErrorHelper
+            error_msg = ErrorHelper.get_user_friendly_error('unknown_error')
+            await update.message.reply_text(error_msg, parse_mode="HTML")
+    
+    async def batch_disable_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /batch_disable_users command - batch disable/enable multiple users"""
+        from admin_checker import is_admin
+        from services.batch_user_service import BatchUserService
+        from services.confirmation_service import ConfirmationService
+        from repositories.admin_logs_repository import AdminLogsRepository
+        
+        user = update.effective_user
+        
+        if not is_admin(user.id):
+            from utils.error_helper import ErrorHelper
+            error_msg = ErrorHelper.get_user_friendly_error('permission_denied')
+            await update.message.reply_text(error_msg, parse_mode="HTML")
+            return
+        
+        args = context.args
+        if not args or len(args) < 2:
+            await update.message.reply_text(
+                "❌ <b>格式错误</b>\n\n"
+                "💡 <b>使用方法：</b>\n"
+                "<code>/batch_disable_users &lt;user_ids&gt; &lt;disable|enable&gt;</code>\n\n"
+                "💡 <b>或者：</b>\n"
+                "<code>/batch_enable_users &lt;user_ids&gt;</code>\n\n"
+                "<b>参数说明：</b>\n"
+                "• user_ids: 用户ID列表，用逗号分隔（最多50个）\n"
+                "• disable/enable: 禁用或启用\n\n"
+                "<b>示例：</b>\n"
+                "• <code>/batch_disable_users 123456789,987654321 disable</code>\n"
+                "• <code>/batch_enable_users 123456789,987654321</code>\n\n"
+                "⚠️ 此操作需要确认",
+                parse_mode="HTML"
+            )
+            return
+        
+        try:
+            user_ids_str = args[0]
+            action = args[1].lower() if len(args) > 1 else 'disable'
+            
+            if action not in ['disable', 'enable']:
+                await update.message.reply_text("❌ 操作必须是 disable 或 enable")
+                return
+            
+            disable = action == 'disable'
+            
+            # Parse and validate user IDs
+            try:
+                user_ids = BatchUserService.validate_user_ids(user_ids_str)
+            except ValueError as e:
+                await update.message.reply_text(
+                    f"❌ <b>用户ID格式错误</b>\n\n"
+                    f"💡 <b>错误：</b>{str(e)}\n\n"
+                    f"<b>正确格式：</b>用逗号分隔的数字，例如：<code>123456789,987654321</code>\n"
+                    f"最多支持50个用户",
+                    parse_mode="HTML"
+                )
+                return
+            
+            # Check for confirmation
+            confirmation = ConfirmationService.get_confirmation(user.id)
+            confirmation_key = f"batch_{action}_{','.join(map(str, sorted(user_ids)))}"
+            
+            if confirmation and confirmation['operation'] == f'batch_{action}_users' and confirmation['data'].get('key') == confirmation_key:
+                # Confirmed, proceed
+                ConfirmationService.confirm_operation(user.id)
+                
+                result = BatchUserService.batch_disable_users(user_ids, disable)
+                
+                # Log operation
+                AdminLogsRepository.log_operation(
+                    admin_id=user.id,
+                    operation_type="batch_update_user",
+                    target_type="user",
+                    target_id=0,
+                    details=f"batch_{action} count={result['success_count']}",
+                    result="success" if result['failed_count'] == 0 else "partial"
+                )
+                
+                # Format result message
+                action_text = "禁用" if disable else "启用"
+                message = (
+                    f"✅ <b>批量{action_text}完成</b>\n\n"
+                    f"成功：{result['success_count']} 个用户\n"
+                )
+                
+                if result['failed_count'] > 0:
+                    message += f"失败：{result['failed_count']} 个用户\n"
+                    if result['failed_users']:
+                        failed_list = ', '.join(map(str, result['failed_users'][:10]))
+                        if len(result['failed_users']) > 10:
+                            failed_list += f" 等{len(result['failed_users'])}个"
+                        message += f"失败用户ID：{failed_list}\n"
+                
+                await update.message.reply_text(message, parse_mode="HTML")
+                logger.info(f"Admin {user.id} batch {action} {result['success_count']} users")
+            else:
+                # First time, require confirmation
+                ConfirmationService.create_confirmation(
+                    user.id,
+                    f'batch_{action}_users',
+                    {'key': confirmation_key, 'user_ids': user_ids, 'disable': disable}
+                )
+                
+                action_text = "禁用" if disable else "启用"
+                await update.message.reply_text(
+                    f"⚠️ <b>确认批量{action_text}用户</b>\n\n"
+                    f"您将要{action_text} <b>{len(user_ids)}</b> 个用户\n\n"
+                    f"用户ID：<code>{user_ids_str}</code>\n\n"
+                    f"⚠️ 此操作将影响多个用户，请确认无误！\n\n"
+                    f"请再次执行相同命令确认：\n"
+                    f"<code>/batch_disable_users {user_ids_str} {action}</code>\n\n"
+                    f"或者发送 <code>/confirm</code> 确认操作",
+                    parse_mode="HTML"
+                )
+        
+        except Exception as e:
+            logger.error(f"Error in batch_disable_users_command: {e}", exc_info=True)
+            from utils.error_helper import ErrorHelper
+            error_msg = ErrorHelper.get_user_friendly_error('unknown_error')
+            await update.message.reply_text(error_msg, parse_mode="HTML")
+    
+    async def batch_enable_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /batch_enable_users command - batch enable multiple users (alias for batch_disable_users enable)"""
+        # Redirect to batch_disable_users with enable action
+        if context.args:
+            context.args = [context.args[0], 'enable'] + list(context.args[1:])
+        else:
+            context.args = ['', 'enable']
+        await batch_disable_users_command(update, context)
+    
+    async def batch_export_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /batch_export_users command - export data for specified users"""
+        from admin_checker import is_admin
+        from services.batch_user_service import BatchUserService
+        from repositories.admin_logs_repository import AdminLogsRepository
+        from io import BytesIO
+        
+        user = update.effective_user
+        
+        if not is_admin(user.id):
+            from utils.error_helper import ErrorHelper
+            error_msg = ErrorHelper.get_user_friendly_error('permission_denied')
+            await update.message.reply_text(error_msg, parse_mode="HTML")
+            return
+        
+        args = context.args
+        if not args or len(args) < 1:
+            await update.message.reply_text(
+                "❌ <b>格式错误</b>\n\n"
+                "💡 <b>使用方法：</b>\n"
+                "<code>/batch_export_users &lt;user_ids&gt;</code>\n\n"
+                "<b>参数说明：</b>\n"
+                "• user_ids: 用户ID列表，用逗号分隔（最多100个）\n\n"
+                "<b>示例：</b>\n"
+                "• <code>/batch_export_users 123456789,987654321,111222333</code>\n\n"
+                "💡 导出的数据为CSV格式，可直接导入Excel",
+                parse_mode="HTML"
+            )
+            return
+        
+        try:
+            user_ids_str = args[0]
+            
+            # Parse and validate user IDs
+            try:
+                user_ids = BatchUserService.validate_user_ids(user_ids_str)
+            except ValueError as e:
+                await update.message.reply_text(
+                    f"❌ <b>用户ID格式错误</b>\n\n"
+                    f"💡 <b>错误：</b>{str(e)}\n\n"
+                    f"<b>正确格式：</b>用逗号分隔的数字，例如：<code>123456789,987654321</code>\n"
+                    f"最多支持100个用户",
+                    parse_mode="HTML"
+                )
+                return
+            
+            if len(user_ids) > 100:
+                await update.message.reply_text(
+                    "❌ <b>用户数量超限</b>\n\n"
+                    "💡 批量导出最多支持100个用户\n"
+                    "请分批导出或使用 <code>/export_users</code> 导出全部用户",
+                    parse_mode="HTML"
+                )
+                return
+            
+            users_data, count = BatchUserService.batch_export_users(user_ids)
+            
+            if not users_data:
+                await update.message.reply_text("❌ 未找到任何用户数据")
+                return
+            
+            # Format as CSV
+            export_text = "用户ID,用户名,姓名,VIP等级,状态,交易数,交易额,注册时间\n"
+            for user_data in users_data:
+                username = (user_data['username'] or '').replace(',', '，')
+                first_name = (user_data['first_name'] or '').replace(',', '，')
+                status = user_data['status'] or 'active'
+                created_at = user_data['created_at'] or ''
+                if created_at and len(created_at) > 19:
+                    created_at = created_at[:19]  # Truncate to datetime format
+                
+                export_text += (
+                    f"{user_data['user_id']},{username},{first_name},"
+                    f"{user_data['vip_level']},{status},"
+                    f"{user_data['total_transactions'] or 0},{user_data['total_amount'] or 0},"
+                    f"{created_at}\n"
+                )
+            
+            # Send as document if too long, otherwise as text
+            if len(export_text) > 4000:
+                # Create CSV file
+                csv_buffer = BytesIO()
+                csv_buffer.write(export_text.encode('utf-8-sig'))  # UTF-8 with BOM for Excel
+                csv_buffer.seek(0)
+                
+                await update.message.reply_document(
+                    document=csv_buffer,
+                    filename=f"batch_users_export_{len(user_ids)}_users.csv",
+                    caption=f"✅ 已导出 {count} 个用户的数据\n\n💡 CSV格式，可直接导入Excel"
+                )
+            else:
+                await update.message.reply_text(
+                    f"✅ <b>导出完成</b>\n\n"
+                    f"已导出 {count} 个用户的数据\n\n"
+                    f"<code>{export_text}</code>",
+                    parse_mode="HTML"
+                )
+            
+            # Log operation
+            AdminLogsRepository.log_operation(
+                admin_id=user.id,
+                operation_type="export",
+                target_type="user",
+                target_id=0,
+                details=f"batch_export count={count}",
+                result="success"
+            )
+            logger.info(f"Admin {user.id} batch exported {count} users")
+        
+        except ValueError as e:
+            if "100" in str(e):
+                await update.message.reply_text(
+                    "❌ <b>用户数量超限</b>\n\n"
+                    "💡 批量导出最多支持100个用户",
+                    parse_mode="HTML"
+                )
+            else:
+                await update.message.reply_text(f"❌ {str(e)}", parse_mode="HTML")
+        except Exception as e:
+            logger.error(f"Error in batch_export_users_command: {e}", exc_info=True)
+            from utils.error_helper import ErrorHelper
+            error_msg = ErrorHelper.get_user_friendly_error('unknown_error')
+            await update.message.reply_text(error_msg, parse_mode="HTML")
+    
+    async def enable_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /enable_user command - enable user"""
+        from admin_checker import is_admin
+        from database import db
+        
+        user = update.effective_user
+        
+        if not is_admin(user.id):
+            await update.message.reply_text("❌ 您不是管理员，无权限执行此操作")
+            return
+        
+        args = context.args
+        if not args or len(args) < 1:
+            await update.message.reply_text(
+                "❌ 请提供用户ID\n格式：`/enable_user <user_id>`",
+                parse_mode="MarkdownV2"
+            )
+            return
+        
+        try:
+            user_id = int(args[0])
+            conn = db.connect()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                UPDATE users 
+                SET status = 'active', updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = ?
+            """, (user_id,))
+            conn.commit()
+            
+            if cursor.rowcount > 0:
+                await update.message.reply_text(f"✅ 已启用用户 {user_id}")
+                logger.info(f"Admin {user.id} enabled user {user_id}")
+            else:
+                await update.message.reply_text("❌ 用户不存在")
+            
+            cursor.close()
+            
+        except ValueError:
+            await update.message.reply_text("❌ 无效的用户ID")
+        except Exception as e:
+            logger.error(f"Error in enable_user_command: {e}", exc_info=True)
+            await update.message.reply_text("❌ 操作失败，请稍后再试")
+    
+    # Delete word command
+    async def delword_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /delword command - delete sensitive word(s)"""
+        from admin_checker import is_admin
+        from repositories.sensitive_words_repository import SensitiveWordsRepository
+        
+        user = update.effective_user
+        
+        if not is_admin(user.id):
+            await update.message.reply_text("❌ 您不是管理员，无权限执行此操作")
+            return
+        
+        args = context.args
+        if not args or len(args) < 1:
+            await update.message.reply_text(
+                "❌ 请提供敏感词ID\n格式：`/delword <word_id>`\n"
+                "批量删除：`/delword batch <id1,id2,id3>`\n\n"
+                "💡 敏感词ID可在敏感词列表中查看",
+                parse_mode="MarkdownV2"
+            )
+            return
+        
+        # Check if batch mode
+        if args[0].lower() == "batch" and len(args) >= 2:
+            # Batch delete mode
+            ids_str = args[1]
+            try:
+                # Split by comma or space
+                ids = [int(id_str.strip()) for id_str in ids_str.replace(',', ' ').split() if id_str.strip()]
+                
+                if not ids:
+                    await update.message.reply_text("❌ 未找到有效的敏感词ID")
+                    return
+                
+                if len(ids) > 50:
+                    await update.message.reply_text("❌ 批量删除最多支持50个敏感词")
+                    return
+                
+                # Delete words
+                success_count = 0
+                failed_count = 0
+                for word_id in ids:
+                    if SensitiveWordsRepository.remove_word(word_id):
+                        success_count += 1
+                    else:
+                        failed_count += 1
+                
+                await update.message.reply_text(
+                    f"✅ 批量删除完成\n"
+                    f"成功：{success_count} 个\n"
+                    f"失败：{failed_count} 个",
+                    parse_mode="MarkdownV2"
+                )
+                logger.info(f"Admin {user.id} batch deleted {success_count} sensitive words")
+            except ValueError:
+                await update.message.reply_text("❌ 无效的敏感词ID格式")
+            except Exception as e:
+                logger.error(f"Error in delword_command (batch): {e}", exc_info=True)
+                await update.message.reply_text("❌ 批量删除失败，请稍后再试")
+            return
+        
+        # Single word mode
+        try:
+            word_id = int(args[0])
+            
+            # Get word info before deleting
+            word_info = SensitiveWordsRepository.get_word_by_id(word_id)
+            if not word_info:
+                await update.message.reply_text("❌ 敏感词不存在")
+                return
+            
+            if SensitiveWordsRepository.remove_word(word_id):
+                # Log operation
+                from repositories.admin_logs_repository import AdminLogsRepository
+                AdminLogsRepository.log_operation(
+                    admin_id=user.id,
+                    operation_type="delete_word",
+                    target_type="sensitive_word",
+                    target_id=word_id,
+                    details=f"word={word_info['word']}",
+                    result="success"
+                )
+                await update.message.reply_text(
+                    f"✅ 已删除敏感词：`{word_info['word']}`",
+                    parse_mode="MarkdownV2"
+                )
+                logger.info(f"Admin {user.id} deleted sensitive word {word_id}")
+            else:
+                await update.message.reply_text("❌ 删除失败")
+                
+        except ValueError:
+            await update.message.reply_text("❌ 无效的敏感词ID")
+        except Exception as e:
+            logger.error(f"Error in delword_command: {e}", exc_info=True)
+            await update.message.reply_text("❌ 删除失败，请稍后再试")
+    
+    # Edit word command
+    async def editword_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /editword command - edit sensitive word"""
+        from admin_checker import is_admin
+        from repositories.sensitive_words_repository import SensitiveWordsRepository
+        
+        user = update.effective_user
+        
+        if not is_admin(user.id):
+            await update.message.reply_text("❌ 您不是管理员，无权限执行此操作")
+            return
+        
+        args = context.args
+        if not args or len(args) < 2:
+            await update.message.reply_text(
+                "❌ 请提供敏感词ID和动作\n格式：`/editword <word_id> <action>`\n\n"
+                "动作：warn（警告）、delete（删除）、ban（封禁）\n\n"
+                "示例：`/editword 1 delete`",
+                parse_mode="MarkdownV2"
+            )
+            return
+        
+        try:
+            word_id = int(args[0])
+            action = args[1].lower()
+            
+            if action not in ["warn", "delete", "ban"]:
+                await update.message.reply_text("❌ 无效的动作，必须是 warn、delete 或 ban")
+                return
+            
+            # Get word info before editing
+            word_info = SensitiveWordsRepository.get_word_by_id(word_id)
+            if not word_info:
+                await update.message.reply_text("❌ 敏感词不存在")
+                return
+            
+            if SensitiveWordsRepository.update_word(word_id, action=action):
+                # Log operation
+                from repositories.admin_logs_repository import AdminLogsRepository
+                AdminLogsRepository.log_operation(
+                    admin_id=user.id,
+                    operation_type="update_word",
+                    target_type="sensitive_word",
+                    target_id=word_id,
+                    details=f"word={word_info['word']}, new_action={action}",
+                    result="success"
+                )
+                action_text = {"warn": "警告", "delete": "删除", "ban": "封禁"}.get(action, action)
+                await update.message.reply_text(
+                    f"✅ 已更新敏感词：`{word_info['word']}`\n"
+                    f"新动作：{action_text}",
+                    parse_mode="MarkdownV2"
+                )
+                logger.info(f"Admin {user.id} edited sensitive word {word_id} to action {action}")
+            else:
+                await update.message.reply_text("❌ 更新失败")
+                
+        except ValueError:
+            await update.message.reply_text("❌ 无效的敏感词ID")
+        except Exception as e:
+            logger.error(f"Error in editword_command: {e}", exc_info=True)
+            await update.message.reply_text("❌ 更新失败，请稍后再试")
+    
+    # Delete admin command
+    async def deladmin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /deladmin command - delete admin"""
+        from admin_checker import is_admin
+        from database import db
+        
+        user = update.effective_user
+        
+        if not is_admin(user.id):
+            await update.message.reply_text("❌ 您不是管理员，无权限执行此操作")
+            return
+        
+        args = context.args
+        if not args or len(args) < 1:
+            await update.message.reply_text(
+                "❌ 请提供用户ID\n格式：`/deladmin <user_id>`\n\n"
+                "⚠️ 删除操作不可恢复",
+                parse_mode="MarkdownV2"
+            )
+            return
+        
+        try:
+            user_id = int(args[0])
+            
+            # Prevent self-deletion
+            if user_id == user.id:
+                await update.message.reply_text("❌ 不能删除自己")
+                return
+            
+            conn = db.connect()
+            cursor = conn.cursor()
+            
+            # Check if admin exists
+            cursor.execute("SELECT * FROM admins WHERE user_id = ? AND status = 'active'", (user_id,))
+            admin = cursor.fetchone()
+            if not admin:
+                await update.message.reply_text("❌ 管理员不存在或已被删除")
+                cursor.close()
+                return
+            
+            # Check permission
+            from services.permission_service import PermissionService
+            if not PermissionService.can_manage_admins(user.id):
+                await update.message.reply_text(
+                    "❌ 您没有权限删除管理员\n\n"
+                    "💡 只有超级管理员可以添加或删除管理员"
+                )
+                return
+            
+            # Cannot delete self
+            if user_id == user.id:
+                from utils.error_helper import ErrorHelper
+                error_msg = ErrorHelper.get_user_friendly_error('self_operation')
+                await update.message.reply_text(error_msg, parse_mode="HTML")
+                return
+            
+            # Check for confirmation
+            from services.confirmation_service import ConfirmationService
+            confirmation = ConfirmationService.get_confirmation(user.id)
+            
+            # Check if this is a confirmation (user_id matches and operation matches)
+            if confirmation and confirmation['operation'] == 'delete_admin' and confirmation['data'].get('user_id') == user_id:
+                # This is a confirmation, proceed with deletion
+                ConfirmationService.confirm_operation(user.id)  # Clear confirmation
+                
+                cursor.execute("""
+                    UPDATE admins 
+                    SET status = 'inactive', updated_at = CURRENT_TIMESTAMP
+                    WHERE user_id = ?
+                """, (user_id,))
+                conn.commit()
+                cursor.close()
+                
+                # Also delete from shared database
+                from database.admin_repository import AdminRepository
+                AdminRepository.remove_admin(user_id)
+                
+                # Log operation
+                from repositories.admin_logs_repository import AdminLogsRepository
+                AdminLogsRepository.log_operation(
+                    admin_id=user.id,
+                    operation_type="delete_admin",
+                    target_type="admin",
+                    target_id=user_id,
+                    details=f"deleted admin {user_id}",
+                    result="success"
+                )
+                await update.message.reply_text(
+                    f"✅ 已删除管理员：{user_id}\n\n"
+                    f"📝 此操作已同步到 Bot A 和 Bot B"
+                )
+                logger.info(f"Super admin {user.id} deleted admin {user_id}")
+            else:
+                # First time, require confirmation
+                ConfirmationService.create_confirmation(
+                    user.id,
+                    'delete_admin',
+                    {'user_id': user_id}
+                )
+                cursor.close()
+                await update.message.reply_text(
+                    f"⚠️ <b>确认删除管理员</b>\n\n"
+                    f"您将要删除管理员：<code>{user_id}</code>\n\n"
+                    f"⚠️ 此操作不可恢复！\n\n"
+                    f"请再次执行相同命令确认：\n"
+                    f"<code>/deladmin {user_id}</code>\n\n"
+                    f"或者发送 <code>/confirm</code> 确认删除",
+                    parse_mode="HTML"
+                )
+            
+        except ValueError:
+            await update.message.reply_text("❌ 无效的用户ID")
+        except Exception as e:
+            logger.error(f"Error in deladmin_command: {e}", exc_info=True)
+            await update.message.reply_text("❌ 删除失败，请稍后再试")
+    
+    # Confirm command
+    async def confirm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /confirm command - confirm pending operations"""
+        from admin_checker import is_admin
+        from services.confirmation_service import ConfirmationService
+        
+        user = update.effective_user
+        
+        if not is_admin(user.id):
+            await update.message.reply_text("❌ 您不是管理员，无权限执行此操作")
+            return
+        
+        confirmation = ConfirmationService.confirm_operation(user.id)
+        
+        if not confirmation:
+            await update.message.reply_text(
+                "❌ 没有待确认的操作\n\n"
+                "💡 请先执行需要确认的操作（如删除、禁用等）"
+            )
+            return
+        
+        operation = confirmation['operation']
+        data = confirmation['data']
+        
+        # Handle different operations
+        if operation == 'delete_admin':
+            user_id = data.get('user_id')
+            if user_id:
+                # Execute delete admin
+                from database import db
+                conn = db.connect()
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    UPDATE admins 
+                    SET status = 'inactive', updated_at = CURRENT_TIMESTAMP
+                    WHERE user_id = ?
+                """, (user_id,))
+                conn.commit()
+                cursor.close()
+                
+                from database.admin_repository import AdminRepository
+                AdminRepository.remove_admin(user_id)
+                
+                from repositories.admin_logs_repository import AdminLogsRepository
+                AdminLogsRepository.log_operation(
+                    admin_id=user.id,
+                    operation_type="delete_admin",
+                    target_type="admin",
+                    target_id=user_id,
+                    details=f"deleted admin {user_id}",
+                    result="success"
+                )
+                
+                await update.message.reply_text(
+                    f"✅ 已确认删除管理员：{user_id}\n\n"
+                    f"📝 此操作已同步到 Bot A 和 Bot B"
+                )
+                logger.info(f"Super admin {user.id} confirmed deletion of admin {user_id}")
+        elif operation == 'disable_user':
+            user_id = data.get('user_id')
+            if user_id:
+                # Execute disable user
+                from database import db
+                conn = db.connect()
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    UPDATE users 
+                    SET status = 'disabled', updated_at = CURRENT_TIMESTAMP
+                    WHERE user_id = ?
+                """, (user_id,))
+                conn.commit()
+                cursor.close()
+                
+                from repositories.admin_logs_repository import AdminLogsRepository
+                AdminLogsRepository.log_operation(
+                    admin_id=user.id,
+                    operation_type="update_user",
+                    target_type="user",
+                    target_id=user_id,
+                    details="disable_user",
+                    result="success"
+                )
+                
+                await update.message.reply_text(f"✅ 已确认禁用用户 {user_id}")
+                logger.info(f"Admin {user.id} confirmed disabling user {user_id}")
+        elif operation == 'batch_set_vip':
+            user_ids = data.get('user_ids')
+            vip_level = data.get('vip_level')
+            if user_ids and vip_level is not None:
+                # Execute batch set VIP
+                from services.batch_user_service import BatchUserService
+                result = BatchUserService.batch_set_vip(user_ids, vip_level)
+                
+                from repositories.admin_logs_repository import AdminLogsRepository
+                AdminLogsRepository.log_operation(
+                    admin_id=user.id,
+                    operation_type="batch_update_user",
+                    target_type="user",
+                    target_id=0,
+                    details=f"batch_set_vip level={vip_level} count={result['success_count']}",
+                    result="success" if result['failed_count'] == 0 else "partial"
+                )
+                
+                message = (
+                    f"✅ 已确认批量设置VIP\n\n"
+                    f"成功：{result['success_count']} 个用户\n"
+                )
+                if result['failed_count'] > 0:
+                    message += f"失败：{result['failed_count']} 个用户\n"
+                message += f"\nVIP等级已设置为：{vip_level}"
+                
+                await update.message.reply_text(message, parse_mode="HTML")
+                logger.info(f"Admin {user.id} confirmed batch set VIP level {vip_level} for {result['success_count']} users")
+        elif operation == 'batch_disable_users' or operation == 'batch_enable_users':
+            user_ids = data.get('user_ids')
+            disable = data.get('disable', True)
+            if user_ids:
+                # Execute batch disable/enable
+                from services.batch_user_service import BatchUserService
+                result = BatchUserService.batch_disable_users(user_ids, disable)
+                
+                from repositories.admin_logs_repository import AdminLogsRepository
+                action = 'disable' if disable else 'enable'
+                AdminLogsRepository.log_operation(
+                    admin_id=user.id,
+                    operation_type="batch_update_user",
+                    target_type="user",
+                    target_id=0,
+                    details=f"batch_{action} count={result['success_count']}",
+                    result="success" if result['failed_count'] == 0 else "partial"
+                )
+                
+                action_text = "禁用" if disable else "启用"
+                message = (
+                    f"✅ 已确认批量{action_text}用户\n\n"
+                    f"成功：{result['success_count']} 个用户\n"
+                )
+                if result['failed_count'] > 0:
+                    message += f"失败：{result['failed_count']} 个用户\n"
+                
+                await update.message.reply_text(message, parse_mode="HTML")
+                logger.info(f"Admin {user.id} confirmed batch {action} {result['success_count']} users")
+        elif operation == 'delete_group':
+            group_id = data.get('group_id')
+            if group_id:
+                # Execute delete group
+                from repositories.group_repository import GroupRepository
+                if GroupRepository.delete_group(group_id):
+                    from repositories.admin_logs_repository import AdminLogsRepository
+                    AdminLogsRepository.log_operation(
+                        admin_id=user.id,
+                        operation_type="delete_group",
+                        target_type="group",
+                        target_id=group_id,
+                        details=f"deleted group {group_id}",
+                        result="success"
+                    )
+                    await update.message.reply_text(
+                        f"✅ 已确认删除群组：{group_id}\n\n"
+                        f"⚠️ 群组数据已从管理系统中移除",
+                        parse_mode="MarkdownV2"
+                    )
+                    logger.info(f"Admin {user.id} confirmed deletion of group {group_id}")
+                else:
+                    await update.message.reply_text("❌ 删除群组失败")
+        else:
+            await update.message.reply_text(f"❌ 未知的操作类型：{operation}")
+    
+    # Delete group command
+    async def delgroup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /delgroup command - delete group"""
+        from admin_checker import is_admin
+        from repositories.group_repository import GroupRepository
+        
+        user = update.effective_user
+        
+        if not is_admin(user.id):
+            await update.message.reply_text("❌ 您不是管理员，无权限执行此操作")
+            return
+        
+        args = context.args
+        if not args or len(args) < 1:
+            await update.message.reply_text(
+                "❌ 请提供群组ID\n格式：`/delgroup <group_id>`\n\n"
+                "⚠️ 删除操作不可恢复",
+                parse_mode="MarkdownV2"
+            )
+            return
+        
+        try:
+            group_id = int(args[0])
+            
+            # Check for confirmation
+            from services.confirmation_service import ConfirmationService
+            confirmation = ConfirmationService.get_confirmation(user.id)
+            
+            if confirmation and confirmation['operation'] == 'delete_group' and confirmation['data'].get('group_id') == group_id:
+                # Confirmed, proceed
+                ConfirmationService.confirm_operation(user.id)  # Clear confirmation
+                
+                if GroupRepository.delete_group(group_id):
+                    # Log operation
+                    from repositories.admin_logs_repository import AdminLogsRepository
+                    AdminLogsRepository.log_operation(
+                        admin_id=user.id,
+                        operation_type="delete_group",
+                        target_type="group",
+                        target_id=group_id,
+                        details=f"deleted group {group_id}",
+                        result="success"
+                    )
+                    await update.message.reply_text(
+                        f"✅ 已删除群组：{group_id}\n\n"
+                        f"⚠️ 群组数据已从管理系统中移除",
+                        parse_mode="MarkdownV2"
+                    )
+                    logger.info(f"Admin {user.id} deleted group {group_id}")
+                else:
+                    await update.message.reply_text("❌ 群组不存在或删除失败")
+            else:
+                # First time, require confirmation
+                ConfirmationService.create_confirmation(
+                    user.id,
+                    'delete_group',
+                    {'group_id': group_id}
+                )
+                await update.message.reply_text(
+                    f"⚠️ <b>确认删除群组</b>\n\n"
+                    f"您将要删除群组：<code>{group_id}</code>\n\n"
+                    f"⚠️ 此操作不可恢复！\n\n"
+                    f"请再次执行相同命令确认：\n"
+                    f"<code>/delgroup {group_id}</code>\n\n"
+                    f"或者发送 <code>/confirm</code> 确认删除",
+                    parse_mode="HTML"
+                )
+                
+        except ValueError:
+            await update.message.reply_text("❌ 无效的群组ID")
+        except Exception as e:
+            logger.error(f"Error in delgroup_command: {e}", exc_info=True)
+            await update.message.reply_text("❌ 删除失败，请稍后再试")
+    
+    # Group verify command
+    async def group_verify_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /group_verify command - enable/disable group verification"""
+        from admin_checker import is_admin
+        from repositories.group_repository import GroupRepository
+        
+        user = update.effective_user
+        
+        if not is_admin(user.id):
+            await update.message.reply_text("❌ 您不是管理员，无权限执行此操作")
+            return
+        
+        args = context.args
+        if not args or len(args) < 2:
+            await update.message.reply_text(
+                "❌ 请提供群组ID和操作\n格式：`/group_verify <group_id> <enable|disable>`\n\n"
+                "示例：`/group_verify -1001234567890 enable`",
+                parse_mode="MarkdownV2"
+            )
+            return
+        
+        try:
+            group_id = int(args[0])
+            action = args[1].lower()
+            
+            if action not in ["enable", "disable"]:
+                await update.message.reply_text("❌ 操作必须是 enable 或 disable")
+                return
+            
+            enabled = action == "enable"
+            GroupRepository.set_verification_enabled(group_id, enabled)
+            
+            # Log operation
+            from repositories.admin_logs_repository import AdminLogsRepository
+            AdminLogsRepository.log_operation(
+                admin_id=user.id,
+                operation_type="update_group",
+                target_type="group",
+                target_id=group_id,
+                details=f"verification_enabled={enabled}",
+                result="success"
+            )
+            action_text = "启用" if enabled else "禁用"
+            await update.message.reply_text(
+                f"✅ 已{action_text}群组 {group_id} 的验证功能",
+                parse_mode="MarkdownV2"
+            )
+            logger.info(f"Admin {user.id} {'enabled' if enabled else 'disabled'} verification for group {group_id}")
+            
+        except ValueError:
+            await update.message.reply_text("❌ 无效的群组ID")
+        except Exception as e:
+            logger.error(f"Error in group_verify_command: {e}", exc_info=True)
+            await update.message.reply_text("❌ 操作失败，请稍后再试")
+    
+    # Group mode command
+    async def group_mode_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /group_mode command - set group verification mode"""
+        from admin_checker import is_admin
+        from repositories.verification_repository import VerificationRepository
+        
+        user = update.effective_user
+        
+        if not is_admin(user.id):
+            await update.message.reply_text("❌ 您不是管理员，无权限执行此操作")
+            return
+        
+        args = context.args
+        if not args or len(args) < 2:
+            await update.message.reply_text(
+                "❌ 请提供群组ID和验证模式\n格式：`/group_mode <group_id> <question|manual>`\n\n"
+                "示例：`/group_mode -1001234567890 question`",
+                parse_mode="MarkdownV2"
+            )
+            return
+        
+        try:
+            group_id = int(args[0])
+            mode = args[1].lower()
+            
+            if mode not in ["question", "manual"]:
+                await update.message.reply_text("❌ 验证模式必须是 question 或 manual")
+                return
+            
+            VerificationRepository.create_or_update_config(group_id, verification_mode=mode)
+            
+            mode_text = "问题验证" if mode == "question" else "手动验证"
+            await update.message.reply_text(
+                f"✅ 已设置群组 {group_id} 的验证模式为：{mode_text}",
+                parse_mode="MarkdownV2"
+            )
+            logger.info(f"Admin {user.id} set verification mode {mode} for group {group_id}")
+            
+        except ValueError:
+            await update.message.reply_text("❌ 无效的群组ID")
+        except Exception as e:
+            logger.error(f"Error in group_mode_command: {e}", exc_info=True)
+            await update.message.reply_text("❌ 操作失败，请稍后再试")
+    
+    # Pass/Reject user commands for verification
+    async def pass_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /pass_user command - approve user verification"""
+        from admin_checker import is_admin
+        from repositories.group_repository import GroupRepository
+        from repositories.verification_repository import VerificationRepository
+        from database import db
+        
+        user = update.effective_user
+        
+        if not is_admin(user.id):
+            await update.message.reply_text("❌ 您不是管理员，无权限执行此操作")
+            return
+        
+        args = context.args
+        if not args or len(args) < 2:
+            await update.message.reply_text(
+                "❌ 请提供用户ID和群组ID\n格式：`/pass_user <user_id> <group_id>`",
+                parse_mode="MarkdownV2"
+            )
+            return
+        
+        try:
+            user_id = int(args[0])
+            group_id = int(args[1])
+            
+            # Verify member
+            GroupRepository.verify_member(group_id, user_id)
+            
+            # Update verification record
+            conn = db.connect()
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE verification_records 
+                SET result = 'passed', completed_at = CURRENT_TIMESTAMP
+                WHERE group_id = ? AND user_id = ? AND result = 'pending'
+            """, (group_id, user_id))
+            conn.commit()
+            cursor.close()
+            
+            # Log operation
+            from repositories.admin_logs_repository import AdminLogsRepository
+            AdminLogsRepository.log_operation(
+                admin_id=user.id,
+                operation_type="verify_user",
+                target_type="user",
+                target_id=user_id,
+                details=f"group_id={group_id}, result=passed",
+                result="success"
+            )
+            await update.message.reply_text(
+                f"✅ 已通过用户 {user_id} 在群组 {group_id} 的审核",
+                parse_mode="MarkdownV2"
+            )
+            logger.info(f"Admin {user.id} approved user {user_id} in group {group_id}")
+            
+        except ValueError:
+            await update.message.reply_text("❌ 无效的用户ID或群组ID")
+        except Exception as e:
+            logger.error(f"Error in pass_user_command: {e}", exc_info=True)
+            await update.message.reply_text("❌ 操作失败，请稍后再试")
+    
+    async def reject_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /reject_user command - reject user verification"""
+        from admin_checker import is_admin
+        from repositories.group_repository import GroupRepository
+        from database import db
+        
+        user = update.effective_user
+        
+        if not is_admin(user.id):
+            await update.message.reply_text("❌ 您不是管理员，无权限执行此操作")
+            return
+        
+        args = context.args
+        if not args or len(args) < 2:
+            await update.message.reply_text(
+                "❌ 请提供用户ID和群组ID\n格式：`/reject_user <user_id> <group_id>`",
+                parse_mode="MarkdownV2"
+            )
+            return
+        
+        try:
+            user_id = int(args[0])
+            group_id = int(args[1])
+            
+            # Reject member
+            GroupRepository.reject_member(group_id, user_id)
+            
+            # Update verification record
+            conn = db.connect()
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE verification_records 
+                SET result = 'rejected', completed_at = CURRENT_TIMESTAMP
+                WHERE group_id = ? AND user_id = ? AND result = 'pending'
+            """, (group_id, user_id))
+            conn.commit()
+            cursor.close()
+            
+            await update.message.reply_text(
+                f"❌ 已拒绝用户 {user_id} 在群组 {group_id} 的审核",
+                parse_mode="MarkdownV2"
+            )
+            logger.info(f"Admin {user.id} rejected user {user_id} in group {group_id}")
+            
+        except ValueError:
+            await update.message.reply_text("❌ 无效的用户ID或群组ID")
+        except Exception as e:
+            logger.error(f"Error in reject_user_command: {e}", exc_info=True)
+            await update.message.reply_text("❌ 操作失败，请稍后再试")
+    
+    # Group detail command
+    async def group_detail_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /group_detail command - show group details"""
+        from admin_checker import is_admin
+        from handlers.message_handlers import handle_admin_group_detail
+        
+        user = update.effective_user
+        
+        if not is_admin(user.id):
+            await update.message.reply_text("❌ 您不是管理员，无权限执行此操作")
+            return
+        
+        args = context.args
+        if not args or len(args) < 1:
+            await update.message.reply_text(
+                "❌ 请提供群组ID\n格式：`/group_detail <group_id>`",
+                parse_mode="MarkdownV2"
+            )
+            return
+        
+        try:
+            group_id = int(args[0])
+            await handle_admin_group_detail(update, context, group_id)
+        except ValueError:
+            await update.message.reply_text("❌ 无效的群组ID")
+        except Exception as e:
+            logger.error(f"Error in group_detail_command: {e}", exc_info=True)
+            await update.message.reply_text("❌ 查看失败，请稍后再试")
+    
+    # Register all new commands
+    application.add_handler(CommandHandler("user_detail", user_detail_command))
+    application.add_handler(CommandHandler("set_vip", set_vip_command))
+    application.add_handler(CommandHandler("disable_user", disable_user_command))
+    application.add_handler(CommandHandler("enable_user", enable_user_command))
+    application.add_handler(CommandHandler("batch_set_vip", batch_set_vip_command))
+    application.add_handler(CommandHandler("batch_disable_users", batch_disable_users_command))
+    application.add_handler(CommandHandler("batch_enable_users", batch_enable_users_command))
+    application.add_handler(CommandHandler("batch_export_users", batch_export_users_command))
+    application.add_handler(CommandHandler("delword", delword_command))
+    application.add_handler(CommandHandler("editword", editword_command))
+    application.add_handler(CommandHandler("deladmin", deladmin_command))
+    application.add_handler(CommandHandler("delgroup", delgroup_command))
+    application.add_handler(CommandHandler("confirm", confirm_command))
+    application.add_handler(CommandHandler("group_verify", group_verify_command))
+    application.add_handler(CommandHandler("group_mode", group_mode_command))
+    application.add_handler(CommandHandler("pass_user", pass_user_command))
+    application.add_handler(CommandHandler("reject_user", reject_user_command))
+    application.add_handler(CommandHandler("group_detail", group_detail_command))
+    
+    # Export data commands
+    async def export_words_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /export_words command - export sensitive words"""
+        from admin_checker import is_admin
+        from repositories.sensitive_words_repository import SensitiveWordsRepository
+        
+        user = update.effective_user
+        
+        if not is_admin(user.id):
+            await update.message.reply_text("❌ 您不是管理员，无权限执行此操作")
+            return
+        
+        try:
+            words = SensitiveWordsRepository.get_words()
+            
+            if not words:
+                await update.message.reply_text("❌ 暂无敏感词可导出")
+                return
+            
+            # Format as CSV
+            action_map = {"warn": "警告", "delete": "删除", "ban": "封禁"}
+            export_text = "ID,敏感词,动作\n"
+            for word in words:
+                action_text = action_map.get(word['action'], word['action'])
+                word_text = word['word'].replace(',', '，')
+                export_text += f"{word['word_id']},{word_text},{action_text}\n"
+            
+            # Telegram message limit is 4096 characters, send in parts if needed
+            if len(export_text) <= 4000:
+                await update.message.reply_text(
+                    f"📋 敏感词导出列表（共 {len(words)} 个）：\n\n"
+                    f"<code>{export_text}</code>\n\n"
+                    f"💡 复制内容可导入到Excel",
+                    parse_mode="HTML"
+                )
+            else:
+                # Split into multiple messages
+                lines = export_text.split('\n')
+                header = lines[0] + '\n'
+                remaining = '\n'.join(lines[1:])
+                
+                # Send header first
+                await update.message.reply_text(
+                    f"📋 敏感词导出列表（共 {len(words)} 个）：\n\n"
+                    f"<code>{header}</code>",
+                    parse_mode="HTML"
+                )
+                
+                # Send data in chunks
+                data_lines = remaining.split('\n')
+                chunk = ""
+                for line in data_lines:
+                    if len(chunk + line + '\n') > 3500:
+                        if chunk:
+                            await update.message.reply_text(
+                                f"<code>{chunk}</code>",
+                                parse_mode="HTML"
+                            )
+                        chunk = line + '\n'
+                    else:
+                        chunk += line + '\n'
+                
+                if chunk.strip():
+                    await update.message.reply_text(
+                        f"<code>{chunk}</code>\n\n"
+                        f"💡 导出完成",
+                        parse_mode="HTML"
+                    )
+            
+            # Log operation
+            from repositories.admin_logs_repository import AdminLogsRepository
+            AdminLogsRepository.log_operation(
+                admin_id=user.id,
+                operation_type="export",
+                target_type="sensitive_word",
+                details=f"count={len(words)}",
+                result="success"
+            )
+            logger.info(f"Admin {user.id} exported {len(words)} sensitive words")
+            
+        except Exception as e:
+            logger.error(f"Error in export_words_command: {e}", exc_info=True)
+            await update.message.reply_text("❌ 导出失败，请稍后再试")
+    
+    async def export_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /export_users command - export users data"""
+        from admin_checker import is_admin
+        from database import db
+        
+        user = update.effective_user
+        
+        if not is_admin(user.id):
+            await update.message.reply_text("❌ 您不是管理员，无权限执行此操作")
+            return
+        
+        try:
+            conn = db.connect()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT user_id, username, first_name, vip_level, status, 
+                       total_transactions, total_amount, created_at
+                FROM users
+                ORDER BY created_at DESC
+                LIMIT 1000
+            """)
+            users = cursor.fetchall()
+            cursor.close()
+            
+            if not users:
+                await update.message.reply_text("❌ 暂无用户数据可导出")
+                return
+            
+            # Format as CSV
+            export_text = "用户ID,用户名,姓名,VIP等级,状态,交易数,交易额,注册时间\n"
+            for user_data in users:
+                username = (user_data['username'] or '').replace(',', '，')
+                first_name = (user_data['first_name'] or '').replace(',', '，')
+                status_text = "活跃" if user_data['status'] == 'active' else "禁用"
+                export_text += (
+                    f"{user_data['user_id']},{username},{first_name},"
+                    f"{user_data['vip_level'] or 0},{status_text},"
+                    f"{user_data['total_transactions'] or 0},{user_data['total_amount'] or 0},"
+                    f"{user_data['created_at'] or ''}\n"
+                )
+            
+            # Send in parts if too long
+            if len(export_text) <= 4000:
+                await update.message.reply_text(
+                    f"📋 用户数据导出（共 {len(users)} 条）：\n\n"
+                    f"<code>{export_text}</code>\n\n"
+                    f"💡 复制内容可导入到Excel",
+                    parse_mode="HTML"
+                )
+            else:
+                # Send header first
+                header = "用户ID,用户名,姓名,VIP等级,状态,交易数,交易额,注册时间\n"
+                await update.message.reply_text(
+                    f"📋 用户数据导出（共 {len(users)} 条）：\n\n"
+                    f"<code>{header}</code>",
+                    parse_mode="HTML"
+                )
+                
+                # Send data in chunks
+                data_lines = export_text[len(header):].split('\n')
+                chunk = ""
+                for line in data_lines:
+                    if len(chunk + line + '\n') > 3500:
+                        if chunk:
+                            await update.message.reply_text(
+                                f"<code>{chunk}</code>",
+                                parse_mode="HTML"
+                            )
+                        chunk = line + '\n'
+                    else:
+                        chunk += line + '\n'
+                
+                if chunk.strip():
+                    await update.message.reply_text(
+                        f"<code>{chunk}</code>\n\n"
+                        f"💡 导出完成",
+                        parse_mode="HTML"
+                    )
+            
+            # Log operation
+            from repositories.admin_logs_repository import AdminLogsRepository
+            AdminLogsRepository.log_operation(
+                admin_id=user.id,
+                operation_type="export",
+                target_type="user",
+                details=f"count={len(users)}",
+                result="success"
+            )
+            logger.info(f"Admin {user.id} exported {len(users)} users")
+            
+        except Exception as e:
+            logger.error(f"Error in export_users_command: {e}", exc_info=True)
+            await update.message.reply_text("❌ 导出失败，请稍后再试")
+    
+    async def import_words_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Import sensitive words from text"""
+        from repositories.sensitive_words_repository import SensitiveWordsRepository
+        from services.import_service import parse_sensitive_words_import
+        from repositories.admin_logs_repository import AdminLogsRepository
+        
+        user = update.effective_user
+        
+        if not is_admin(user.id):
+            await update.message.reply_text("❌ 您不是管理员，无权限执行此操作")
+            return
+        
+        args = context.args
+        if not args:
+            await update.message.reply_text(
+                "❌ 请提供要导入的敏感词文本\n\n"
+                "格式：`/import_words <文本内容>`\n\n"
+                "支持格式：\n"
+                "1. 每行一个词：`/import_words 词1\\n词2\\n词3`\n"
+                "2. 逗号分隔（词,动作）：`/import_words 词1,delete\\n词2,warn`\n"
+                "3. 多个词用空格分隔：`/import_words 词1 词2 词3`\n\n"
+                "动作：warn（警告）、delete（删除）、ban（封禁）\n"
+                "默认动作：warn\n\n"
+                "示例：\n"
+                "`/import_words 广告\\n诈骗,delete\\n赌博,ban`\n\n"
+                "💡 也可以直接发送包含敏感词的文本消息，然后转发给机器人",
+                parse_mode="MarkdownV2"
+            )
+            return
+        
+        # Join all arguments as text
+        import_text = " ".join(args)
+        # Also check if message has text (for multi-line input)
+        if update.message.text and len(update.message.text.split('\n', 1)) > 1:
+            # Use full message text if it contains newlines (likely formatted input)
+            import_text = update.message.text.split(' ', 1)[1] if ' ' in update.message.text else update.message.text
+        
+        try:
+            # Parse words from text
+            words_data = parse_sensitive_words_import(import_text)
+            
+            if not words_data:
+                await update.message.reply_text("❌ 未找到有效的敏感词")
+                return
+            
+            if len(words_data) > 100:
+                await update.message.reply_text("❌ 批量导入最多支持100个敏感词")
+                return
+            
+            # Import words
+            success_count = 0
+            failed_count = 0
+            
+            for word, action in words_data:
+                if SensitiveWordsRepository.add_word(None, word, action, user.id):
+                    success_count += 1
+                else:
+                    failed_count += 1
+            
+            # Log operation
+            AdminLogsRepository.log_operation(
+                admin_id=user.id,
+                operation_type="import_word",
+                target_type="sensitive_word",
+                details=f"count={len(words_data)}, success={success_count}, failed={failed_count}",
+                result="success" if success_count > 0 else "failed"
+            )
+            
+            await update.message.reply_text(
+                f"✅ 批量导入完成\n"
+                f"总数：{len(words_data)} 个\n"
+                f"成功：{success_count} 个\n"
+                f"失败：{failed_count} 个（可能已存在）\n\n"
+                f"💡 使用 <code>/export_words</code> 查看所有敏感词",
+                parse_mode="HTML"
+            )
+            logger.info(f"Admin {user.id} imported {success_count} sensitive words")
+            
+        except Exception as e:
+            logger.error(f"Error in import_words_command: {e}", exc_info=True)
+            await update.message.reply_text("❌ 导入失败，请检查格式后重试")
+    
+    application.add_handler(CommandHandler("export_words", export_words_command))
+    application.add_handler(CommandHandler("export_users", export_users_command))
+    application.add_handler(CommandHandler("import_words", import_words_command))
     
     # Register chart command handlers (P5 feature)
     from handlers.chart_handlers import (

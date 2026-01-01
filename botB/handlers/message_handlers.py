@@ -2171,6 +2171,12 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await handle_group_list(update, context)
             return
         
+        if text == "🔍 搜索群组":
+            from utils.help_generator import HelpGenerator
+            help_text = HelpGenerator.get_feature_help('group_search')
+            await send_group_message(update, help_text, parse_mode="HTML")
+            return
+        
         if text == "⚙️ 群组设置":
             await handle_group_settings(update, context)
             return
@@ -2198,6 +2204,36 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await handle_admin_user_report(update, context)
             return
         
+        if text == "👤 用户详情":
+            await send_group_message(update,
+                "💡 使用命令查看用户详情：\n"
+                "<code>/user_detail &lt;user_id&gt;</code>\n\n"
+                "示例：\n"
+                "<code>/user_detail 123456789</code>\n\n"
+                "将显示用户的详细信息：\n"
+                "• 基本信息（用户名、姓名、VIP等级）\n"
+                "• 交易统计（交易数、交易额）\n"
+                "• 注册信息（注册时间、最后活跃时间）\n"
+                "• 账户状态（活跃/禁用）",
+                parse_mode="HTML"
+            )
+            return
+        
+        if text == "⚙️ 用户操作":
+            await send_group_message(update,
+                "💡 用户操作功能：\n\n"
+                "<b>修改VIP等级：</b>\n"
+                "<code>/set_vip &lt;user_id&gt; &lt;level&gt;</code>\n\n"
+                "<b>禁用/启用用户：</b>\n"
+                "<code>/disable_user &lt;user_id&gt;</code>\n"
+                "<code>/enable_user &lt;user_id&gt;</code>\n\n"
+                "示例：\n"
+                "<code>/set_vip 123456789 1</code> (设置为VIP1)\n"
+                "<code>/disable_user 123456789</code> (禁用用户)",
+                parse_mode="HTML"
+            )
+            return
+        
         if text == "📅 时间统计":
             await handle_admin_stats_time(update, context)
             return
@@ -2206,19 +2242,100 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await handle_admin_stats_detail(update, context)
             return
         
+        if text == "📋 操作日志":
+            await handle_admin_operation_logs(update, context)
+            return
+        
         if text == "➕ 添加敏感词":
             await send_group_message(update, 
-                "💡 使用命令添加敏感词：\n"
+                "💡 使用命令添加敏感词：\n\n"
+                "<b>单个添加：</b>\n"
                 "<code>/addword &lt;词语&gt; [action]</code>\n\n"
+                "<b>批量添加：</b>\n"
+                "<code>/addword batch &lt;词语1,词语2,词语3&gt; [action]</code>\n\n"
+                "动作：warn（警告）、delete（删除）、ban（封禁）\n\n"
+                "<b>示例：</b>\n"
+                "• <code>/addword 广告 delete</code>\n"
+                "• <code>/addword batch 广告,诈骗,色情 delete</code>\n\n"
+                "💡 批量添加最多支持50个敏感词",
+                parse_mode="HTML"
+            )
+            return
+        
+        if text == "✏️ 编辑敏感词":
+            await send_group_message(update,
+                "💡 使用命令编辑敏感词：\n"
+                "<code>/editword &lt;word_id&gt; &lt;new_action&gt;</code>\n\n"
                 "动作：warn（警告）、delete（删除）、ban（封禁）\n\n"
                 "示例：\n"
-                "<code>/addword 广告 delete</code>",
+                "<code>/editword 1 delete</code> (将ID为1的敏感词动作改为删除)\n\n"
+                "💡 敏感词ID可在敏感词列表中查看",
+                parse_mode="HTML"
+            )
+            return
+        
+        if text == "🗑️ 删除敏感词":
+            await send_group_message(update,
+                "💡 使用命令删除敏感词：\n\n"
+                "<b>单个删除：</b>\n"
+                "<code>/delword &lt;word_id&gt;</code>\n\n"
+                "<b>批量删除：</b>\n"
+                "<code>/delword batch &lt;id1,id2,id3&gt;</code>\n\n"
+                "<b>示例：</b>\n"
+                "• <code>/delword 1</code> (删除ID为1的敏感词)\n"
+                "• <code>/delword batch 1,2,3</code> (批量删除ID为1,2,3的敏感词)\n\n"
+                "💡 敏感词ID可在敏感词列表中查看\n"
+                "💡 批量删除最多支持50个敏感词\n"
+                "⚠️ 删除操作不可恢复，请谨慎操作",
                 parse_mode="HTML"
             )
             return
         
         if text == "📋 导出列表":
             await handle_admin_word_export(update, context)
+            return
+        
+        if text == "📥 批量导入":
+            await send_group_message(update,
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                "  📥 批量导入敏感词\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "<b>使用方法：</b>\n\n"
+                "使用命令：<code>/import_words &lt;文本内容&gt;</code>\n\n"
+                "<b>支持格式：</b>\n"
+                "1. 每行一个词\n"
+                "2. 逗号分隔：词,动作\n"
+                "3. 多个词用空格分隔\n\n"
+                "<b>动作类型：</b>\n"
+                "• warn（警告）- 默认\n"
+                "• delete（删除）\n"
+                "• ban（封禁）\n\n"
+                "<b>示例：</b>\n"
+                "<code>/import_words 广告\\n诈骗,delete\\n赌博,ban</code>\n\n"
+                "💡 最多支持100个敏感词\n"
+                "💡 使用 <code>/export_words</code> 查看现有敏感词",
+                parse_mode="HTML"
+            )
+            return
+        
+        if text == "💾 完整导出":
+            await send_group_message(update,
+                "💡 使用命令导出数据：\n\n"
+                "<b>导出敏感词：</b>\n"
+                "<code>/export_words</code>\n\n"
+                "<b>导出用户数据：</b>\n"
+                "<code>/export_users</code>\n\n"
+                "💡 导出数据为CSV格式，可直接导入Excel",
+                parse_mode="HTML"
+            )
+            return
+        
+        if text == "👤 审核详情":
+            await handle_verification_detail(update, context)
+            return
+        
+        if text == "📋 审核历史":
+            await handle_verification_history(update, context)
             return
         
         if text == "➕ 添加群组":
@@ -2230,6 +2347,43 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "注意事项：\n"
                 "• 群组ID必须以 -100 开头（超级群组）\n"
                 "• 机器人必须是该群组的管理员",
+                parse_mode="HTML"
+            )
+            return
+        
+        if text == "⚙️ 群组配置":
+            await send_group_message(update,
+                "💡 使用命令配置群组：\n\n"
+                "<b>启用/禁用验证：</b>\n"
+                "<code>/group_verify &lt;group_id&gt; enable</code>\n"
+                "<code>/group_verify &lt;group_id&gt; disable</code>\n\n"
+                "<b>设置验证模式：</b>\n"
+                "<code>/group_mode &lt;group_id&gt; question</code> (问题验证)\n"
+                "<code>/group_mode &lt;group_id&gt; manual</code> (手动验证)\n\n"
+                "示例：\n"
+                "<code>/group_verify -1001234567890 enable</code>",
+                parse_mode="HTML"
+            )
+            return
+        
+        if text == "🗑️ 删除群组":
+            await send_group_message(update,
+                "💡 使用命令删除群组：\n"
+                "<code>/delgroup &lt;group_id&gt;</code>\n\n"
+                "示例：\n"
+                "<code>/delgroup -1001234567890</code>\n\n"
+                "⚠️ 删除操作不可恢复，请谨慎操作",
+                parse_mode="HTML"
+            )
+            return
+        
+        if text == "🗑️ 删除管理员":
+            await send_group_message(update,
+                "💡 使用命令删除管理员：\n"
+                "<code>/deladmin &lt;user_id&gt;</code>\n\n"
+                "示例：\n"
+                "<code>/deladmin 123456789</code>\n\n"
+                "⚠️ 删除操作不可恢复，请谨慎操作",
                 parse_mode="HTML"
             )
             return
@@ -2434,7 +2588,11 @@ async def handle_group_settings(update: Update, context: ContextTypes.DEFAULT_TY
                 )
             
             text += "💡 使用命令管理群组：\n"
+            text += "• <code>/search_group &lt;条件&gt;</code> - 搜索群组\n"
+            text += "• <code>/group_detail &lt;group_id&gt;</code> - 查看群组详情\n"
             text += "• <code>/addgroup &lt;group_id&gt; [group_title]</code> - 添加群组\n"
+            text += "• <code>/group_verify &lt;group_id&gt; enable/disable</code> - 启用/禁用验证\n"
+            text += "• <code>/group_mode &lt;group_id&gt; question/manual</code> - 设置验证模式\n"
             text += "• 在群组中使用 w2/w3 命令设置群组加价和地址"
         
         from keyboards.admin_keyboard import get_admin_submenu_keyboard
@@ -2593,8 +2751,9 @@ async def handle_admin_users(update: Update, context: ContextTypes.DEFAULT_TYPE)
                     f"   姓名：{first_name or '未设置'} | {vip_text} | {created_at}\n\n"
                 )
         
-        text += "\n💡 更多功能开发中..."
+        text += "\n💡 使用下方按钮查看更多功能"
         
+        # Add pagination buttons if needed (for future implementation)
         reply_markup = get_admin_submenu_keyboard("users")
         await send_group_message(update, text, parse_mode="HTML", reply_markup=reply_markup)
         
@@ -2715,6 +2874,237 @@ async def handle_admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await send_group_message(update, "❌ 系统错误，请稍后再试", parse_mode="HTML")
 
 
+async def handle_admin_stats_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle time-based statistics (using reply keyboard)"""
+    from database import db
+    from keyboards.admin_keyboard import get_admin_submenu_keyboard
+    
+    try:
+        conn = db.connect()
+        cursor = conn.cursor()
+        
+        # Get today's statistics
+        cursor.execute("""
+            SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as total 
+            FROM transactions 
+            WHERE DATE(created_at) = DATE('now') AND status = 'paid'
+        """)
+        today_result = cursor.fetchone()
+        today_count = today_result['count'] or 0
+        today_amount = float(today_result['total'] or 0)
+        
+        # Get yesterday's statistics
+        cursor.execute("""
+            SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as total 
+            FROM transactions 
+            WHERE DATE(created_at) = DATE('now', '-1 day') AND status = 'paid'
+        """)
+        yesterday_result = cursor.fetchone()
+        yesterday_count = yesterday_result['count'] or 0
+        yesterday_amount = float(yesterday_result['total'] or 0)
+        
+        # Get this week's statistics
+        cursor.execute("""
+            SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as total 
+            FROM transactions 
+            WHERE DATE(created_at) >= DATE('now', '-7 days') AND status = 'paid'
+        """)
+        week_result = cursor.fetchone()
+        week_count = week_result['count'] or 0
+        week_amount = float(week_result['total'] or 0)
+        
+        # Get this month's statistics
+        cursor.execute("""
+            SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as total 
+            FROM transactions 
+            WHERE DATE(created_at) >= DATE('now', 'start of month') AND status = 'paid'
+        """)
+        month_result = cursor.fetchone()
+        month_count = month_result['count'] or 0
+        month_amount = float(month_result['total'] or 0)
+        
+        # Get user statistics
+        cursor.execute("SELECT COUNT(*) FROM users WHERE DATE(created_at) = DATE('now')")
+        today_users = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(*) FROM users WHERE DATE(created_at) >= DATE('now', '-7 days')")
+        week_users = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(*) FROM users WHERE DATE(created_at) >= DATE('now', 'start of month')")
+        month_users = cursor.fetchone()[0]
+        
+        # Calculate growth rates
+        today_growth = ((today_amount - yesterday_amount) / yesterday_amount * 100) if yesterday_amount > 0 else 0
+        week_growth = ((week_amount - (yesterday_amount * 7)) / (yesterday_amount * 7) * 100) if yesterday_amount > 0 else 0
+        
+        text = (
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"  📅 时间统计\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"<b>💳 交易统计</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"<b>今日</b>\n"
+            f"交易：{today_count} 笔 / {today_amount:,.2f} CNY\n"
+        )
+        
+        if yesterday_amount > 0:
+            growth_icon = "📈" if today_growth >= 0 else "📉"
+            text += f"{growth_icon} 较昨日：{abs(today_growth):.1f}%\n\n"
+        else:
+            text += "\n"
+        
+        text += (
+            f"<b>昨日</b>\n"
+            f"交易：{yesterday_count} 笔 / {yesterday_amount:,.2f} CNY\n\n"
+            f"<b>本周</b>\n"
+            f"交易：{week_count} 笔 / {week_amount:,.2f} CNY\n"
+        )
+        
+        if yesterday_amount > 0:
+            growth_icon = "📈" if week_growth >= 0 else "📉"
+            text += f"{growth_icon} 较上周：{abs(week_growth):.1f}%\n\n"
+        else:
+            text += "\n"
+        
+        text += (
+            f"<b>本月</b>\n"
+            f"交易：{month_count} 笔 / {month_amount:,.2f} CNY\n\n"
+            f"<b>👥 用户统计</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"今日新增：{today_users} 人\n"
+            f"本周新增：{week_users} 人\n"
+            f"本月新增：{month_users} 人\n\n"
+            f"💡 统计时间：{datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        )
+        
+        reply_markup = get_admin_submenu_keyboard("stats")
+        await send_group_message(update, text, parse_mode="HTML", reply_markup=reply_markup)
+        
+    except Exception as e:
+        logger.error(f"Error in handle_admin_stats_time: {e}", exc_info=True)
+        await send_group_message(update, "❌ 系统错误，请稍后再试", parse_mode="HTML")
+
+
+async def handle_admin_stats_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle detailed statistics report (using reply keyboard)"""
+    from database import db
+    from keyboards.admin_keyboard import get_admin_submenu_keyboard
+    
+    try:
+        conn = db.connect()
+        cursor = conn.cursor()
+        
+        # Get detailed transaction statistics by status
+        cursor.execute("""
+            SELECT status, COUNT(*) as count, COALESCE(SUM(amount), 0) as total 
+            FROM transactions 
+            GROUP BY status
+        """)
+        status_stats = cursor.fetchall()
+        
+        # Get channel statistics
+        cursor.execute("""
+            SELECT payment_channel, COUNT(*) as count, COALESCE(SUM(amount), 0) as total 
+            FROM transactions 
+            WHERE status = 'paid'
+            GROUP BY payment_channel
+        """)
+        channel_stats = cursor.fetchall()
+        
+        # Get transaction type statistics
+        cursor.execute("""
+            SELECT transaction_type, COUNT(*) as count, COALESCE(SUM(amount), 0) as total 
+            FROM transactions 
+            WHERE status = 'paid'
+            GROUP BY transaction_type
+        """)
+        type_stats = cursor.fetchall()
+        
+        # Get top users by transaction amount
+        cursor.execute("""
+            SELECT user_id, COUNT(*) as count, COALESCE(SUM(amount), 0) as total
+            FROM transactions
+            WHERE status = 'paid'
+            GROUP BY user_id
+            ORDER BY total DESC
+            LIMIT 10
+        """)
+        top_users = cursor.fetchall()
+        cursor.close()
+        
+        text = (
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"  📊 详细报表\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"<b>💳 交易状态统计</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        )
+        
+        total_all = sum(stat['count'] for stat in status_stats)
+        for stat in status_stats:
+            status = stat['status']
+            count = stat['count']
+            amount = float(stat['total'] or 0)
+            
+            status_text = {
+                "paid": "✅ 已支付",
+                "pending": "⏳ 待支付",
+                "failed": "❌ 失败",
+                "cancelled": "🚫 已取消"
+            }.get(status, status)
+            
+            percentage = (count / total_all * 100) if total_all > 0 else 0
+            text += f"{status_text}：{count} 笔 ({percentage:.1f}%) / {amount:,.2f} CNY\n"
+        
+        text += "\n"
+        
+        if channel_stats:
+            text += f"<b>💳 支付渠道统计</b>\n"
+            text += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            total_paid = sum(float(stat['total'] or 0) for stat in channel_stats)
+            for stat in channel_stats:
+                channel = stat['payment_channel']
+                count = stat['count']
+                amount = float(stat['total'] or 0)
+                percentage = (amount / total_paid * 100) if total_paid > 0 else 0
+                
+                channel_text = "💙 支付宝" if channel == "alipay" else "💚 微信支付"
+                text += f"{channel_text}：{count} 笔 / {amount:,.2f} CNY ({percentage:.1f}%)\n"
+            text += "\n"
+        
+        if type_stats:
+            text += f"<b>📋 交易类型统计</b>\n"
+            text += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            for stat in type_stats:
+                trans_type = stat['transaction_type']
+                count = stat['count']
+                amount = float(stat['total'] or 0)
+                
+                type_text = {"receive": "💰 收款", "pay": "💸 付款"}.get(trans_type, trans_type)
+                text += f"{type_text}：{count} 笔 / {amount:,.2f} CNY\n"
+            text += "\n"
+        
+        if top_users:
+            text += f"<b>🏆 交易额TOP10用户</b>\n"
+            text += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            for idx, user in enumerate(top_users[:10], 1):
+                user_id = user['user_id']
+                count = user['count']
+                amount = float(user['total'] or 0)
+                text += f"{idx}. ID:<code>{user_id}</code> - {count}笔 / {amount:,.2f} CNY\n"
+            text += "\n"
+        
+            from datetime import datetime
+            text += f"💡 报表生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        
+        reply_markup = get_admin_submenu_keyboard("stats")
+        await send_group_message(update, text, parse_mode="HTML", reply_markup=reply_markup)
+        
+    except Exception as e:
+        logger.error(f"Error in handle_admin_stats_detail: {e}", exc_info=True)
+        await send_group_message(update, "❌ 系统错误，请稍后再试", parse_mode="HTML")
+
+
 async def handle_admin_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle add admin (using reply keyboard)"""
     from database import db
@@ -2807,10 +3197,15 @@ async def handle_admin_words(update: Update, context: ContextTypes.DEFAULT_TYPE)
             
             for idx, word in enumerate(words[:15], 1):
                 action_text = action_map.get(word['action'], word['action'])
-                text += f"{idx}. <code>{word['word']}</code> - {action_text}\n"
+                word_id = word['word_id']
+                text += f"{idx}. ID:{word_id} <code>{word['word']}</code> - {action_text}\n"
             
             if len(words) > 15:
-                text += f"\n还有 {len(words) - 15} 个..."
+                text += f"\n还有 {len(words) - 15} 个...\n\n"
+            
+            text += "💡 使用命令操作：\n"
+            text += "• <code>/delword &lt;word_id&gt;</code> - 删除敏感词\n"
+            text += "• <code>/editword &lt;word_id&gt; &lt;action&gt;</code> - 编辑敏感词"
         
         reply_markup = get_admin_submenu_keyboard("words")
         await send_group_message(update, text, parse_mode="HTML", reply_markup=reply_markup)
@@ -2823,7 +3218,7 @@ async def handle_admin_words(update: Update, context: ContextTypes.DEFAULT_TYPE)
 # ========== Admin Submenu Handlers ==========
 
 async def handle_admin_user_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle user search (using reply keyboard)"""
+    """Handle user search (using reply keyboard) - show search instructions"""
     from keyboards.admin_keyboard import get_admin_submenu_keyboard
     
     text = (
@@ -2844,35 +3239,15 @@ async def handle_admin_user_search(update: Update, context: ContextTypes.DEFAULT
         "• <code>/search_user @username</code> (按用户名)\n"
         "• <code>/search_user vip:1</code> (VIP等级)\n"
         "• <code>/search_user date:2025-12-26</code> (注册日期)\n\n"
-        "💡 搜索功能正在开发中..."
+        "💡 输入搜索条件后，系统会显示匹配的用户列表"
     )
     
     reply_markup = get_admin_submenu_keyboard("users")
     await send_group_message(update, text, parse_mode="HTML", reply_markup=reply_markup)
 
 
-async def handle_admin_user_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle user report (using reply keyboard)"""
-    from keyboards.admin_keyboard import get_admin_submenu_keyboard
-    
-    text = (
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "  📊 用户报表\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "💡 用户报表功能正在开发中...\n\n"
-        "将包括：\n"
-        "• 用户增长趋势\n"
-        "• 用户活跃度分析\n"
-        "• VIP用户统计\n"
-        "• 用户地域分布"
-    )
-    
-    reply_markup = get_admin_submenu_keyboard("users")
-    await send_group_message(update, text, parse_mode="HTML", reply_markup=reply_markup)
-
-
-async def handle_admin_stats_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle time statistics (using reply keyboard)"""
+async def handle_admin_user_search_result(update: Update, context: ContextTypes.DEFAULT_TYPE, search_query: str):
+    """Handle user search result (using reply keyboard)"""
     from database import db
     from keyboards.admin_keyboard import get_admin_submenu_keyboard
     
@@ -2880,50 +3255,362 @@ async def handle_admin_stats_time(update: Update, context: ContextTypes.DEFAULT_
         conn = db.connect()
         cursor = conn.cursor()
         
-        # Get last 7 days statistics
-        stats_7d = []
-        for i in range(6, -1, -1):
-            cursor.execute("""
-                SELECT COUNT(*), COALESCE(SUM(amount), 0)
-                FROM transactions
-                WHERE DATE(created_at) = DATE('now', '-' || ? || ' days') AND status = 'paid'
-            """, (i,))
-            result = cursor.fetchone()
-            stats_7d.append({
-                'date': i,
-                'count': result[0] or 0,
-                'amount': float(result[1] or 0)
-            })
+        users = []
+        search_type = "unknown"
         
-        # Get last 30 days statistics
+        # Parse search query
+        if search_query.isdigit():
+            # Search by user ID
+            user_id = int(search_query)
+            cursor.execute("""
+                SELECT user_id, username, first_name, vip_level, created_at, status, total_transactions, total_amount
+                FROM users 
+                WHERE user_id = ?
+            """, (user_id,))
+            users = cursor.fetchall()
+            search_type = "ID"
+        elif search_query.startswith("@"):
+            # Search by username
+            username = search_query[1:].strip()
+            cursor.execute("""
+                SELECT user_id, username, first_name, vip_level, created_at, status, total_transactions, total_amount
+                FROM users 
+                WHERE username LIKE ?
+                LIMIT 20
+            """, (f"%{username}%",))
+            users = cursor.fetchall()
+            search_type = "用户名"
+        elif search_query.startswith("vip:"):
+            # Search by VIP level
+            try:
+                vip_level = int(search_query.split(":")[1].strip())
+                cursor.execute("""
+                    SELECT user_id, username, first_name, vip_level, created_at, status, total_transactions, total_amount
+                    FROM users 
+                    WHERE vip_level = ?
+                    ORDER BY created_at DESC
+                    LIMIT 20
+                """, (vip_level,))
+                users = cursor.fetchall()
+                search_type = f"VIP{vip_level}"
+            except ValueError:
+                pass
+        elif search_query.startswith("date:"):
+            # Search by registration date
+            try:
+                date_str = search_query.split(":")[1].strip()
+                cursor.execute("""
+                    SELECT user_id, username, first_name, vip_level, created_at, status, total_transactions, total_amount
+                    FROM users 
+                    WHERE DATE(created_at) = ?
+                    ORDER BY created_at DESC
+                    LIMIT 20
+                """, (date_str,))
+                users = cursor.fetchall()
+                search_type = f"注册日期 {date_str}"
+            except:
+                pass
+        else:
+            # Try to search by username or first_name
+            cursor.execute("""
+                SELECT user_id, username, first_name, vip_level, created_at, status, total_transactions, total_amount
+                FROM users 
+                WHERE username LIKE ? OR first_name LIKE ?
+                LIMIT 20
+            """, (f"%{search_query}%", f"%{search_query}%"))
+            users = cursor.fetchall()
+            search_type = "关键词"
+        
+        cursor.close()
+        
+        if not users:
+            text = (
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"  🔍 搜索用户\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"<b>搜索条件：</b>{search_query}\n"
+                f"<b>搜索类型：</b>{search_type}\n\n"
+                f"❌ 未找到匹配的用户\n\n"
+                f"💡 请尝试其他搜索条件"
+            )
+        else:
+            text = (
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"  🔍 搜索用户\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"<b>搜索条件：</b>{search_query}\n"
+                f"<b>搜索类型：</b>{search_type}\n"
+                f"<b>找到 {len(users)} 个用户：</b>\n\n"
+            )
+            
+            for idx, user in enumerate(users[:10], 1):
+                username = user['username'] if user['username'] else '无'
+                username_display = f"@{username}" if username != '无' else "无"
+                first_name = user['first_name'] if user['first_name'] else ''
+                vip_level = user['vip_level'] if user['vip_level'] is not None else 0
+                user_id = user['user_id']
+                created_at = user['created_at'][:10] if user['created_at'] else 'N/A'
+                status = user['status'] if user['status'] else 'active'
+                total_transactions = user['total_transactions'] if user['total_transactions'] else 0
+                total_amount = float(user['total_amount'] or 0)
+                
+                vip_text = f"VIP{vip_level}" if vip_level > 0 else "普通"
+                status_text = "✅ 活跃" if status == 'active' else "❌ 禁用"
+                
+                text += (
+                    f"{idx}. {username_display} (ID: <code>{user_id}</code>)\n"
+                    f"   姓名：{first_name or '未设置'} | {vip_text} | {status_text}\n"
+                    f"   注册：{created_at} | 交易：{total_transactions}笔 | 总额：{total_amount:,.2f} CNY\n\n"
+                )
+            
+            if len(users) > 10:
+                text += f"显示前 10 个，共找到 {len(users)} 个用户...\n\n"
+            
+            text += "💡 使用 <code>/user_detail &lt;user_id&gt;</code> 查看用户详情"
+        
+        reply_markup = get_admin_submenu_keyboard("users")
+        await send_group_message(update, text, parse_mode="HTML", reply_markup=reply_markup)
+        
+        # Log search operation
+        try:
+            from repositories.admin_logs_repository import AdminLogsRepository
+            AdminLogsRepository.log_operation(
+                admin_id=update.effective_user.id,
+                operation_type="search",
+                target_type="user",
+                details=f"query={search_query}, results={len(users)}",
+                result="success" if users else "no_results"
+            )
+        except:
+            pass  # Don't fail if logging fails
+        
+    except Exception as e:
+        logger.error(f"Error in handle_admin_user_search_result: {e}", exc_info=True)
+        await send_group_message(update, "❌ 搜索失败，请稍后再试", parse_mode="HTML")
+
+
+async def handle_admin_user_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle user report (using reply keyboard)"""
+    from database import db
+    from keyboards.admin_keyboard import get_admin_submenu_keyboard
+    from datetime import datetime
+    
+    try:
+        conn = db.connect()
+        cursor = conn.cursor()
+        
+        # Get user growth trend (last 7 days)
         cursor.execute("""
-            SELECT COUNT(*), COALESCE(SUM(amount), 0)
-            FROM transactions
-            WHERE DATE(created_at) >= DATE('now', '-30 days') AND status = 'paid'
+            SELECT DATE(created_at) as date, COUNT(*) as count
+            FROM users
+            WHERE DATE(created_at) >= DATE('now', '-7 days')
+            GROUP BY DATE(created_at)
+            ORDER BY date DESC
         """)
-        result_30d = cursor.fetchone()
-        stats_30d_count = result_30d[0] or 0
-        stats_30d_amount = float(result_30d[1] or 0)
+        growth_data = cursor.fetchall()
+        
+        # Get active users (last 7 days, 30 days)
+        cursor.execute("""
+            SELECT COUNT(DISTINCT user_id) as count
+            FROM transactions
+            WHERE DATE(created_at) >= DATE('now', '-7 days')
+        """)
+        active_7d = cursor.fetchone()['count'] or 0
+        
+        cursor.execute("""
+            SELECT COUNT(DISTINCT user_id) as count
+            FROM transactions
+            WHERE DATE(created_at) >= DATE('now', '-30 days')
+        """)
+        active_30d = cursor.fetchone()['count'] or 0
+        
+        # Get VIP statistics
+        cursor.execute("""
+            SELECT vip_level, COUNT(*) as count
+            FROM users
+            WHERE vip_level > 0
+            GROUP BY vip_level
+            ORDER BY vip_level ASC
+        """)
+        vip_stats = cursor.fetchall()
+        
+        # Get total users
+        cursor.execute("SELECT COUNT(*) FROM users")
+        total_users = cursor.fetchone()[0]
+        
+        # Get new users today, this week, this month
+        cursor.execute("SELECT COUNT(*) FROM users WHERE DATE(created_at) = DATE('now')")
+        today_new = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(*) FROM users WHERE DATE(created_at) >= DATE('now', '-7 days')")
+        week_new = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(*) FROM users WHERE DATE(created_at) >= DATE('now', 'start of month')")
+        month_new = cursor.fetchone()[0]
         cursor.close()
         
         text = (
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "  📅 时间统计\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            "<b>📈 最近7天交易统计</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"  📊 用户报表\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"<b>👥 用户概览</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"总用户数：{total_users}\n"
+            f"7日活跃：{active_7d}\n"
+            f"30日活跃：{active_30d}\n\n"
+            f"<b>📈 用户增长</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"今日新增：{today_new} 人\n"
+            f"本周新增：{week_new} 人\n"
+            f"本月新增：{month_new} 人\n\n"
         )
         
-        for stat in stats_7d:
-            day_name = "今天" if stat['date'] == 0 else f"{stat['date']}天前"
-            text += f"{day_name}：{stat['count']} 笔 / {stat['amount']:,.2f} CNY\n"
+        if growth_data:
+            text += f"<b>📅 最近7天增长趋势</b>\n"
+            text += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            for data in growth_data[:7]:
+                date = data['date']
+                count = data['count']
+                text += f"{date}：{count} 人\n"
+            text += "\n"
+        
+        if vip_stats:
+            text += f"<b>👑 VIP用户分布</b>\n"
+            text += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            total_vip = sum(stat['count'] for stat in vip_stats)
+            for stat in vip_stats:
+                level = stat['vip_level']
+                count = stat['count']
+                percentage = (count / total_vip * 100) if total_vip > 0 else 0
+                text += f"VIP{level}：{count} 人 ({percentage:.1f}%)\n"
+            text += f"VIP总计：{total_vip} 人\n\n"
+        
+        text += f"💡 报表生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        
+        # Add visualization for growth trend
+        if growth_data:
+            try:
+                from services.chart_service import ChartService
+                chart_data = [
+                    {'label': item['date'], 'value': float(item.get('count', 0))}
+                    for item in growth_data[:7]
+                ]
+                chart = ChartService.generate_simple_bar(chart_data, 'value', 'label', max_bars=7)
+                text += f"\n\n<b>📊 用户增长趋势（最近7天）</b>\n"
+                text += f"<pre>{chart}</pre>\n"
+            except Exception as e:
+                logger.error(f"Error generating growth chart: {e}")
+        
+        reply_markup = get_admin_submenu_keyboard("users")
+        await send_group_message(update, text, parse_mode="HTML", reply_markup=reply_markup)
+        
+    except Exception as e:
+        logger.error(f"Error in handle_admin_user_report: {e}", exc_info=True)
+        await send_group_message(update, "❌ 系统错误，请稍后再试", parse_mode="HTML")
+
+
+async def handle_admin_stats_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle time-based statistics (using reply keyboard)"""
+    from database import db
+    from keyboards.admin_keyboard import get_admin_submenu_keyboard
+    from datetime import datetime
+    
+    try:
+        conn = db.connect()
+        cursor = conn.cursor()
+        
+        # Get today's statistics
+        cursor.execute("""
+            SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as total 
+            FROM transactions 
+            WHERE DATE(created_at) = DATE('now') AND status = 'paid'
+        """)
+        today_result = cursor.fetchone()
+        today_count = today_result['count'] or 0
+        today_amount = float(today_result['total'] or 0)
+        
+        # Get yesterday's statistics
+        cursor.execute("""
+            SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as total 
+            FROM transactions 
+            WHERE DATE(created_at) = DATE('now', '-1 day') AND status = 'paid'
+        """)
+        yesterday_result = cursor.fetchone()
+        yesterday_count = yesterday_result['count'] or 0
+        yesterday_amount = float(yesterday_result['total'] or 0)
+        
+        # Get this week's statistics
+        cursor.execute("""
+            SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as total 
+            FROM transactions 
+            WHERE DATE(created_at) >= DATE('now', '-7 days') AND status = 'paid'
+        """)
+        week_result = cursor.fetchone()
+        week_count = week_result['count'] or 0
+        week_amount = float(week_result['total'] or 0)
+        
+        # Get this month's statistics
+        cursor.execute("""
+            SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as total 
+            FROM transactions 
+            WHERE DATE(created_at) >= DATE('now', 'start of month') AND status = 'paid'
+        """)
+        month_result = cursor.fetchone()
+        month_count = month_result['count'] or 0
+        month_amount = float(month_result['total'] or 0)
+        
+        # Get user statistics
+        cursor.execute("SELECT COUNT(*) FROM users WHERE DATE(created_at) = DATE('now')")
+        today_users = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(*) FROM users WHERE DATE(created_at) >= DATE('now', '-7 days')")
+        week_users = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(*) FROM users WHERE DATE(created_at) >= DATE('now', 'start of month')")
+        month_users = cursor.fetchone()[0]
+        
+        # Calculate growth rates
+        today_growth = ((today_amount - yesterday_amount) / yesterday_amount * 100) if yesterday_amount > 0 else 0
+        week_growth = ((week_amount - (yesterday_amount * 7)) / (yesterday_amount * 7) * 100) if yesterday_amount > 0 else 0
+        
+        text = (
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"  📅 时间统计\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"<b>💳 交易统计</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"<b>今日</b>\n"
+            f"交易：{today_count} 笔 / {today_amount:,.2f} CNY\n"
+        )
+        
+        if yesterday_amount > 0:
+            growth_icon = "📈" if today_growth >= 0 else "📉"
+            text += f"{growth_icon} 较昨日：{abs(today_growth):.1f}%\n\n"
+        else:
+            text += "\n"
         
         text += (
-            f"\n<b>📊 最近30天统计</b>\n"
+            f"<b>昨日</b>\n"
+            f"交易：{yesterday_count} 笔 / {yesterday_amount:,.2f} CNY\n\n"
+            f"<b>本周</b>\n"
+            f"交易：{week_count} 笔 / {week_amount:,.2f} CNY\n"
+        )
+        
+        if yesterday_amount > 0:
+            growth_icon = "📈" if week_growth >= 0 else "📉"
+            text += f"{growth_icon} 较上周：{abs(week_growth):.1f}%\n\n"
+        else:
+            text += "\n"
+        
+        text += (
+            f"<b>本月</b>\n"
+            f"交易：{month_count} 笔 / {month_amount:,.2f} CNY\n\n"
+            f"<b>👥 用户统计</b>\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"总交易：{stats_30d_count} 笔\n"
-            f"总金额：{stats_30d_amount:,.2f} CNY\n\n"
-            f"💡 更多时间统计功能开发中..."
+            f"今日新增：{today_users} 人\n"
+            f"本周新增：{week_users} 人\n"
+            f"本月新增：{month_users} 人\n\n"
+            f"💡 统计时间：{datetime.now().strftime('%Y-%m-%d %H:%M')}"
         )
         
         reply_markup = get_admin_submenu_keyboard("stats")
@@ -2936,22 +3623,135 @@ async def handle_admin_stats_time(update: Update, context: ContextTypes.DEFAULT_
 
 async def handle_admin_stats_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle detailed statistics report (using reply keyboard)"""
+    from database import db
     from keyboards.admin_keyboard import get_admin_submenu_keyboard
+    from datetime import datetime
     
-    text = (
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "  📊 详细报表\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "💡 详细报表功能正在开发中...\n\n"
-        "将包括：\n"
-        "• 交易明细报表\n"
-        "• 用户行为分析\n"
-        "• 渠道效果分析\n"
-        "• 收入趋势分析"
-    )
-    
-    reply_markup = get_admin_submenu_keyboard("stats")
-    await send_group_message(update, text, parse_mode="HTML", reply_markup=reply_markup)
+    try:
+        conn = db.connect()
+        cursor = conn.cursor()
+        
+        # Get detailed transaction statistics by status
+        cursor.execute("""
+            SELECT status, COUNT(*) as count, COALESCE(SUM(amount), 0) as total 
+            FROM transactions 
+            GROUP BY status
+        """)
+        status_stats = cursor.fetchall()
+        
+        # Get channel statistics
+        cursor.execute("""
+            SELECT payment_channel, COUNT(*) as count, COALESCE(SUM(amount), 0) as total 
+            FROM transactions 
+            WHERE status = 'paid'
+            GROUP BY payment_channel
+        """)
+        channel_stats = cursor.fetchall()
+        
+        # Get transaction type statistics
+        cursor.execute("""
+            SELECT transaction_type, COUNT(*) as count, COALESCE(SUM(amount), 0) as total 
+            FROM transactions 
+            WHERE status = 'paid'
+            GROUP BY transaction_type
+        """)
+        type_stats = cursor.fetchall()
+        
+        # Get top users by transaction amount
+        cursor.execute("""
+            SELECT user_id, COUNT(*) as count, COALESCE(SUM(amount), 0) as total
+            FROM transactions
+            WHERE status = 'paid'
+            GROUP BY user_id
+            ORDER BY total DESC
+            LIMIT 10
+        """)
+        top_users = cursor.fetchall()
+        cursor.close()
+        
+        text = (
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"  📊 详细报表\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"<b>💳 交易状态统计</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        )
+        
+        total_all = sum(stat['count'] for stat in status_stats)
+        for stat in status_stats:
+            status = stat['status']
+            count = stat['count']
+            amount = float(stat['total'] or 0)
+            
+            status_text = {
+                "paid": "✅ 已支付",
+                "pending": "⏳ 待支付",
+                "failed": "❌ 失败",
+                "cancelled": "🚫 已取消"
+            }.get(status, status)
+            
+            percentage = (count / total_all * 100) if total_all > 0 else 0
+            text += f"{status_text}：{count} 笔 ({percentage:.1f}%) / {amount:,.2f} CNY\n"
+        
+        text += "\n"
+        
+        if channel_stats:
+            text += f"<b>💳 支付渠道统计</b>\n"
+            text += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            total_paid = sum(float(stat['total'] or 0) for stat in channel_stats)
+            for stat in channel_stats:
+                channel = stat['payment_channel']
+                count = stat['count']
+                amount = float(stat['total'] or 0)
+                percentage = (amount / total_paid * 100) if total_paid > 0 else 0
+                
+                channel_text = "💙 支付宝" if channel == "alipay" else "💚 微信支付"
+                text += f"{channel_text}：{count} 笔 / {amount:,.2f} CNY ({percentage:.1f}%)\n"
+            text += "\n"
+        
+        if type_stats:
+            text += f"<b>📋 交易类型统计</b>\n"
+            text += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            for stat in type_stats:
+                trans_type = stat['transaction_type']
+                count = stat['count']
+                amount = float(stat['total'] or 0)
+                
+                type_text = {"receive": "💰 收款", "pay": "💸 付款"}.get(trans_type, trans_type)
+                text += f"{type_text}：{count} 笔 / {amount:,.2f} CNY\n"
+            text += "\n"
+        
+        if top_users:
+            text += f"<b>🏆 交易额TOP10用户</b>\n"
+            text += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            for idx, user in enumerate(top_users[:10], 1):
+                user_id = user['user_id']
+                count = user['count']
+                amount = float(user['total'] or 0)
+                text += f"{idx}. ID:<code>{user_id}</code> - {count}笔 / {amount:,.2f} CNY\n"
+            text += "\n"
+            
+            # Add visualization chart
+            try:
+                from services.chart_service import ChartService
+                chart_data = [
+                    {'label': f"用户{user['user_id']}", 'value': float(user['total'] or 0)}
+                    for user in top_users[:8]
+                ]
+                chart = ChartService.generate_simple_bar(chart_data, 'value', 'label', max_bars=8)
+                text += f"<b>📊 交易额TOP8可视化</b>\n"
+                text += f"<pre>{chart}</pre>\n"
+            except Exception as e:
+                logger.error(f"Error generating chart: {e}")
+        
+        text += f"💡 报表生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        
+        reply_markup = get_admin_submenu_keyboard("stats")
+        await send_group_message(update, text, parse_mode="HTML", reply_markup=reply_markup)
+        
+    except Exception as e:
+        logger.error(f"Error in handle_admin_stats_detail: {e}", exc_info=True)
+        await send_group_message(update, "❌ 系统错误，请稍后再试", parse_mode="HTML")
 
 
 async def handle_admin_word_export(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2977,17 +3777,410 @@ async def handle_admin_word_export(update: Update, context: ContextTypes.DEFAULT
                 f"<b>敏感词列表（共 {len(words)} 个）：</b>\n\n"
             )
             
+            # Format as CSV-like text for easy copying
             action_map = {"warn": "警告", "delete": "删除", "ban": "封禁"}
             
-            for idx, word in enumerate(words, 1):
+            # Create export text
+            export_text = "敏感词,动作\n"
+            for word in words:
                 action_text = action_map.get(word['action'], word['action'])
-                text += f"{idx}. <code>{word['word']}</code> - {action_text}\n"
+                # Escape commas in words
+                word_text = word['word'].replace(',', '，')
+                export_text += f"{word_text},{action_text}\n"
+            
+            text = (
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"  📋 导出列表\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"<b>敏感词列表（共 {len(words)} 个）：</b>\n\n"
+                f"<code>{export_text[:3000]}</code>\n\n"
+            )
+            
+            if len(export_text) > 3000:
+                text += f"💡 列表较长，已截断显示。使用 <code>/export_words</code> 命令获取完整导出\n\n"
+            
+            text += "💡 复制上方内容可导入到Excel或其他工具\n"
+            text += "💡 格式：敏感词,动作（warn/delete/ban）"
         
         reply_markup = get_admin_submenu_keyboard("words")
         await send_group_message(update, text, parse_mode="HTML", reply_markup=reply_markup)
         
     except Exception as e:
         logger.error(f"Error in handle_admin_word_export: {e}", exc_info=True)
+        await send_group_message(update, "❌ 系统错误，请稍后再试", parse_mode="HTML")
+
+
+# ========== User Detail Handler ==========
+
+async def handle_admin_user_detail(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int):
+    """Handle user detail view (using reply keyboard)"""
+    from database import db
+    from keyboards.admin_keyboard import get_admin_submenu_keyboard
+    
+    try:
+        conn = db.connect()
+        cursor = conn.cursor()
+        
+        # Get user info
+        cursor.execute("""
+            SELECT user_id, username, first_name, last_name, vip_level, 
+                   status, total_transactions, total_amount, 
+                   created_at, last_active_at
+            FROM users 
+            WHERE user_id = ?
+        """, (user_id,))
+        user = cursor.fetchone()
+        
+        if not user:
+            await send_group_message(update, f"❌ 用户 {user_id} 不存在", parse_mode="HTML")
+            return
+        
+        # Get transaction statistics
+        cursor.execute("""
+            SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as total
+            FROM transactions
+            WHERE user_id = ? AND status = 'paid'
+        """, (user_id,))
+        trans_stats = cursor.fetchone()
+        
+        # Get referral info
+        cursor.execute("""
+            SELECT referral_code, total_invites, successful_invites, total_rewards
+            FROM referral_codes
+            WHERE user_id = ?
+        """, (user_id,))
+        referral = cursor.fetchone()
+        
+        cursor.close()
+        
+        username = user['username'] if user['username'] else '无'
+        username_display = f"@{username}" if username != '无' else "无"
+        first_name = user['first_name'] if user['first_name'] else ''
+        last_name = user['last_name'] if user['last_name'] else ''
+        vip_level = user['vip_level'] if user['vip_level'] is not None else 0
+        status = user['status'] if user['status'] else 'active'
+        total_transactions = user['total_transactions'] if user['total_transactions'] else 0
+        total_amount = float(user['total_amount'] or 0)
+        created_at = user['created_at'] if user['created_at'] else 'N/A'
+        last_active_at = user['last_active_at'] if user['last_active_at'] else 'N/A'
+        
+        paid_count = trans_stats['count'] if trans_stats else 0
+        paid_amount = float(trans_stats['total'] or 0) if trans_stats else 0
+        
+        vip_text = f"VIP{vip_level}" if vip_level > 0 else "普通"
+        status_text = "✅ 活跃" if status == 'active' else "❌ 禁用"
+        
+        text = (
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"  👤 用户详情\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"<b>基本信息</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"用户ID：<code>{user_id}</code>\n"
+            f"用户名：{username_display}\n"
+            f"姓名：{first_name} {last_name}".strip() or "未设置\n"
+            f"VIP等级：{vip_text}\n"
+            f"账户状态：{status_text}\n\n"
+            f"<b>交易统计</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"总交易数：{total_transactions} 笔\n"
+            f"成功交易：{paid_count} 笔\n"
+            f"总交易额：{total_amount:,.2f} CNY\n"
+            f"成功交易额：{paid_amount:,.2f} CNY\n\n"
+        )
+        
+        if referral:
+            text += (
+                f"<b>推荐信息</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"推荐码：<code>{referral['referral_code']}</code>\n"
+                f"总邀请：{referral['total_invites']} 人\n"
+                f"成功邀请：{referral['successful_invites']} 人\n"
+                f"累计奖励：{float(referral['total_rewards'] or 0):,.2f} USDT\n\n"
+            )
+        
+        text += (
+            f"<b>时间信息</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"注册时间：{created_at[:19] if len(created_at) > 19 else created_at}\n"
+            f"最后活跃：{last_active_at[:19] if len(last_active_at) > 19 else last_active_at}\n\n"
+            f"💡 使用命令操作：\n"
+            f"• <code>/set_vip {user_id} &lt;level&gt;</code> - 修改VIP等级\n"
+            f"• <code>/disable_user {user_id}</code> - 禁用用户\n"
+            f"• <code>/enable_user {user_id}</code> - 启用用户"
+        )
+        
+        reply_markup = get_admin_submenu_keyboard("users")
+        await send_group_message(update, text, parse_mode="HTML", reply_markup=reply_markup)
+        
+    except Exception as e:
+        logger.error(f"Error in handle_admin_user_detail: {e}", exc_info=True)
+        await send_group_message(update, "❌ 系统错误，请稍后再试", parse_mode="HTML")
+
+
+# ========== Verification Detail and History Handlers ==========
+
+async def handle_verification_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle verification detail view (using reply keyboard)"""
+    from database import db
+    from keyboards.admin_keyboard import get_admin_submenu_keyboard
+    
+    try:
+        conn = db.connect()
+        cursor = conn.cursor()
+        
+        # Get pending members with verification records
+        cursor.execute("""
+            SELECT gm.*, g.group_title, vr.*
+            FROM group_members gm
+            JOIN groups g ON gm.group_id = g.group_id
+            LEFT JOIN verification_records vr ON gm.group_id = vr.group_id AND gm.user_id = vr.user_id
+            WHERE gm.status = 'pending'
+            ORDER BY gm.joined_at ASC
+            LIMIT 5
+        """)
+        
+        pending = cursor.fetchall()
+        cursor.close()
+        
+        if not pending:
+            text = (
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                "  👤 审核详情\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "暂无待审核成员"
+            )
+        else:
+            text = (
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"  👤 审核详情\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"<b>待审核成员详情（前5名）：</b>\n\n"
+            )
+            
+            for idx, member in enumerate(pending[:5], 1):
+                user_id = member['user_id']
+                group_title = member['group_title'] if member['group_title'] else f"群组 {member['group_id']}"
+                joined_at = member['joined_at'][:16] if member['joined_at'] else 'N/A'
+                verification_type = member.get('verification_type', '未知')
+                attempt_count = member.get('attempt_count', 0)
+                user_answer = member.get('user_answer', '未回答')
+                
+                text += (
+                    f"{idx}. 用户ID：<code>{user_id}</code>\n"
+                    f"   群组：{group_title}\n"
+                    f"   加入时间：{joined_at}\n"
+                    f"   验证类型：{verification_type}\n"
+                    f"   尝试次数：{attempt_count}\n"
+                    f"   用户答案：{user_answer[:50] if len(user_answer) > 50 else user_answer}\n\n"
+                )
+            
+            if len(pending) > 5:
+                text += f"还有 {len(pending) - 5} 个待审核成员...\n\n"
+            
+            text += "💡 使用命令审核：\n"
+            text += "• <code>/pass_user &lt;user_id&gt; &lt;group_id&gt;</code> - 通过审核\n"
+            text += "• <code>/reject_user &lt;user_id&gt; &lt;group_id&gt;</code> - 拒绝审核"
+        
+        reply_markup = get_admin_submenu_keyboard("verify")
+        await send_group_message(update, text, parse_mode="HTML", reply_markup=reply_markup)
+        
+    except Exception as e:
+        logger.error(f"Error in handle_verification_detail: {e}", exc_info=True)
+        await send_group_message(update, "❌ 系统错误，请稍后再试", parse_mode="HTML")
+
+
+async def handle_verification_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle verification history (using reply keyboard)"""
+    from database import db
+    from keyboards.admin_keyboard import get_admin_submenu_keyboard
+    
+    try:
+        conn = db.connect()
+        cursor = conn.cursor()
+        
+        # Get verification statistics
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN result = 'passed' THEN 1 ELSE 0 END) as passed,
+                SUM(CASE WHEN result = 'rejected' THEN 1 ELSE 0 END) as rejected,
+                SUM(CASE WHEN result = 'pending' THEN 1 ELSE 0 END) as pending
+            FROM verification_records
+            WHERE created_at >= DATE('now', '-7 days')
+        """)
+        stats = cursor.fetchone()
+        
+        # Get recent verification records
+        cursor.execute("""
+            SELECT vr.*, g.group_title
+            FROM verification_records vr
+            JOIN groups g ON vr.group_id = g.group_id
+            WHERE vr.result != 'pending'
+            ORDER BY vr.completed_at DESC
+            LIMIT 10
+        """)
+        records = cursor.fetchall()
+        cursor.close()
+        
+        total = stats['total'] if stats else 0
+        passed = stats['passed'] if stats else 0
+        rejected = stats['rejected'] if stats else 0
+        pending = stats['pending'] if stats else 0
+        
+        pass_rate = (passed / total * 100) if total > 0 else 0
+        
+        text = (
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"  📋 审核历史\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"<b>最近7天统计</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"总审核：{total} 人\n"
+            f"通过：{passed} 人 ({pass_rate:.1f}%)\n"
+            f"拒绝：{rejected} 人\n"
+            f"待审核：{pending} 人\n\n"
+            f"<b>最近审核记录（前10条）</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        )
+        
+        if not records:
+            text += "暂无审核记录"
+        else:
+            for idx, record in enumerate(records[:10], 1):
+                user_id = record['user_id']
+                group_title = record['group_title'] if record['group_title'] else f"群组 {record['group_id']}"
+                result = record['result']
+                completed_at = record['completed_at'][:16] if record['completed_at'] else 'N/A'
+                
+                result_text = {"passed": "✅ 通过", "rejected": "❌ 拒绝"}.get(result, result)
+                
+                text += (
+                    f"{idx}. 用户ID：<code>{user_id}</code>\n"
+                    f"   群组：{group_title}\n"
+                    f"   结果：{result_text} | 时间：{completed_at}\n\n"
+                )
+        
+        reply_markup = get_admin_submenu_keyboard("verify")
+        await send_group_message(update, text, parse_mode="HTML", reply_markup=reply_markup)
+        
+    except Exception as e:
+        logger.error(f"Error in handle_verification_history: {e}", exc_info=True)
+        await send_group_message(update, "❌ 系统错误，请稍后再试", parse_mode="HTML")
+
+
+# ========== Group Detail Handler ==========
+
+async def handle_admin_group_detail(update: Update, context: ContextTypes.DEFAULT_TYPE, group_id: int):
+    """Handle group detail view (using reply keyboard)"""
+    from repositories.group_repository import GroupRepository
+    from repositories.verification_repository import VerificationRepository
+    from repositories.sensitive_words_repository import SensitiveWordsRepository
+    from database import db
+    from keyboards.admin_keyboard import get_admin_submenu_keyboard
+    
+    try:
+        # Get group info
+        group = GroupRepository.get_group(group_id)
+        if not group:
+            await send_group_message(update, f"❌ 群组 {group_id} 不存在", parse_mode="HTML")
+            return
+        
+        conn = db.connect()
+        cursor = conn.cursor()
+        
+        # Get member statistics
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN status = 'verified' THEN 1 ELSE 0 END) as verified,
+                SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected
+            FROM group_members
+            WHERE group_id = ?
+        """, (group_id,))
+        member_stats = cursor.fetchone()
+        
+        # Get verification config
+        config = VerificationRepository.get_verification_config(group_id)
+        
+        # Get sensitive words count
+        sensitive_words = SensitiveWordsRepository.get_words(group_id)
+        
+        # Get verification statistics
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN result = 'passed' THEN 1 ELSE 0 END) as passed,
+                SUM(CASE WHEN result = 'rejected' THEN 1 ELSE 0 END) as rejected
+            FROM verification_records
+            WHERE group_id = ?
+        """, (group_id,))
+        verify_stats = cursor.fetchone()
+        cursor.close()
+        
+        group_title = group['group_title'] if group['group_title'] else f"群组 {group_id}"
+        verification_enabled = group['verification_enabled'] if group['verification_enabled'] else 0
+        verification_type = group['verification_type'] if group['verification_type'] else 'none'
+        
+        total_members = member_stats['total'] if member_stats else 0
+        verified_members = member_stats['verified'] if member_stats else 0
+        pending_members = member_stats['pending'] if member_stats else 0
+        rejected_members = member_stats['rejected'] if member_stats else 0
+        
+        total_verifications = verify_stats['total'] if verify_stats else 0
+        passed_verifications = verify_stats['passed'] if verify_stats else 0
+        rejected_verifications = verify_stats['rejected'] if verify_stats else 0
+        
+        verification_mode = config['verification_mode'] if config else 'question'
+        mode_text = "问题验证" if verification_mode == 'question' else "手动验证"
+        
+        text = (
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"  ⚙️ 群组详情\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"<b>基本信息</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"群组ID：<code>{group_id}</code>\n"
+            f"群组名称：{group_title}\n"
+            f"验证状态：{'✅ 已开启' if verification_enabled else '❌ 已关闭'}\n"
+            f"验证模式：{mode_text}\n\n"
+            f"<b>成员统计</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"总成员：{total_members} 人\n"
+            f"已审核：{verified_members} 人\n"
+            f"待审核：{pending_members} 人\n"
+            f"已拒绝：{rejected_members} 人\n\n"
+            f"<b>验证统计</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"总验证：{total_verifications} 次\n"
+            f"通过：{passed_verifications} 次\n"
+            f"拒绝：{rejected_verifications} 次\n\n"
+            f"<b>敏感词</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"群组敏感词：{len(sensitive_words)} 个\n"
+            f"全局敏感词：{len(SensitiveWordsRepository.get_words(None))} 个\n\n"
+        )
+        
+        if config:
+            welcome_message = config.get('welcome_message', '')
+            if welcome_message:
+                text += f"<b>欢迎消息</b>\n"
+                text += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                text += f"{welcome_message[:100]}{'...' if len(welcome_message) > 100 else ''}\n\n"
+        
+        text += (
+            f"💡 使用命令配置：\n"
+            f"• <code>/group_verify {group_id} enable/disable</code> - 启用/禁用验证\n"
+            f"• <code>/group_mode {group_id} question/manual</code> - 设置验证模式\n"
+            f"• <code>/delgroup {group_id}</code> - 删除群组"
+        )
+        
+        reply_markup = get_admin_submenu_keyboard("group")
+        await send_group_message(update, text, parse_mode="HTML", reply_markup=reply_markup)
+        
+    except Exception as e:
+        logger.error(f"Error in handle_admin_group_detail: {e}", exc_info=True)
         await send_group_message(update, "❌ 系统错误，请稍后再试", parse_mode="HTML")
 
 
