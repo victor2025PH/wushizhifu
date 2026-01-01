@@ -721,30 +721,20 @@ async def assign_customer_service(
         if not username:
             username = f"user_{user_id}"
         
-        # Import shared customer service service
-        # Try to import from root services first, then from botB
-        try:
-            from services.customer_service_service import customer_service
-        except ImportError:
-            # Fallback: import from botB
-            import sys
-            from pathlib import Path
-            botb_path = Path(__file__).parent / "botB"
-            if botb_path.exists():
-                sys.path.insert(0, str(botb_path))
-            from services.customer_service_service import customer_service
+        # Import customer service from botB (which has the correct database module)
+        import sys
+        from pathlib import Path
+        
+        # Add botB to path
+        botb_path = Path(__file__).parent / "botB"
+        if str(botb_path) not in sys.path:
+            sys.path.insert(0, str(botb_path))
+        
+        # Import from botB's services (which uses botB's database module)
+        from services.customer_service_service import customer_service
         
         # Get assignment strategy from settings
-        if hasattr(customer_service, 'get_assignment_strategy'):
-            assignment_method = customer_service.get_assignment_strategy()
-        else:
-            # Fallback: try to get from database directly
-            try:
-                from botB.database import db
-                all_settings = db.get_all_settings()
-                assignment_method = all_settings.get('customer_service_strategy', 'round_robin')
-            except:
-                assignment_method = 'round_robin'  # Default fallback
+        assignment_method = customer_service.get_assignment_strategy()
         
         # Assign customer service account
         service_account = customer_service.assign_service(
