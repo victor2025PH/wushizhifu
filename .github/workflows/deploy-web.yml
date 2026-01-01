@@ -132,15 +132,16 @@ jobs:
               # 如果SSL证书存在，启用HTTPS配置
               if [ "$HAS_SSL" = true ]; then
                 echo "🔐 启用HTTPS配置..."
-                # 取消注释HTTPS server block
-                sudo sed -i '/^# server {$/,/^# }$/s/^# //' ${NGINX_CONFIG}
-                # 取消注释SSL证书路径
-                sudo sed -i "s|# ssl_certificate|ssl_certificate|g" ${NGINX_CONFIG}
-                sudo sed -i "s|# ssl_certificate_key|ssl_certificate_key|g" ${NGINX_CONFIG}
+                # 取消注释HTTPS_START和HTTPS_END之间的所有行
+                sudo sed -i '/#HTTPS_START/,/#HTTPS_END/s/^#//' ${NGINX_CONFIG}
+                # 删除HTTPS_START和HTTPS_END标记行
+                sudo sed -i '/#HTTPS_START/d; /#HTTPS_END/d' ${NGINX_CONFIG}
                 # 启用HTTP到HTTPS重定向
                 sudo sed -i 's|# return 301 https://$server_name$request_uri;|return 301 https://$server_name$request_uri;|g' ${NGINX_CONFIG}
               else
-                echo "ℹ️ SSL证书不存在，保持HTTPS配置为注释状态"
+                echo "ℹ️ SSL证书不存在，注释HTTPS配置..."
+                # 注释掉HTTPS_START和HTTPS_END之间的所有行（如果还没注释）
+                sudo sed -i '/#HTTPS_START/,/#HTTPS_END/s/^[^#]/#&/' ${NGINX_CONFIG}
               fi
             else
               echo "⚠️ 模板文件不存在，使用fix_5050_complete.sh脚本..."
