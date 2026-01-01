@@ -56,7 +56,8 @@ jobs:
             echo "🔨 构建项目..."
             export NODE_OPTIONS="--max-old-space-size=3072"
             npm run build || {
-              echo "❌ 构建失败"
+              echo "❌ 构建失败，查看详细错误："
+              npm run build 2>&1 | tail -50
               exit 1
             }
             
@@ -66,7 +67,24 @@ jobs:
               exit 1
             fi
             
-            echo "✅ 构建完成"
+            # 验证构建结果
+            echo "🔍 验证构建结果..."
+            FILE_COUNT=$(find dist -type f 2>/dev/null | wc -l)
+            echo "  构建文件数量: $FILE_COUNT"
+            
+            if [ "$FILE_COUNT" -lt 5 ]; then
+              echo "⚠️ 警告: 构建文件数量过少 ($FILE_COUNT)，可能构建不完整"
+              echo "  检查dist目录内容:"
+              ls -la dist/ | head -20
+            fi
+            
+            # 检查关键文件
+            if [ ! -f "dist/index.html" ]; then
+              echo "❌ 构建失败: dist/index.html 不存在"
+              exit 1
+            fi
+            
+            echo "✅ 构建完成并验证通过"
       
       - name: Deploy Frontend
         uses: appleboy/ssh-action@v1.0.0
@@ -88,49 +106,35 @@ jobs:
               echo "   如果一切正常，可以稍后删除备份: rm -rf $REPO_BACKUP"
             fi
             
-            # 确定源目录和目标目录（统一使用 wushizhifu-full）
+            # 确定源目录（直接使用 wushizhifu-full/dist，不再复制）
             SOURCE_DIR="/home/ubuntu/wushizhifu/wushizhifu-full/dist"
             if [ ! -d "$SOURCE_DIR" ]; then
               echo "❌ 错误: 找不到构建后的 dist 目录: $SOURCE_DIR"
               exit 1
             fi
             
-            TARGET_DIR="$HOME/wushizhifu/frontend/dist"
+            # 验证构建结果
+            echo "🔍 验证构建结果..."
+            FILE_COUNT=$(find "$SOURCE_DIR" -type f 2>/dev/null | wc -l)
+            echo "  构建文件数量: $FILE_COUNT"
             
-            # 使用 sudo 彻底删除旧文件（解决权限问题）
-            if [ -d "$TARGET_DIR" ]; then
-              echo "📦 删除旧部署文件..."
-              sudo rm -rf "$TARGET_DIR"/*
-              sudo rm -rf "$TARGET_DIR"/.[^.]* 2>/dev/null || true
-              # 如果目录还存在，确保是空的
-              if [ -d "$TARGET_DIR" ]; then
-                REMAINING=$(find "$TARGET_DIR" -mindepth 1 2>/dev/null | wc -l)
-                if [ "$REMAINING" -gt 0 ]; then
-                  echo "⚠️  仍有文件残留，强制删除目录..."
-                  sudo rm -rf "$TARGET_DIR"
-                  sudo mkdir -p "$TARGET_DIR"
-                fi
-              else
-                sudo mkdir -p "$TARGET_DIR"
-              fi
-              echo "✅ 旧文件已删除"
-            else
-              sudo mkdir -p "$TARGET_DIR"
+            if [ "$FILE_COUNT" -lt 5 ]; then
+              echo "⚠️ 警告: 构建文件数量过少 ($FILE_COUNT)，可能构建不完整"
+              echo "  检查dist目录内容:"
+              ls -la "$SOURCE_DIR" | head -20
             fi
             
-            # 复制构建结果到 frontend/dist
-            echo "📋 复制构建结果..."
-            echo "源目录: $SOURCE_DIR"
-            echo "目标目录: $TARGET_DIR"
-            # 使用 sudo 复制以确保权限正确
-            sudo cp -r "$SOURCE_DIR"/* "$TARGET_DIR"/
-            sudo cp -r "$SOURCE_DIR"/.[^.]* "$TARGET_DIR"/ 2>/dev/null || true
-            echo "✅ 文件复制完成"
+            # 检查关键文件
+            if [ ! -f "$SOURCE_DIR/index.html" ]; then
+              echo "❌ 构建失败: $SOURCE_DIR/index.html 不存在"
+              exit 1
+            fi
+            echo "✅ 构建验证通过"
             
-            # 设置文件权限
+            # 设置文件权限（直接对源目录设置）
             echo "🔐 设置文件权限..."
-            sudo chown -R www-data:www-data "$TARGET_DIR"
-            sudo chmod -R 755 "$TARGET_DIR"
+            sudo chown -R www-data:www-data "$SOURCE_DIR"
+            sudo chmod -R 755 "$SOURCE_DIR"
             echo "✅ 权限设置完成"
             
             # 更新 Nginx 配置
@@ -142,13 +146,27 @@ jobs:
             
             if [ -f "$NGINX_CONFIG" ]; then
               echo "🔧 更新 Nginx 配置..."
-              # 更新 root 路径
-              sudo sed -i "s|root /.*/frontend/dist;|root $TARGET_DIR;|g" "$NGINX_CONFIG"
-              sudo sed -i "s|root /.*/frontend;|root $TARGET_DIR;|g" "$NGINX_CONFIG"
+              # 更新 root 路径为正确的 wushizhifu-full/dist
+              EXPECTED_ROOT="/home/ubuntu/wushizhifu/wushizhifu-full/dist"
+              sudo sed -i "s|root .*;|root $EXPECTED_ROOT;|g" "$NGINX_CONFIG"
               echo "✅ Nginx 配置已更新"
+              
+              # 验证配置
+              ACTUAL_ROOT=$(sudo nginx -T 2>/dev/null | grep -A 10 "server_name 50zf.usdt2026.cc" | grep "root" | head -1 | awk '{print $2}' | sed 's/;//')
+              echo "  当前root: $ACTUAL_ROOT"
+              echo "  期望root: $EXPECTED_ROOT"
+              if [ "$ACTUAL_ROOT" = "$EXPECTED_ROOT" ]; then
+                echo "✅ Nginx配置验证通过"
+              else
+                echo "⚠️ Nginx配置可能不正确，但继续部署"
+              fi
             else
               echo "⚠️  Nginx 配置文件不存在: $NGINX_CONFIG"
-              echo "   请手动创建或检查配置文件位置"
+              echo "   使用修复脚本创建配置..."
+              if [ -f "/home/ubuntu/wushizhifu/deploy/fix_nginx_configs_complete.sh" ]; then
+                chmod +x /home/ubuntu/wushizhifu/deploy/fix_nginx_configs_complete.sh
+                /home/ubuntu/wushizhifu/deploy/fix_nginx_configs_complete.sh || echo "⚠️ 修复脚本执行完成（可能有警告）"
+              fi
             fi
             
             # 重载 Nginx

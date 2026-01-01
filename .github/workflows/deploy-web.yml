@@ -71,13 +71,35 @@ jobs:
             
             # Build project (output will be in web/dist)
             echo "🔨 构建项目..."
-            npm run build || exit 1
+            npm run build || {
+              echo "❌ 构建失败，查看详细错误："
+              npm run build 2>&1 | tail -50
+              exit 1
+            }
             
             # Check if dist directory was created
             if [ ! -d "dist" ]; then
               echo "❌ 构建失败: dist目录不存在"
               exit 1
             fi
+            
+            # 验证构建结果
+            echo "🔍 验证构建结果..."
+            FILE_COUNT=$(find dist -type f 2>/dev/null | wc -l)
+            echo "  构建文件数量: $FILE_COUNT"
+            
+            if [ "$FILE_COUNT" -lt 5 ]; then
+              echo "⚠️ 警告: 构建文件数量过少 ($FILE_COUNT)，可能构建不完整"
+              echo "  检查dist目录内容:"
+              ls -la dist/ | head -20
+            fi
+            
+            # 检查关键文件
+            if [ ! -f "dist/index.html" ]; then
+              echo "❌ 构建失败: dist/index.html 不存在"
+              exit 1
+            fi
+            echo "✅ 构建验证通过"
             
             # Set proper permissions for dist directory
             echo "🔒 设置文件权限..."
