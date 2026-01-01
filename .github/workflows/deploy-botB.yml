@@ -6,7 +6,9 @@ on:
       - main
     paths:
       - 'botB/**'
-      - '.github/workflows/deploy-botB.yml'
+      - 'services/**'
+      - 'database/**'
+      - '.github/workflows/deploy-botb.yml'
   workflow_dispatch:
 
 jobs:
@@ -17,50 +19,46 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
       
-      - name: Stop Bot B
-        uses: appleboy/ssh-action@v1.0.0
+      - name: Setup Python
+        uses: actions/setup-python@v4
         with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
-          script: sudo systemctl stop otc-bot.service || true
+          python-version: '3.11'
       
-      - name: Pull Code
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
-          timeout: 300s
-          script: |
-            cd /home/ubuntu/wushizhifu
-            git stash || true
-            git pull origin main
+      - name: Install dependencies
+        run: |
+          cd botB
+          pip install -r requirements.txt
       
-      - name: Install Dependencies and Restart
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
-          timeout: 180s
-          script: |
-            cd /home/ubuntu/wushizhifu/botB
-            if [ ! -d "venv" ]; then
-              python3 -m venv venv
-            fi
-            source venv/bin/activate
-            pip install --upgrade pip -q
-            pip install -r requirements.txt -q
-            sleep 3
-            # 始终更新服务文件以确保配置最新
-            sudo cp /home/ubuntu/wushizhifu/botB/otc-bot.service /etc/systemd/system/otc-bot.service
-            sudo systemctl daemon-reload
-            sudo systemctl restart otc-bot.service
-            sudo systemctl enable otc-bot.service || true
-            sleep 2
-            sudo systemctl is-active otc-bot.service && echo "✅ Bot B 服务正在运行" || echo "⚠️  Bot B 服务未运行"
-
+      - name: Deploy to server
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PATH: ${{ secrets.SERVER_PATH }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H $SERVER_HOST >> ~/.ssh/known_hosts
+          
+          # Create deployment script
+          cat > deploy.sh << 'EOF'
+          #!/bin/bash
+          set -e
+          
+          cd $SERVER_PATH
+          git pull origin main
+          
+          cd botB
+          source venv/bin/activate || python3 -m venv venv && source venv/bin/activate
+          pip install -r requirements.txt
+          
+          # Restart service
+          sudo systemctl restart otc-bot.service || true
+          
+          echo "Deployment completed successfully"
+          EOF
+          
+          chmod +x deploy.sh
+          scp deploy.sh $SERVER_USER@$SERVER_HOST:/tmp/deploy_botb.sh
+          ssh $SERVER_USER@$SERVER_HOST "bash /tmp/deploy_botb.sh"
