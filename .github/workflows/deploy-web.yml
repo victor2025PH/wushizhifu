@@ -205,11 +205,17 @@ jobs:
               fi
             fi
             
-            # 运行诊断脚本（如果存在）
-            if [ -f "${SERVER_PATH}/deploy/diagnose_and_fix_5050.sh" ]; then
-              echo "🔍 运行诊断脚本..."
-              chmod +x "${SERVER_PATH}/deploy/diagnose_and_fix_5050.sh"
-              "${SERVER_PATH}/deploy/diagnose_and_fix_5050.sh" || echo "⚠️ 诊断脚本执行完成（可能有警告）"
+            # 运行完整修复脚本（如果存在且配置错误）
+            if [ "$ROOT_5050" != "${WEB_DIST}" ]; then
+              if [ -f "${SERVER_PATH}/deploy/fix_5050_complete.sh" ]; then
+                echo "🔍 检测到5050配置错误，运行完整修复脚本..."
+                chmod +x "${SERVER_PATH}/deploy/fix_5050_complete.sh"
+                "${SERVER_PATH}/deploy/fix_5050_complete.sh" || echo "⚠️ 修复脚本执行完成（可能有警告）"
+              elif [ -f "${SERVER_PATH}/deploy/diagnose_and_fix_5050.sh" ]; then
+                echo "🔍 运行诊断脚本..."
+                chmod +x "${SERVER_PATH}/deploy/diagnose_and_fix_5050.sh"
+                "${SERVER_PATH}/deploy/diagnose_and_fix_5050.sh" || echo "⚠️ 诊断脚本执行完成（可能有警告）"
+              fi
             fi
             
             # 最终验证：检查Nginx是否运行

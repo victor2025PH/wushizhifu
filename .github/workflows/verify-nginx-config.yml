@@ -56,10 +56,22 @@ jobs:
               echo "✅ 5050配置正确"
             else
               echo "❌ 5050配置错误！"
-              echo "   正在修复..."
-              sudo sed -i "s|root .*;|root $EXPECTED_5050;|g" /etc/nginx/sites-available/web-5050
-              sudo nginx -t && sudo systemctl reload nginx
-              echo "✅ 已修复5050配置"
+              echo "   尝试运行完整修复脚本..."
+              SERVER_PATH="/home/ubuntu/wushizhifu"
+              if [ -f "${SERVER_PATH}/deploy/fix_5050_complete.sh" ]; then
+                chmod +x "${SERVER_PATH}/deploy/fix_5050_complete.sh"
+                "${SERVER_PATH}/deploy/fix_5050_complete.sh" || {
+                  echo "⚠️ 修复脚本执行失败，使用简单修复..."
+                  sudo sed -i "s|root .*;|root $EXPECTED_5050;|g" /etc/nginx/sites-available/web-5050
+                  sudo nginx -t && sudo systemctl reload nginx
+                  echo "✅ 已使用简单修复"
+                }
+              else
+                echo "   修复脚本不存在，使用简单修复..."
+                sudo sed -i "s|root .*;|root $EXPECTED_5050;|g" /etc/nginx/sites-available/web-5050
+                sudo nginx -t && sudo systemctl reload nginx
+                echo "✅ 已修复5050配置"
+              fi
             fi
             
             # 检查50zf配置
