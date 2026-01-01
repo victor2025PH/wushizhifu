@@ -1833,59 +1833,47 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if text in ["🔗 收款地址", "🔗 地址"]:
         chat = update.effective_chat
         
-        # Show help if needed (only once, then show address)
-        if should_show_help(user_id, "🔗 地址"):
-            help_message = format_button_help_message("🔗 地址")
-            if help_message:
-                help_keyboard = get_button_help_keyboard("🔗 地址")
-                # For help message, keep inline keyboard but also add reply keyboard in groups
-                if chat.type in ['group', 'supergroup']:
-                    from keyboards.reply_keyboard import get_main_reply_keyboard
-                    user = update.effective_user
-                    user_info_dict = {
-                        'id': user.id,
-                        'first_name': user.first_name or '',
-                        'username': user.username,
-                        'language_code': user.language_code
-                    }
-                    reply_keyboard = get_main_reply_keyboard(user.id, is_group=True, user_info=user_info_dict)
-                    # Combine inline and reply keyboards - use inline for help close button
-                    await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
-                    # Also send a hidden message with reply keyboard to ensure it's shown
-                    # Using zero-width space for invisible placeholder
-                    await update.message.reply_text("\u200B", reply_markup=reply_keyboard)
-                else:
-                    await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
-                mark_help_shown(user_id, "🔗 地址", shown=True)
-                # 注意：这里不return，继续执行后面的地址显示逻辑
-        
-        # 在群组中：显示当前群组的地址（美化显示 + 安全提示）
+        # 在群组中：直接显示地址（不再显示帮助信息，因为地址消息中已包含使用说明）
         if chat.type in ['group', 'supergroup']:
+            # 标记帮助已显示（避免在群组中显示帮助弹窗）
+            mark_help_shown(user_id, "🔗 地址", shown=True)
             group_id = chat.id
             usdt_address = None
             address_source = "全局默认"  # 地址来源标识
             
             # 获取群组地址
-            group_setting = db.get_group_setting(group_id)
-            
-            # 检查群组是否设置了地址（注意：空字符串也算未设置）
-            if group_setting:
-                # 使用字典访问方式（因为get_group_setting返回的是字典）
-                group_addr = group_setting.get('usdt_address', '')
-                # 如果地址存在且不是空字符串，使用群组地址
-                if group_addr and isinstance(group_addr, str) and group_addr.strip():
-                    usdt_address = group_addr.strip()
-                    address_source = "群组独立"
-                    logger.info(f"Using group address for {group_id}: {usdt_address[:15]}...")
-            
-            # 如果没有群组地址，使用全局地址
-            if not usdt_address:
-                usdt_address = db.get_usdt_address()
-                address_source = "全局默认"
-                if usdt_address:
-                    logger.info(f"Using global address for group {group_id}")
-                else:
-                    logger.info(f"No address found for group {group_id} (neither group nor global)")
+            try:
+                group_setting = db.get_group_setting(group_id)
+                logger.debug(f"Group {group_id} setting retrieved: {group_setting is not None}")
+                
+                # 检查群组是否设置了地址（注意：空字符串也算未设置）
+                if group_setting:
+                    # 使用字典访问方式（因为get_group_setting返回的是字典）
+                    group_addr = group_setting.get('usdt_address', '')
+                    logger.debug(f"Group {group_id} address from setting: {group_addr[:20] if group_addr else 'None'}...")
+                    # 如果地址存在且不是空字符串，使用群组地址
+                    if group_addr and isinstance(group_addr, str) and group_addr.strip():
+                        usdt_address = group_addr.strip()
+                        address_source = "群组独立"
+                        logger.info(f"Using group address for {group_id}: {usdt_address[:15]}...")
+                
+                # 如果没有群组地址，使用全局地址
+                if not usdt_address:
+                    global_addr = db.get_usdt_address()
+                    if global_addr:
+                        usdt_address = global_addr
+                        address_source = "全局默认"
+                        logger.info(f"Using global address for group {group_id}: {usdt_address[:15]}...")
+                    else:
+                        logger.info(f"No address found for group {group_id} (neither group nor global)")
+            except Exception as e:
+                logger.error(f"Error getting address for group {group_id}: {e}", exc_info=True)
+                # 尝试获取全局地址作为fallback
+                try:
+                    usdt_address = db.get_usdt_address()
+                    address_source = "全局默认"
+                except:
+                    usdt_address = None
             
             # 构建美化的消息
             if usdt_address:
@@ -1930,7 +1918,16 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "⚠️ 为了账户安全，如需设置或修改USDT收款地址，请联系客服进行操作！"
                 )
             
-            await send_group_message(update, message, parse_mode="HTML")
+            # 确保消息不为空后再发送
+            if message and message.strip():
+                try:
+                    await send_group_message(update, message, parse_mode="HTML")
+                except Exception as e:
+                    logger.error(f"Error sending address message: {e}", exc_info=True)
+                    await send_group_message(update, "⚠️ 获取地址信息时出错，请稍后再试", parse_mode="HTML")
+            else:
+                logger.error(f"Address message is empty for group {group_id}")
+                await send_group_message(update, "⚠️ 获取地址信息时出错，请稍后再试", parse_mode="HTML")
             return
         
         # 在私聊中：显示用户所在的所有群组的USDT地址
