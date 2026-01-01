@@ -29,7 +29,6 @@ fi
 echo ""
 echo "📋 步骤2: 检查端口8000监听..."
 if sudo ss -tlnp | grep -q ":8000 "; then
-then
     echo "✅ 端口8000正在监听"
     sudo ss -tlnp | grep ":8000 "
 else
