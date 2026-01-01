@@ -922,8 +922,8 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer()
         return
     
-    # Group edit handlers
-    if callback_data.startswith("group_select_") or callback_data.startswith("group_edit_markup_") or callback_data.startswith("group_edit_address_"):
+    # Group edit handlers (including delete)
+    if callback_data.startswith("group_select_") or callback_data.startswith("group_edit_markup_") or callback_data.startswith("group_edit_address_") or callback_data.startswith("group_delete_"):
         await handle_group_edit(update, context)
         return
     
