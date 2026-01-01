@@ -613,6 +613,11 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 tx_count = group.get('tx_count', 0)
                 has_warning = group.get('warning', False)
                 
+                # 获取USDT地址
+                usdt_address = group.get('usdt_address', '')
+                if not usdt_address:
+                    usdt_address = db.get_usdt_address()
+                
                 # 如果標題重複，添加群組 ID 後綴作為區分
                 if title_count.get(base_title, 0) > 1:
                     group_title = f"{base_title} (ID: {abs(group_id)})"
@@ -628,6 +633,11 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 message += f"   ID: <code>{group_id}</code>\n"
                 message += f"   加入日期: {join_date}\n"
                 message += f"   上浮汇率: {markup:+.4f} USDT\n"
+                if usdt_address:
+                    address_display = usdt_address[:15] + "..." + usdt_address[-15:] if len(usdt_address) > 30 else usdt_address
+                    message += f"   USDT地址: <code>{address_display}</code>\n"
+                else:
+                    message += f"   USDT地址: 未设置\n"
                 if tx_count > 0:
                     message += f"   交易记录: {tx_count} 笔\n"
                 if has_warning:
@@ -1846,26 +1856,102 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
                 mark_help_shown(user_id, "🔗 地址", shown=True)
         
-        # Show address (group-specific or global)
         chat = update.effective_chat
-        group_id = chat.id if chat.type in ['group', 'supergroup'] else None
-        usdt_address = None
         
-        if group_id:
+        # 在群组中：显示当前群组的地址
+        if chat.type in ['group', 'supergroup']:
+            group_id = chat.id
+            usdt_address = None
+            
             group_setting = db.get_group_setting(group_id)
             if group_setting and group_setting.get('usdt_address'):
                 usdt_address = group_setting['usdt_address']
+            
+            if not usdt_address:
+                usdt_address = db.get_usdt_address()
+            
+            if usdt_address:
+                address_display = usdt_address[:15] + "..." + usdt_address[-15:] if len(usdt_address) > 30 else usdt_address
+                message = f"🔗 USDT 收款地址:\n\n<code>{address_display}</code>"
+            else:
+                message = "⚠️ USDT 收款地址未设置"
+            
+            await send_group_message(update, message, parse_mode="HTML")
+            return
         
-        if not usdt_address:
-            usdt_address = db.get_usdt_address()
+        # 在私聊中：显示用户所在的所有群组的USDT地址
+        try:
+            # 获取所有群组
+            all_groups = db.get_all_groups()
+            user_id = update.effective_user.id
+            bot = context.bot
+            
+            # 检查用户所在的群组
+            user_groups_with_address = []
+            for group in all_groups:
+                group_id = group['group_id']
+                group_title = group.get('group_title', f"群组 {group_id}")
+                usdt_address = group.get('usdt_address', '')
+                
+                # 检查用户是否在该群组中
+                try:
+                    member = await bot.get_chat_member(group_id, user_id)
+                    # 检查用户是否在群组中（不是left或kicked）
+                    if member.status not in ['left', 'kicked']:
+                        # 只显示设置了地址的群组，或者如果没有设置，显示全局地址
+                        if not usdt_address:
+                            usdt_address = db.get_usdt_address()
+                        
+                        if usdt_address:
+                            user_groups_with_address.append({
+                                'group_id': group_id,
+                                'group_title': group_title,
+                                'usdt_address': usdt_address
+                            })
+                except Exception as e:
+                    # 用户不在该群组中，或者无法访问，跳过
+                    logger.debug(f"User {user_id} not in group {group_id}: {e}")
+                    continue
+            
+            # 构建消息
+            if user_groups_with_address:
+                message = "🔗 <b>您所在群组的USDT收款地址</b>\n\n"
+                message += "────────────────────────\n\n"
+                
+                for idx, group_info in enumerate(user_groups_with_address, 1):
+                    group_title = group_info['group_title']
+                    address = group_info['usdt_address']
+                    address_display = address[:15] + "..." + address[-15:] if len(address) > 30 else address
+                    
+                    message += f"{idx}. <b>{group_title}</b>\n"
+                    message += f"   <code>{address_display}</code>\n\n"
+                
+                message += "💡 提示：群组优先使用群组地址，否则使用全局地址"
+            else:
+                # 如果用户不在任何群组中，显示全局地址
+                global_address = db.get_usdt_address()
+                if global_address:
+                    address_display = global_address[:15] + "..." + global_address[-15:] if len(global_address) > 30 else global_address
+                    message = f"🔗 <b>USDT 收款地址</b>\n\n"
+                    message += f"<code>{address_display}</code>\n\n"
+                    message += "💡 提示：您当前不在任何群组中，显示全局默认地址"
+                else:
+                    message = "⚠️ USDT 收款地址未设置\n\n"
+                    message += "💡 提示：请联系管理员设置收款地址"
+            
+            await update.message.reply_text(message, parse_mode="HTML")
+            
+        except Exception as e:
+            logger.error(f"Error getting user groups addresses: {e}", exc_info=True)
+            # 如果出错，显示全局地址作为fallback
+            global_address = db.get_usdt_address()
+            if global_address:
+                address_display = global_address[:15] + "..." + global_address[-15:] if len(global_address) > 30 else global_address
+                message = f"🔗 USDT 收款地址:\n\n<code>{address_display}</code>"
+            else:
+                message = "⚠️ USDT 收款地址未设置"
+            await update.message.reply_text(message, parse_mode="HTML")
         
-        if usdt_address:
-            address_display = usdt_address[:15] + "..." + usdt_address[-15:] if len(usdt_address) > 30 else usdt_address
-            message = f"🔗 USDT 收款地址:\n\n<code>{address_display}</code>"
-        else:
-            message = "⚠️ USDT 收款地址未设置"
-        
-        await send_group_message(update, message, parse_mode="HTML")
         return
     
     if text in ["📞 联系客服", "📞 客服"]:
