@@ -2212,8 +2212,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode="HTML"
             )
             return
-            await handle_group_verification(update, context)
-            return
         
         if text == "🔍 搜索群组":
             from utils.help_generator import HelpGenerator
