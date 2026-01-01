@@ -676,7 +676,7 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             # Also send a message with reply keyboard for navigation
             try:
-                await query.message.reply_text("💡 使用底部按钮返回管理菜单", reply_markup=reply_keyboard)
+                await query.message.reply_text("💡 使用底部按钮返回管理面板", reply_markup=reply_keyboard)
             except Exception as e:
                 logger.debug(f"發送導航消息失敗（可能已存在）: {e}")
         else:
@@ -684,7 +684,7 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
             inline_keyboard = get_groups_list_keyboard_with_edit(display_groups)
             await update.message.reply_text(message, parse_mode="HTML", reply_markup=inline_keyboard)
             # Also send reply keyboard for navigation
-            await update.message.reply_text("💡 使用底部按钮返回管理菜单", reply_markup=reply_keyboard)
+            await update.message.reply_text("💡 使用底部按钮返回管理面板", reply_markup=reply_keyboard)
         
         logger.info(f"Admin {update.effective_user.id} executed w7/CKQL, showing {len(valid_groups)} groups")
             
@@ -1575,20 +1575,8 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(message, parse_mode="HTML", reply_markup=reply_keyboard)
         return
     
-    if text == "🔙 返回管理菜单":
-        if not is_admin_user:
-            await update.message.reply_text("❌ 此功能仅限管理员使用")
-            return
-        
-        # Return to management menu
-        from keyboards.management_keyboard import get_management_menu_keyboard
-        reply_keyboard = get_management_menu_keyboard()
-        message = (
-            "🌐 <b>全局管理菜单</b>\n\n"
-            "请选择要执行的操作："
-        )
-        await update.message.reply_text(message, parse_mode="HTML", reply_markup=reply_keyboard)
-        return
+    # Old "返回管理菜单" handler removed - now use "返回主菜单" instead
+    # The old management menu has been replaced by the unified admin panel
     
     # Handle customer service management menu buttons
     if text == "📋 客服账号列表":
