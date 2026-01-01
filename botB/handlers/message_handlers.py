@@ -2101,6 +2101,83 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await handle_admin_help_center(update, context)
             return
         
+        # Handle guided tutorial selections (1-5)
+        if text == "1" or text == "1️⃣" or text == "主菜单按钮教程":
+            from utils.help_generator import HelpGenerator
+            tutorial_text = HelpGenerator.get_main_menu_buttons_help()
+            from keyboards.admin_keyboard import get_admin_panel_keyboard
+            user = update.effective_user
+            user_info = {
+                'id': user.id,
+                'first_name': user.first_name or '',
+                'username': user.username,
+                'language_code': user.language_code
+            }
+            reply_markup = get_admin_panel_keyboard(user_info)
+            await send_group_message(update, tutorial_text, parse_mode="HTML", reply_markup=reply_markup)
+            return
+        
+        if text == "2" or text == "2️⃣" or text == "管理员面板按钮教程":
+            from utils.help_generator import HelpGenerator
+            tutorial_text = HelpGenerator.get_admin_panel_buttons_help()
+            from keyboards.admin_keyboard import get_admin_panel_keyboard
+            user = update.effective_user
+            user_info = {
+                'id': user.id,
+                'first_name': user.first_name or '',
+                'username': user.username,
+                'language_code': user.language_code
+            }
+            reply_markup = get_admin_panel_keyboard(user_info)
+            await send_group_message(update, tutorial_text, parse_mode="HTML", reply_markup=reply_markup)
+            return
+        
+        if text == "3" or text == "3️⃣" or text == "群组按钮和命令教程":
+            from utils.help_generator import HelpGenerator
+            tutorial_text = HelpGenerator.get_group_buttons_help()
+            from keyboards.admin_keyboard import get_admin_panel_keyboard
+            user = update.effective_user
+            user_info = {
+                'id': user.id,
+                'first_name': user.first_name or '',
+                'username': user.username,
+                'language_code': user.language_code
+            }
+            reply_markup = get_admin_panel_keyboard(user_info)
+            await send_group_message(update, tutorial_text, parse_mode="HTML", reply_markup=reply_markup)
+            return
+        
+        if text == "4" or text == "4️⃣" or text == "管理员子菜单教程":
+            from utils.help_generator import HelpGenerator
+            tutorial_text = HelpGenerator.get_admin_submenus_help()
+            from keyboards.admin_keyboard import get_admin_panel_keyboard
+            user = update.effective_user
+            user_info = {
+                'id': user.id,
+                'first_name': user.first_name or '',
+                'username': user.username,
+                'language_code': user.language_code
+            }
+            reply_markup = get_admin_panel_keyboard(user_info)
+            await send_group_message(update, tutorial_text, parse_mode="HTML", reply_markup=reply_markup)
+            return
+        
+        if text == "5" or text == "5️⃣" or text == "管理员命令帮助":
+            from handlers.admin_commands_handlers import handle_admin_commands_help
+            await handle_admin_commands_help(update, context)
+            from keyboards.admin_keyboard import get_admin_panel_keyboard
+            user = update.effective_user
+            user_info = {
+                'id': user.id,
+                'first_name': user.first_name or '',
+                'username': user.username,
+                'language_code': user.language_code
+            }
+            reply_markup = get_admin_panel_keyboard(user_info)
+            help_footer = "\n\n💡 返回帮助中心：点击「⚡ 帮助中心」按钮"
+            await send_group_message(update, help_footer, parse_mode="HTML", reply_markup=reply_markup)
+            return
+        
         if text == "🚫 敏感词管理":
             await handle_admin_words(update, context)
             return
