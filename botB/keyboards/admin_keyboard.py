@@ -2,8 +2,10 @@
 Admin panel keyboard layouts for Bot B
 All management functions use reply keyboard (bottom buttons)
 """
-from telegram import ReplyKeyboardMarkup, KeyboardButton
+from telegram import ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
 from typing import Optional
+from urllib.parse import urlencode
+from config import Config
 
 
 def get_admin_panel_keyboard(user_info: Optional[dict] = None) -> ReplyKeyboardMarkup:
