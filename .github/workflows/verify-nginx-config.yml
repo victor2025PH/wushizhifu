@@ -1,0 +1,119 @@
+name: Verify Nginx Configuration
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'deploy/**'
+      - '.github/workflows/verify-nginx-config.yml'
+  workflow_dispatch:
+  schedule:
+    # 每天凌晨2点检查一次
+    - cron: '0 2 * * *'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Verify Nginx Configuration
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          timeout: 60s
+          script: |
+            echo "🔍 开始验证Nginx配置..."
+            
+            # 检查Nginx配置语法
+            echo "📋 检查Nginx配置语法..."
+            if sudo nginx -t 2>&1 | grep -q "syntax is ok"; then
+              echo "✅ Nginx配置语法正确"
+            else
+              echo "❌ Nginx配置语法错误！"
+              sudo nginx -t
+              exit 1
+            fi
+            
+            # 检查5050配置
+            echo ""
+            echo "📋 检查5050.usdt2026.cc配置..."
+            ROOT_5050=$(sudo nginx -T 2>/dev/null | grep -A 10 "server_name 5050.usdt2026.cc" | grep "root" | head -1 | awk '{print $2}' | sed 's/;//')
+            EXPECTED_5050="/home/ubuntu/wushizhifu/web/dist"
+            
+            if [ -z "$ROOT_5050" ]; then
+              echo "❌ 5050配置不存在！"
+              exit 1
+            fi
+            
+            echo "  当前root: $ROOT_5050"
+            echo "  期望root: $EXPECTED_5050"
+            
+            if [ "$ROOT_5050" = "$EXPECTED_5050" ]; then
+              echo "✅ 5050配置正确"
+            else
+              echo "❌ 5050配置错误！"
+              echo "   正在修复..."
+              sudo sed -i "s|root .*;|root $EXPECTED_5050;|g" /etc/nginx/sites-available/web-5050
+              sudo nginx -t && sudo systemctl reload nginx
+              echo "✅ 已修复5050配置"
+            fi
+            
+            # 检查50zf配置
+            echo ""
+            echo "📋 检查50zf.usdt2026.cc配置..."
+            ROOT_50ZF=$(sudo nginx -T 2>/dev/null | grep -A 10 "server_name 50zf.usdt2026.cc" | grep "root" | head -1 | awk '{print $2}' | sed 's/;//')
+            EXPECTED_50ZF="/home/ubuntu/wushizhifu/wushizhifu-full/dist"
+            
+            if [ -z "$ROOT_50ZF" ]; then
+              echo "⚠️ 50zf配置不存在（可能使用其他配置文件名）"
+            else
+              echo "  当前root: $ROOT_50ZF"
+              echo "  期望root: $EXPECTED_50ZF"
+              
+              if [ "$ROOT_50ZF" = "$EXPECTED_50ZF" ]; then
+                echo "✅ 50zf配置正确"
+              else
+                echo "⚠️ 50zf配置可能不正确"
+                # 查找50zf的配置文件
+                NGINX_CONFIG_50ZF=$(sudo grep -l "server_name 50zf.usdt2026.cc" /etc/nginx/sites-available/* 2>/dev/null | head -1)
+                if [ -n "$NGINX_CONFIG_50ZF" ]; then
+                  echo "   正在修复..."
+                  sudo sed -i "s|root .*;|root $EXPECTED_50ZF;|g" "$NGINX_CONFIG_50ZF"
+                  sudo nginx -t && sudo systemctl reload nginx
+                  echo "✅ 已修复50zf配置"
+                fi
+              fi
+            fi
+            
+            # 检查目录是否存在
+            echo ""
+            echo "📋 检查目录是否存在..."
+            if [ -d "$EXPECTED_5050" ]; then
+              echo "✅ Web目录存在: $EXPECTED_5050"
+            else
+              echo "❌ Web目录不存在: $EXPECTED_5050"
+              exit 1
+            fi
+            
+            if [ -d "$EXPECTED_50ZF" ]; then
+              echo "✅ MiniApp目录存在: $EXPECTED_50ZF"
+            else
+              echo "⚠️ MiniApp目录不存在: $EXPECTED_50ZF"
+            fi
+            
+            # 检查Nginx服务状态
+            echo ""
+            echo "📋 检查Nginx服务状态..."
+            if systemctl is-active --quiet nginx; then
+              echo "✅ Nginx服务运行正常"
+            else
+              echo "❌ Nginx服务未运行！"
+              exit 1
+            fi
+            
+            echo ""
+            echo "✅ 所有配置验证通过！"

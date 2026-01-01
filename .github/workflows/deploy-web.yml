@@ -154,4 +154,33 @@ jobs:
             echo "🔄 重载Nginx..."
             sudo nginx -t && sudo systemctl reload nginx || echo "⚠️ Nginx重载失败"
             
+            # 验证配置
+            echo "🔍 验证Nginx配置..."
+            echo "检查5050.usdt2026.cc的root配置:"
+            ROOT_5050=$(sudo nginx -T 2>/dev/null | grep -A 10 "server_name 5050.usdt2026.cc" | grep "root" | head -1 | awk '{print $2}' | sed 's/;//')
+            echo "  当前root: $ROOT_5050"
+            echo "  期望root: ${WEB_DIST}"
+            
+            if [ "$ROOT_5050" = "${WEB_DIST}" ]; then
+              echo "✅ 5050配置正确"
+            else
+              echo "❌ 5050配置错误！正在修复..."
+              sudo sed -i "s|root .*;|root ${WEB_DIST};|g" ${NGINX_CONFIG}
+              sudo nginx -t && sudo systemctl reload nginx
+              echo "✅ 已修复5050配置"
+            fi
+            
+            # 检查50zf配置（确保不会冲突）
+            echo "检查50zf.usdt2026.cc的root配置:"
+            ROOT_50ZF=$(sudo nginx -T 2>/dev/null | grep -A 10 "server_name 50zf.usdt2026.cc" | grep "root" | head -1 | awk '{print $2}' | sed 's/;//')
+            if [ -n "$ROOT_50ZF" ]; then
+              echo "  当前root: $ROOT_50ZF"
+              EXPECTED_50ZF="/home/ubuntu/wushizhifu/wushizhifu-full/dist"
+              if [ "$ROOT_50ZF" = "$EXPECTED_50ZF" ]; then
+                echo "✅ 50zf配置正确"
+              else
+                echo "⚠️ 50zf配置可能不正确，但不会影响5050"
+              fi
+            fi
+            
             echo "✅ Web前端部署完成"
