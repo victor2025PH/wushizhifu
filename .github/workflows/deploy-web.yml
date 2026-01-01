@@ -14,62 +14,80 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: web/package.json
-      
-      - name: Install dependencies
-        working-directory: ./web
-        run: |
-          npm ci
-      
-      - name: Build project
-        working-directory: ./web
-        run: |
-          npm run build
-      
-      - name: Deploy to server
-        uses: appleboy/scp-action@v0.1.4
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
-          source: "web/dist/*"
-          target: "/home/ubuntu/wushizhifu/web/dist/"
-          strip_components: 2
-      
-      - name: Configure Nginx and Restart
+      - name: Pull Code
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          timeout: 120s
+          timeout: 300s
           script: |
-            # Create web directory if not exists
-            mkdir -p /home/ubuntu/wushizhifu/web/dist
+            SERVER_PATH="${{ secrets.SERVER_PATH || '/home/ubuntu/wushizhifu' }}"
+            cd ${SERVER_PATH} || exit 1
+            if [ -d ".git" ]; then
+              git stash || true
+              git pull origin main || echo "⚠️ Git pull失败，继续部署"
+            else
+              echo "⚠️ 当前目录不是Git仓库，跳过git pull"
+            fi
+      
+      - name: Build and Deploy
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          timeout: 300s
+          script: |
+            SERVER_PATH="${{ secrets.SERVER_PATH || '/home/ubuntu/wushizhifu' }}"
+            WEB_DIR="${SERVER_PATH}/web"
+            WEB_DIST="${WEB_DIR}/dist"
             
-            # Set proper permissions
-            sudo chown -R www-data:www-data /home/ubuntu/wushizhifu/web/dist || true
+            echo "📦 开始构建Web前端..."
+            cd ${WEB_DIR} || exit 1
             
-            # Update Nginx configuration if needed
-            WEB_ROOT="/home/ubuntu/wushizhifu/web/dist"
-            if [ -f "/etc/nginx/sites-available/wushizhifu" ]; then
-              # Check if web root needs update
-              if ! grep -q "$WEB_ROOT" /etc/nginx/sites-available/wushizhifu; then
-                echo "⚠️ Nginx配置可能需要更新，请手动检查"
-              fi
+            # Check if Node.js is installed
+            if ! command -v node &> /dev/null; then
+              echo "⚠️ Node.js未安装，开始安装..."
+              curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+              sudo apt install -y nodejs
             fi
             
-            # Test and reload Nginx
+            # Install dependencies
+            echo "📥 安装依赖..."
+            npm install --production=false || npm ci || exit 1
+            
+            # Build project
+            echo "🔨 构建项目..."
+            npm run build || exit 1
+            
+            # Create dist directory if not exists
+            mkdir -p ${WEB_DIST}
+            
+            # Set proper permissions
+            echo "🔒 设置文件权限..."
+            sudo chown -R www-data:www-data ${WEB_DIST} || true
+            sudo chmod -R 755 ${WEB_DIST} || true
+            
+            # Update Nginx configuration if needed
+            NGINX_CONFIG="/etc/nginx/sites-available/wushizhifu"
+            if [ -f "${NGINX_CONFIG}" ]; then
+              # Update root path if different
+              if ! grep -q "${WEB_DIST}" ${NGINX_CONFIG}; then
+                echo "⚙️ 更新Nginx配置..."
+                sudo sed -i "s|root /.*/web/dist;|root ${WEB_DIST};|g" ${NGINX_CONFIG}
+                sudo sed -i "s|root /.*/frontend/dist;|root ${WEB_DIST};|g" ${NGINX_CONFIG}
+                # Test configuration
+                sudo nginx -t || echo "⚠️ Nginx配置测试失败"
+              fi
+            else
+              echo "⚠️ Nginx配置文件不存在，可能需要手动配置"
+            fi
+            
+            # Reload Nginx
+            echo "🔄 重载Nginx..."
             sudo nginx -t && sudo systemctl reload nginx || echo "⚠️ Nginx重载失败"
             
             echo "✅ Web前端部署完成"
