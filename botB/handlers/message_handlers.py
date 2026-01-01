@@ -3723,15 +3723,16 @@ async def handle_admin_user_report(update: Update, context: ContextTypes.DEFAULT
         if growth_data:
             try:
                 from services.chart_service import ChartService
+                # 修复：sqlite3.Row 不支持 .get()，使用字典式访问
                 chart_data = [
-                    {'label': item['date'], 'value': float(item.get('count', 0))}
+                    {'label': item['date'], 'value': float(item['count'] if item['count'] is not None else 0)}
                     for item in growth_data[:7]
                 ]
                 chart = ChartService.generate_simple_bar(chart_data, 'value', 'label', max_bars=7)
                 text += f"\n\n<b>📊 用户增长趋势（最近7天）</b>\n"
                 text += f"<pre>{chart}</pre>\n"
             except Exception as e:
-                logger.error(f"Error generating growth chart: {e}")
+                logger.error(f"Error generating growth chart: {e}", exc_info=True)
         
         reply_markup = get_admin_submenu_keyboard("users")
         await send_group_message(update, text, parse_mode="HTML", reply_markup=reply_markup)
