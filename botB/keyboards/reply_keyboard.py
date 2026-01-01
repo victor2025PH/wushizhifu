@@ -79,46 +79,37 @@ def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = Fals
         ]
     ]
     
-    # Add admin buttons if admin (3 per row)
+    # Add admin buttons and WebApp button if needed
     # IMPORTANT: WebApp buttons are NOT allowed in group chats by Telegram API
     # So we only add them in private chats, or remove them in groups
     if user_id and is_admin(user_id):
-        # Use different button labels based on chat type for clarity
+        # Admin user - add "打开应用" button after "客服" button in second row
+        # and "管理" button in a separate row
         admin_button_text = "⚙️ 设置" if is_group else "⚙️ 管理"
-        stats_button_text = "📈 统计" if is_group else "📊 数据"
         
-        if is_group:
-            # In groups, add admin panel button
-            keyboard.append([
-                KeyboardButton(admin_button_text),
-                KeyboardButton(stats_button_text)
-            ])
-        else:
-            # In private chats, WebApp button is allowed
-            keyboard.append([
-                KeyboardButton(admin_button_text),
-                KeyboardButton(stats_button_text),
-                KeyboardButton(
-                    "💎 打开应用",
-                    web_app=WebAppInfo(url=get_webapp_url())
-                )
-            ])
+        # Add "打开应用" button to the second row (客服 row) if in private chat
+        if not is_group:
+            # Add WebApp button after "客服" in second row
+            keyboard[1].append(KeyboardButton(
+                "💎 打开应用",
+                web_app=WebAppInfo(url=get_webapp_url())
+            ))
+        
+        # Add "管理" button in a separate row
+        keyboard.append([
+            KeyboardButton(admin_button_text)
+        ])
     else:
         # If not admin, handle based on chat type
         if is_group:
-            # In groups, don't add WebApp button - just skip the row entirely
-            # Telegram may not display keyboards with empty buttons, so we skip adding a row
-            pass  # Don't add any row for non-admin users in groups
+            # In groups, don't add any row for non-admin users
+            pass
         else:
-            # In private chats, WebApp button is allowed
-            keyboard.append([
-                KeyboardButton(
-                    "💎 打开应用",
-                    web_app=WebAppInfo(url=get_webapp_url())
-                ),
-                KeyboardButton(""),  # Empty button as placeholder
-                KeyboardButton("")   # Empty button as placeholder
-            ])
+            # In private chats, add "打开应用" button after "客服" in second row
+            keyboard[1].append(KeyboardButton(
+                "💎 打开应用",
+                web_app=WebAppInfo(url=get_webapp_url())
+            ))
     
     return ReplyKeyboardMarkup(
         keyboard=keyboard,
