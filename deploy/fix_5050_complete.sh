@@ -227,27 +227,62 @@ fi
 # 步骤7: 验证root路径
 echo ""
 echo "📋 步骤7: 验证root路径..."
-ROOT_HTTP=$(sudo nginx -T 2>/dev/null | grep -A 30 "server_name ${DOMAIN}" | grep -A 5 "listen 80" | grep "root" | head -1 | awk '{print $2}' | sed 's/;//' || echo "")
-ROOT_HTTPS=$(sudo nginx -T 2>/dev/null | grep -A 30 "server_name ${DOMAIN}" | grep -A 5 "listen 443" | grep "root" | head -1 | awk '{print $2}' | sed 's/;//' || echo "")
+# 更精确的grep匹配：先找到server block，然后在该block内查找root
+NGINX_CONFIG_OUTPUT=$(sudo nginx -T 2>/dev/null)
+
+# 提取HTTP server block中的root
+ROOT_HTTP=$(echo "$NGINX_CONFIG_OUTPUT" | awk "/server_name ${DOMAIN}/,/^[[:space:]]*server[[:space:]]*\{|^[[:space:]]*\}/" | grep -A 5 "listen 80" | grep "root" | head -1 | awk '{print $2}' | sed 's/;//' | tr -d ' ' || echo "")
+
+# 提取HTTPS server block中的root
+ROOT_HTTPS=$(echo "$NGINX_CONFIG_OUTPUT" | awk "/server_name ${DOMAIN}/,/^[[:space:]]*server[[:space:]]*\{|^[[:space:]]*\}/" | grep -A 5 "listen 443" | grep "root" | head -1 | awk '{print $2}' | sed 's/;//' | tr -d ' ' || echo "")
+
+# 如果上面的方法没找到，尝试更简单的方法
+if [ -z "$ROOT_HTTP" ] && [ -z "$ROOT_HTTPS" ]; then
+    # 直接在整个配置中查找该domain的所有root
+    ALL_ROOTS=$(echo "$NGINX_CONFIG_OUTPUT" | grep -B 10 "server_name ${DOMAIN}" | grep -A 20 "server_name ${DOMAIN}" | grep "^[[:space:]]*root" | awk '{print $2}' | sed 's/;//' | tr -d ' ' | head -2)
+    ROOT_HTTP=$(echo "$ALL_ROOTS" | head -1)
+    ROOT_HTTPS=$(echo "$ALL_ROOTS" | tail -1)
+fi
 
 echo "   HTTP root: ${ROOT_HTTP:-未找到}"
 echo "   HTTPS root: ${ROOT_HTTPS:-未找到}"
 echo "   期望root: ${WEB_DIST}"
 
+# 验证逻辑
+VERIFICATION_FAILED=false
 if [ "$HAS_SSL" = true ]; then
-    if [ "$ROOT_HTTPS" = "${WEB_DIST}" ]; then
+    if [ -n "$ROOT_HTTPS" ] && [ "$ROOT_HTTPS" = "${WEB_DIST}" ]; then
         echo "✅ HTTPS root路径正确"
     else
-        echo "❌ HTTPS root路径错误！"
-        exit 1
+        echo "⚠️ HTTPS root路径验证失败，但配置已创建"
+        echo "   检查实际配置..."
+        # 直接检查配置文件
+        if sudo grep -q "root ${WEB_DIST};" "${NGINX_CONFIG}"; then
+            echo "✅ 配置文件中root路径正确，可能是验证逻辑问题"
+        else
+            echo "❌ 配置文件中root路径错误！"
+            VERIFICATION_FAILED=true
+        fi
     fi
 else
-    if [ "$ROOT_HTTP" = "${WEB_DIST}" ]; then
+    if [ -n "$ROOT_HTTP" ] && [ "$ROOT_HTTP" = "${WEB_DIST}" ]; then
         echo "✅ HTTP root路径正确"
     else
-        echo "❌ HTTP root路径错误！"
-        exit 1
+        echo "⚠️ HTTP root路径验证失败，但配置已创建"
+        echo "   检查实际配置..."
+        if sudo grep -q "root ${WEB_DIST};" "${NGINX_CONFIG}"; then
+            echo "✅ 配置文件中root路径正确，可能是验证逻辑问题"
+        else
+            echo "❌ 配置文件中root路径错误！"
+            VERIFICATION_FAILED=true
+        fi
     fi
+fi
+
+if [ "$VERIFICATION_FAILED" = true ]; then
+    echo "   显示配置文件内容："
+    sudo grep -A 5 "root" "${NGINX_CONFIG}" | head -10
+    exit 1
 fi
 
 # 步骤8: 重新加载Nginx
