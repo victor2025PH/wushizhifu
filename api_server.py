@@ -824,7 +824,10 @@ def assign_customer_service(user_id: int, username: str, assignment_method: str 
         
     except Exception as e:
         logger.error(f"Error assigning customer service: {e}", exc_info=True)
-        conn.rollback()
+        try:
+            conn.rollback()
+        except:
+            pass  # SQLite may not support rollback in all cases
         return None
 
 
