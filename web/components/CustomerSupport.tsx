@@ -85,7 +85,8 @@ export const CustomerSupport: React.FC = () => {
       }
       
       const data = await response.json();
-      return data.username || data.service_username || null;
+      // API returns service_account field (according to CustomerServiceAssignResponse)
+      return data.service_account || null;
     } catch (error) {
       console.error('Error assigning customer service:', error);
       return null;
