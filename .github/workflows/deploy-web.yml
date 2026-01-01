@@ -59,6 +59,14 @@ jobs:
             echo "📥 安装依赖..."
             npm install --production=false || npm ci || exit 1
             
+            # Fix permissions for dist directory before build
+            echo "🔧 修复dist目录权限..."
+            if [ -d "dist" ]; then
+              sudo rm -rf dist || rm -rf dist || true
+            fi
+            mkdir -p dist
+            chmod -R 755 dist || true
+            
             # Build project (output will be in web/dist)
             echo "🔨 构建项目..."
             npm run build || exit 1
