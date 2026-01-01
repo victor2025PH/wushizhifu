@@ -84,38 +84,45 @@ if [ -f "${NGINX_CONFIG}" ]; then
 fi
 
 # 创建完整的Nginx配置（包括HTTP和HTTPS）
-sudo tee "${NGINX_CONFIG}" > /dev/null <<EOF
+# 使用临时文件来构建配置，避免heredoc嵌套问题
+TEMP_CONFIG=$(mktemp)
+cat > "${TEMP_CONFIG}" <<'NGINX_EOF'
 # Nginx 配置文件 - Web前端网站
-# 域名: ${DOMAIN}
+# 域名: DOMAIN_PLACEHOLDER
 
-# HTTP Server Block - 重定向到HTTPS（如果SSL存在）
+# HTTP Server Block
 server {
     listen 80;
-    server_name ${DOMAIN};
-    
-    # 如果SSL证书存在，重定向到HTTPS
-    $([ "$HAS_SSL" = true ] && echo "return 301 https://\$server_name\$request_uri;" || echo "# return 301 https://\$server_name\$request_uri;")
-    
-    # 如果没有SSL，直接提供HTTP服务
-    $([ "$HAS_SSL" = false ] && cat <<INNER_EOF
+    server_name DOMAIN_PLACEHOLDER;
+NGINX_EOF
+
+# 根据SSL证书是否存在，添加不同的HTTP配置
+if [ "$HAS_SSL" = true ]; then
+    cat >> "${TEMP_CONFIG}" <<'NGINX_EOF'
+    # 重定向到HTTPS
+    return 301 https://$server_name$request_uri;
+}
+NGINX_EOF
+else
+    cat >> "${TEMP_CONFIG}" <<'NGINX_EOF'
     # Web前端靜態文件
-    root ${WEB_DIST};
+    root WEB_DIST_PLACEHOLDER;
     index index.html;
     
     location / {
-        try_files \$uri \$uri/ /index.html;
+        try_files $uri $uri/ /index.html;
     }
     
     # API 代理（代理到后端API服务器）
     location /api/ {
         proxy_pass http://127.0.0.1:8000;
         proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_set_header X-Forwarded-Host \$host;
-        proxy_cache_bypass \$http_upgrade;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_cache_bypass $http_upgrade;
     }
     
     # 靜態資源緩存
@@ -129,19 +136,22 @@ server {
     gzip_vary on;
     gzip_min_length 1024;
     gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml+rss application/json;
-INNER_EOF
-    )
 }
+NGINX_EOF
+fi
 
-$([ "$HAS_SSL" = true ] && cat <<HTTPS_EOF
+# 如果SSL证书存在，添加HTTPS配置
+if [ "$HAS_SSL" = true ]; then
+    cat >> "${TEMP_CONFIG}" <<'NGINX_EOF'
+
 # HTTPS Server Block
 server {
     listen 443 ssl http2;
-    server_name ${DOMAIN};
+    server_name DOMAIN_PLACEHOLDER;
     
     # SSL 證書
-    ssl_certificate ${SSL_CERT};
-    ssl_certificate_key ${SSL_KEY};
+    ssl_certificate SSL_CERT_PLACEHOLDER;
+    ssl_certificate_key SSL_KEY_PLACEHOLDER;
     
     # SSL 配置
     ssl_protocols TLSv1.2 TLSv1.3;
@@ -149,23 +159,23 @@ server {
     ssl_prefer_server_ciphers on;
     
     # Web前端靜態文件
-    root ${WEB_DIST};
+    root WEB_DIST_PLACEHOLDER;
     index index.html;
     
     location / {
-        try_files \$uri \$uri/ /index.html;
+        try_files $uri $uri/ /index.html;
     }
     
     # API 代理（代理到后端API服务器）
     location /api/ {
         proxy_pass http://127.0.0.1:8000;
         proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_set_header X-Forwarded-Host \$host;
-        proxy_cache_bypass \$http_upgrade;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_cache_bypass $http_upgrade;
     }
     
     # 靜態資源緩存
@@ -180,9 +190,20 @@ server {
     gzip_min_length 1024;
     gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml+rss application/json;
 }
-HTTPS_EOF
-)
-EOF
+NGINX_EOF
+fi
+
+# 替换占位符
+sed -i "s|DOMAIN_PLACEHOLDER|${DOMAIN}|g" "${TEMP_CONFIG}"
+sed -i "s|WEB_DIST_PLACEHOLDER|${WEB_DIST}|g" "${TEMP_CONFIG}"
+if [ "$HAS_SSL" = true ]; then
+    sed -i "s|SSL_CERT_PLACEHOLDER|${SSL_CERT}|g" "${TEMP_CONFIG}"
+    sed -i "s|SSL_KEY_PLACEHOLDER|${SSL_KEY}|g" "${TEMP_CONFIG}"
+fi
+
+# 复制到最终位置
+sudo cp "${TEMP_CONFIG}" "${NGINX_CONFIG}"
+rm -f "${TEMP_CONFIG}"
 
 echo "✅ Nginx配置已创建/更新"
 
