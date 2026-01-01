@@ -76,7 +76,8 @@ export async function assignCustomerService(): Promise<CustomerServiceAssignment
     const initData = window.Telegram?.WebApp?.initData || '';
 
     // Call backend API to assign customer service
-    const apiUrl = import.meta.env.VITE_API_URL || 'https://api.50zf.usdt2026.cc';
+    // Use same API base URL as api.ts (50zf.usdt2026.cc/api)
+    const apiUrl = import.meta.env.VITE_API_URL || 'https://50zf.usdt2026.cc/api';
     
     // Prepare headers with authentication if available
     const headers: HeadersInit = {
@@ -88,7 +89,7 @@ export async function assignCustomerService(): Promise<CustomerServiceAssignment
       headers['X-Telegram-Init-Data'] = initData;
     }
     
-    const response = await fetch(`${apiUrl}/api/customer-service/assign`, {
+    const response = await fetch(`${apiUrl}/customer-service/assign`, {
       method: 'POST',
       headers: headers,
       body: JSON.stringify({

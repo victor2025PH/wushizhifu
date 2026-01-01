@@ -6,9 +6,66 @@ interface NavbarProps {
   onNavigate: (page: PageView) => void;
 }
 
+// API base URL
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://50zf.usdt2026.cc/api';
+
 export const Navbar: React.FC<NavbarProps> = ({ onNavigate }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isAssigning, setIsAssigning] = useState(false);
   const { theme, toggleTheme } = useTheme();
+  
+  // Assign customer service and open Telegram
+  const handleOpenAccount = async (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    
+    try {
+      setIsAssigning(true);
+      
+      // Get user info from Telegram WebApp if available
+      const tg = (window as any).Telegram?.WebApp;
+      let user_id: number | undefined;
+      let username: string | undefined;
+      
+      if (tg?.initDataUnsafe?.user) {
+        user_id = tg.initDataUnsafe.user.id;
+        username = tg.initDataUnsafe.user.username;
+      }
+      
+      // Prepare request body
+      const requestBody: any = {};
+      if (user_id) requestBody.user_id = user_id;
+      if (username) requestBody.username = username;
+      
+      // Call API to assign customer service
+      const response = await fetch(`${API_BASE_URL}/customer-service/assign`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(tg?.initData ? { 'X-Telegram-Init-Data': tg.initData } : {})
+        },
+        body: JSON.stringify(requestBody)
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.service_account) {
+          // Open Telegram with assigned customer service
+          window.open(`https://t.me/${data.service_account.replace('@', '')}`, '_blank');
+          return;
+        }
+      }
+      
+      // Fallback: try to get first available customer service from API
+      // If that fails, use default
+      window.open('https://t.me/PayShieldSupport', '_blank');
+    } catch (error) {
+      console.error('Error assigning customer service:', error);
+      // Fallback to default
+      window.open('https://t.me/PayShieldSupport', '_blank');
+    } finally {
+      setIsAssigning(false);
+    }
+  };
 
   const handleNavClick = (page: PageView, anchor?: string) => {
     onNavigate(page);
@@ -74,12 +131,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate }) => {
 
               {/* CTA Button - Matches Screenshot 'Open Account' color */}
               <a 
-                href="https://t.me/PayShieldBot" 
-                target="_blank"
-                rel="noreferrer"
-                className="bg-blue-600 hover:bg-blue-700 dark:bg-[#7000ff] dark:hover:bg-[#6000e0] text-white px-6 py-2 rounded-full text-sm font-bold transition-all shadow-lg shadow-blue-600/20 dark:shadow-[0_0_15px_rgba(112,0,255,0.4)] transform hover:scale-105"
+                href="#"
+                onClick={handleOpenAccount}
+                className={`bg-blue-600 hover:bg-blue-700 dark:bg-[#7000ff] dark:hover:bg-[#6000e0] text-white px-6 py-2 rounded-full text-sm font-bold transition-all shadow-lg shadow-blue-600/20 dark:shadow-[0_0_15px_rgba(112,0,255,0.4)] transform hover:scale-105 ${isAssigning ? 'opacity-50 cursor-wait' : ''}`}
               >
-                立即开户
+                {isAssigning ? '分配中...' : '立即开户'}
               </a>
             </div>
           </div>
@@ -116,8 +172,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate }) => {
             <button onClick={() => handleNavClick('fees')} className="text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-white block px-3 py-3 rounded-lg text-base font-medium w-full text-left hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
               费率
             </button>
-            <a href="https://t.me/PayShieldBot" target="_blank" rel="noreferrer" className="bg-blue-600 dark:bg-[#7000ff] text-white block px-3 py-3 rounded-lg text-base font-bold mt-6 text-center shadow-lg">
-              立即开户
+            <a 
+              href="#"
+              onClick={handleOpenAccount}
+              className={`bg-blue-600 dark:bg-[#7000ff] text-white block px-3 py-3 rounded-lg text-base font-bold mt-6 text-center shadow-lg ${isAssigning ? 'opacity-50 cursor-wait' : ''}`}
+            >
+              {isAssigning ? '分配中...' : '立即开户'}
             </a>
           </div>
         </div>
