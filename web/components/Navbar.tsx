@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
 import { Menu, X, ShieldCheck, Zap, Briefcase } from 'lucide-react';
 import { useTheme, PageView } from '../App';
+import { openSupportChat } from '../utils/supportService';
 
 interface NavbarProps {
   onNavigate: (page: PageView) => void;
 }
-
-// API base URL
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://50zf.usdt2026.cc/api';
 
 export const Navbar: React.FC<NavbarProps> = ({ onNavigate }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -20,47 +18,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate }) => {
     
     try {
       setIsAssigning(true);
-      
-      // Get user info from Telegram WebApp if available
-      const tg = (window as any).Telegram?.WebApp;
-      let user_id: number | undefined;
-      let username: string | undefined;
-      
-      if (tg?.initDataUnsafe?.user) {
-        user_id = tg.initDataUnsafe.user.id;
-        username = tg.initDataUnsafe.user.username;
-      }
-      
-      // Prepare request body
-      const requestBody: any = {};
-      if (user_id) requestBody.user_id = user_id;
-      if (username) requestBody.username = username;
-      
-      // Call API to assign customer service
-      const response = await fetch(`${API_BASE_URL}/customer-service/assign`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(tg?.initData ? { 'X-Telegram-Init-Data': tg.initData } : {})
-        },
-        body: JSON.stringify(requestBody)
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.service_account) {
-          // Open Telegram with assigned customer service
-          window.open(`https://t.me/${data.service_account.replace('@', '')}`, '_blank');
-          return;
-        }
-      }
-      
-      // Fallback: try to get first available customer service from API
-      // If that fails, use default
-      window.open('https://t.me/PayShieldSupport', '_blank');
+      await openSupportChat('https://t.me/PayShieldSupport');
     } catch (error) {
-      console.error('Error assigning customer service:', error);
-      // Fallback to default
+      console.error('Error opening support chat:', error);
       window.open('https://t.me/PayShieldSupport', '_blank');
     } finally {
       setIsAssigning(false);
