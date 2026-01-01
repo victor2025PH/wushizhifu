@@ -2313,62 +2313,64 @@ def main():
     application.add_handler(CommandHandler("export_users", export_users_command))
     application.add_handler(CommandHandler("import_words", import_words_command))
     
-    # Register chart command handlers (P5 feature)
-    from handlers.chart_handlers import (
-        handle_chart_trend, handle_chart_volume,
-        handle_chart_users, handle_chart_price
-    )
-    
-    async def chart_trend_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /chart_trend command"""
-        days = 7
-        if context.args and len(context.args) > 0:
-            try:
-                days = int(context.args[0])
-                if days not in [7, 30]:
-                    days = 7
-            except ValueError:
-                pass
-        await handle_chart_trend(update, context, days=days)
-    
-    async def chart_volume_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /chart_volume command"""
-        days = 7
-        if context.args and len(context.args) > 0:
-            try:
-                days = int(context.args[0])
-            except ValueError:
-                pass
-        await handle_chart_volume(update, context, days=days)
-    
-    async def chart_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /chart_users command"""
-        top_n = 10
-        if context.args and len(context.args) > 0:
-            try:
-                top_n = int(context.args[0])
-                if top_n < 1 or top_n > 20:
-                    top_n = 10
-            except ValueError:
-                pass
-        await handle_chart_users(update, context, top_n=top_n)
-    
-    async def chart_price_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /chart_price command"""
-        days = 7
-        if context.args and len(context.args) > 0:
-            try:
-                days = int(context.args[0])
-                if days not in [1, 7, 30]:
-                    days = 7
-            except ValueError:
-                pass
-        await handle_chart_price(update, context, days=days)
-    
-    application.add_handler(CommandHandler("chart_trend", chart_trend_command))
-    application.add_handler(CommandHandler("chart_volume", chart_volume_command))
-    application.add_handler(CommandHandler("chart_users", chart_users_command))
-    application.add_handler(CommandHandler("chart_price", chart_price_command))
+    # Chart command handlers are disabled - chart_handlers.py requires functions that don't exist in chart_service.py
+    # If needed, these can be re-implemented using ChartService.generate_simple_bar() or other text-based chart methods
+    # For now, commenting out to prevent import errors
+    # from handlers.chart_handlers import (
+    #     handle_chart_trend, handle_chart_volume,
+    #     handle_chart_users, handle_chart_price
+    # )
+    # 
+    # async def chart_trend_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    #     """Handle /chart_trend command"""
+    #     days = 7
+    #     if context.args and len(context.args) > 0:
+    #         try:
+    #             days = int(context.args[0])
+    #             if days not in [7, 30]:
+    #                 days = 7
+    #         except ValueError:
+    #             pass
+    #     await handle_chart_trend(update, context, days=days)
+    # 
+    # async def chart_volume_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    #     """Handle /chart_volume command"""
+    #     days = 7
+    #     if context.args and len(context.args) > 0:
+    #         try:
+    #             days = int(context.args[0])
+    #         except ValueError:
+    #             pass
+    #     await handle_chart_volume(update, context, days=days)
+    # 
+    # async def chart_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    #     """Handle /chart_users command"""
+    #     top_n = 10
+    #     if context.args and len(context.args) > 0:
+    #         try:
+    #             top_n = int(context.args[0])
+    #             if top_n < 1 or top_n > 20:
+    #                 top_n = 10
+    #         except ValueError:
+    #             pass
+    #     await handle_chart_users(update, context, top_n=top_n)
+    # 
+    # async def chart_price_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    #     """Handle /chart_price command"""
+    #     days = 7
+    #     if context.args and len(context.args) > 0:
+    #         try:
+    #             days = int(context.args[0])
+    #             if days not in [1, 7, 30]:
+    #                 days = 7
+    #         except ValueError:
+    #             pass
+    #     await handle_chart_price(update, context, days=days)
+    # 
+    # application.add_handler(CommandHandler("chart_trend", chart_trend_command))
+    # application.add_handler(CommandHandler("chart_volume", chart_volume_command))
+    # application.add_handler(CommandHandler("chart_users", chart_users_command))
+    # application.add_handler(CommandHandler("chart_price", chart_price_command))
     
     # Register message handler (for admin shortcuts and math/settlement)
     application.add_handler(get_message_handler())
