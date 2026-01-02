@@ -616,6 +616,7 @@ async def handle_group_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif callback_data.startswith("group_delete_"):
             group_id = int(callback_data.split("_")[2])
             from keyboards.inline_keyboard import get_confirmation_keyboard
+            from database import db
             
             # Get group info for confirmation message
             groups = db.get_all_groups()
