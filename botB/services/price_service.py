@@ -26,9 +26,10 @@ BINANCE_P2P_HEADERS = {
 BINANCE_P2P_PAYLOAD = {
     "fiat": "CNY",
     "page": 1,
-    "rows": 1,
+    "rows": 20,  # Get 20 results to calculate average price
     "tradeType": "BUY",  # BUY means merchants are selling USDT (Ask price)
     "asset": "USDT",
+    "payTypes": ["ALIPAY"],  # Only use Alipay payment method
     "countries": [],
     "proMerchantAds": False,
     "shieldMerchantAds": False,
@@ -65,13 +66,14 @@ def _update_cache(price: float):
 
 def _fetch_binance_p2p_price() -> Tuple[Optional[float], Optional[str]]:
     """
-    Fetch USDT/CNY price from Binance P2P API.
+    Fetch USDT/CNY average price from Binance P2P API (Alipay only).
+    Calculates average price from multiple merchants to get more accurate rate.
     
     Returns:
-        Tuple of (price: float or None, error_message: str or None)
+        Tuple of (average_price: float or None, error_message: str or None)
     """
     try:
-        logger.info("Fetching USDT/CNY price from Binance P2P API...")
+        logger.info("Fetching USDT/CNY average price from Binance P2P API (Alipay only)...")
         
         # Make POST request to Binance P2P API
         response = requests.post(
@@ -101,17 +103,31 @@ def _fetch_binance_p2p_price() -> Tuple[Optional[float], Optional[str]]:
         #       ...
         #     }
         #   ],
-        #   "total": 1,
+        #   "total": 20,
         #   "success": true
         # }
         
         if data.get('success') and data.get('code') == '000000':
             if 'data' in data and len(data['data']) > 0:
-                price_str = data['data'][0].get('adv', {}).get('price')
-                if price_str:
-                    price = float(price_str)
-                    logger.info(f"Binance P2P price fetched successfully: {price}")
-                    return price, None
+                prices = []
+                for item in data['data']:
+                    price_str = item.get('adv', {}).get('price')
+                    if price_str:
+                        try:
+                            price = float(price_str)
+                            prices.append(price)
+                        except (ValueError, TypeError):
+                            continue
+                
+                if prices:
+                    # Calculate average price
+                    average_price = sum(prices) / len(prices)
+                    logger.info(f"Binance P2P Alipay average price calculated: {average_price} (from {len(prices)} merchants)")
+                    return average_price, None
+                else:
+                    error_msg = "No valid prices found in Binance P2P API response"
+                    logger.warning(error_msg)
+                    return None, error_msg
         
         # If data structure is unexpected
         error_msg = "Unexpected response structure from Binance P2P API"
@@ -201,14 +217,14 @@ def _fetch_coingecko_price() -> Tuple[Optional[float], Optional[str]]:
 
 def get_usdt_cny_price() -> Tuple[Optional[float], Optional[str]]:
     """
-    Fetch USDT/CNY price from Binance P2P API.
+    Fetch USDT/CNY average price from Binance P2P API (Alipay payment method only).
     Falls back to CoinGecko API if Binance P2P fails.
     Uses in-memory cache (60 seconds) to prevent API rate limiting.
     This function is called only when requested (no background polling).
     
     Returns:
-        Tuple of (price: float or None, error_message: str or None)
-        - If successful: (price, None)
+        Tuple of (average_price: float or None, error_message: str or None)
+        - If successful: (average_price, None)
         - If failed: (fallback_price, "Using fallback price")
     """
     # Check cache first
@@ -216,11 +232,11 @@ def get_usdt_cny_price() -> Tuple[Optional[float], Optional[str]]:
         logger.info(f"Returning cached price: {_price_cache['price']}")
         return _price_cache['price'], None
     
-    # Try Binance P2P first (primary source)
+    # Try Binance P2P first (primary source - Alipay average price)
     price, error_msg = _fetch_binance_p2p_price()
     
     if price is not None:
-        # Update cache with successful price
+        # Update cache with successful average price
         _update_cache(price)
         return price, None
     
