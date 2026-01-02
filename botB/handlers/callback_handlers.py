@@ -916,6 +916,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     callback_data = query.data
+    logger.info(f"Callback received: {callback_data}, user_id: {query.from_user.id}")
     
     # Transaction lifecycle management
     if callback_data.startswith("mark_paid"):
