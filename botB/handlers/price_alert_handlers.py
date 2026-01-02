@@ -5,6 +5,7 @@ Handles price alert commands and UI
 import logging
 from typing import Optional
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 from database import db
 from services.price_service import get_price_with_markup
@@ -227,14 +228,26 @@ async def handle_list_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE)
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         if query:
-            await query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
-            await query.answer()
+            try:
+                await query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
+                await query.answer()
+            except BadRequest as e:
+                if "not modified" in str(e).lower():
+                    await query.answer("✅ 内容未更改")
+                else:
+                    raise
         else:
             await update.message.reply_text(message, parse_mode="HTML", reply_markup=reply_markup)
         
     except Exception as e:
         logger.error(f"Error in handle_list_alerts: {e}", exc_info=True)
-        await (query or update.message).reply_text("❌ 错误: " + str(e))
+        try:
+            if query:
+                await query.answer("❌ 错误: " + str(e), show_alert=True)
+            else:
+                await update.message.reply_text("❌ 错误: " + str(e))
+        except Exception as inner_e:
+            logger.error(f"Error sending error message: {inner_e}", exc_info=True)
 
 
 async def handle_price_history(update: Update, context: ContextTypes.DEFAULT_TYPE, hours: int = 24):

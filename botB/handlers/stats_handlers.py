@@ -6,6 +6,7 @@ import logging
 import datetime
 from typing import Optional
 from telegram import Update
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 from database import db
 from admin_checker import is_admin
@@ -152,7 +153,10 @@ async def handle_pending_transactions(update: Update, context: ContextTypes.DEFA
         user_id = update.effective_user.id
         
         if not is_admin(user_id):
-            await (update.callback_query or update.message).reply_text("❌ 此功能仅限管理员使用")
+            if update.callback_query:
+                await update.callback_query.answer("❌ 此功能仅限管理员使用", show_alert=True)
+            else:
+                await update.message.reply_text("❌ 此功能仅限管理员使用")
             return
         
         # Get pending transactions
@@ -191,8 +195,14 @@ async def handle_pending_transactions(update: Update, context: ContextTypes.DEFA
         reply_markup = get_pending_transactions_keyboard(group_id)
         
         if update.callback_query:
-            await update.callback_query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
-            await update.callback_query.answer()
+            try:
+                await update.callback_query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
+                await update.callback_query.answer()
+            except BadRequest as e:
+                if "not modified" in str(e).lower():
+                    await update.callback_query.answer("✅ 内容未更改")
+                else:
+                    raise
         else:
             await update.message.reply_text(message, parse_mode="HTML", reply_markup=reply_markup)
         
@@ -200,7 +210,13 @@ async def handle_pending_transactions(update: Update, context: ContextTypes.DEFA
         
     except Exception as e:
         logger.error(f"Error in handle_pending_transactions: {e}", exc_info=True)
-        await (update.callback_query or update.message).reply_text(f"❌ 错误: {str(e)}")
+        try:
+            if update.callback_query:
+                await update.callback_query.answer(f"❌ 错误: {str(e)}", show_alert=True)
+            else:
+                await update.message.reply_text(f"❌ 错误: {str(e)}")
+        except Exception as inner_e:
+            logger.error(f"Error sending error message: {inner_e}", exc_info=True)
 
 
 async def handle_paid_transactions(update: Update, context: ContextTypes.DEFAULT_TYPE, group_id: Optional[int] = None):
@@ -213,7 +229,10 @@ async def handle_paid_transactions(update: Update, context: ContextTypes.DEFAULT
         user_id = update.effective_user.id
         
         if not is_admin(user_id):
-            await (update.callback_query or update.message).reply_text("❌ 此功能仅限管理员使用")
+            if update.callback_query:
+                await update.callback_query.answer("❌ 此功能仅限管理员使用", show_alert=True)
+            else:
+                await update.message.reply_text("❌ 此功能仅限管理员使用")
             return
         
         # Get paid transactions
@@ -259,8 +278,14 @@ async def handle_paid_transactions(update: Update, context: ContextTypes.DEFAULT
         reply_markup = get_paid_transactions_keyboard(group_id)
         
         if update.callback_query:
-            await update.callback_query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
-            await update.callback_query.answer()
+            try:
+                await update.callback_query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
+                await update.callback_query.answer()
+            except BadRequest as e:
+                if "not modified" in str(e).lower():
+                    await update.callback_query.answer("✅ 内容未更改")
+                else:
+                    raise
         else:
             await update.message.reply_text(message, parse_mode="HTML", reply_markup=reply_markup)
         
@@ -268,7 +293,13 @@ async def handle_paid_transactions(update: Update, context: ContextTypes.DEFAULT
         
     except Exception as e:
         logger.error(f"Error in handle_paid_transactions: {e}", exc_info=True)
-        await (update.callback_query or update.message).reply_text(f"❌ 错误: {str(e)}")
+        try:
+            if update.callback_query:
+                await update.callback_query.answer(f"❌ 错误: {str(e)}", show_alert=True)
+            else:
+                await update.message.reply_text(f"❌ 错误: {str(e)}")
+        except Exception as inner_e:
+            logger.error(f"Error sending error message: {inner_e}", exc_info=True)
 
 
 async def handle_export_stats(update: Update, context: ContextTypes.DEFAULT_TYPE, group_id: Optional[int] = None):
@@ -284,7 +315,10 @@ async def handle_export_stats(update: Update, context: ContextTypes.DEFAULT_TYPE
         user_id = update.effective_user.id
         
         if not is_admin(user_id):
-            await (update.callback_query or update.message).reply_text("❌ 此功能仅限管理员使用")
+            if update.callback_query:
+                await update.callback_query.answer("❌ 此功能仅限管理员使用", show_alert=True)
+            else:
+                await update.message.reply_text("❌ 此功能仅限管理员使用")
             return
         
         # Show processing message
@@ -383,5 +417,11 @@ async def handle_export_stats(update: Update, context: ContextTypes.DEFAULT_TYPE
         
     except Exception as e:
         logger.error(f"Error in handle_export_stats: {e}", exc_info=True)
-        await (update.callback_query or update.message).reply_text(f"❌ 错误: {str(e)}")
+        try:
+            if update.callback_query:
+                await update.callback_query.answer(f"❌ 错误: {str(e)}", show_alert=True)
+            else:
+                await update.message.reply_text(f"❌ 错误: {str(e)}")
+        except Exception as inner_e:
+            logger.error(f"Error sending error message: {inner_e}", exc_info=True)
 

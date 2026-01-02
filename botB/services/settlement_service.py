@@ -68,6 +68,10 @@ def calculate_settlement(amount_text: str, group_id: Optional[int] = None) -> Tu
     Calculation formula:
         usdt_amount = cny_amount / final_price
         where final_price = base_price + markup
+        
+    Note: The markup is added to the exchange rate, not to the USDT amount.
+    Example: If CNY amount is 9700, base_price is 6.82, and markup is 0.3,
+    then final_price = 6.82 + 0.3 = 7.12, and usdt_amount = 9700 / 7.12 ≈ 1362.36
     """
     try:
         # Parse CNY amount (input is in CNY)
@@ -100,13 +104,13 @@ def calculate_settlement(amount_text: str, group_id: Optional[int] = None) -> Tu
         if markup == 0.0 or not group_id:
             markup = db.get_admin_markup()
         
-        # Calculate USDT amount: CNY / base_price, then add markup to USDT
-        # Example: 10000 CNY / 7.25 (USDT/CNY) = 1379.31 USDT, then 1379.31 + 0.5 = 1379.81 USDT
-        usdt_amount_base = cny_amount / base_price
-        usdt_amount = usdt_amount_base + markup
+        # Calculate final price: base_price + markup
+        # The markup is added to the exchange rate, not to the USDT amount
+        final_price = base_price + markup
         
-        # For backward compatibility, final_price = base_price (no markup in price)
-        final_price = base_price
+        # Calculate USDT amount: CNY / (base_price + markup)
+        # Example: 9700 CNY / (6.82 + 0.3) = 9700 / 7.12 ≈ 1362.36 USDT
+        usdt_amount = cny_amount / final_price
         
         settlement_data = {
             'cny_amount': cny_amount,      # Input CNY amount
@@ -177,17 +181,20 @@ def format_settlement_bill(settlement_data: dict, usdt_address: str = None, tran
     # Input: CNY amount
     message += f"💰 已收人民币: <b><code>{cny_amount:,.2f} CNY</code></b>\n\n"
     
-    # Exchange rate (no markup in price display)
+    # Exchange rate display
     message += f"📊 汇率 (USDT/CNY): {base_price:.4f} (Binance P2P)\n"
     
-    # Markup display (if any)
+    # Markup display (if any) - now markup is added to exchange rate
     if markup != 0:
         markup_sign = "+" if markup > 0 else ""
-        message += f"➕ 加价: {markup_sign}{markup:.4f} USDT\n"
+        message += f"➕ 上浮: {markup_sign}{markup:.4f}\n"
+        message += f"📊 最终汇率: {final_price:.4f} (汇率 + 上浮)\n"
+    else:
+        message += f"📊 最终汇率: {final_price:.4f}\n"
     
     message += "\n"
     
-    # Output: USDT amount to settle (already includes markup)
+    # Output: USDT amount to settle (calculated using final_price)
     message += f"💵 应结算 USDT: <b><code>{usdt_amount:,.2f} U</code></b>\n"
     
     message += "────────────────────────\n"
@@ -265,15 +272,16 @@ def calculate_batch_settlement(amounts_text: str, group_id: Optional[int] = None
         if markup == 0.0 or not group_id:
             markup = db.get_admin_markup()
         
-        # For backward compatibility, final_price = base_price (no markup in price)
-        final_price = base_price
+        # Calculate final price: base_price + markup
+        # The markup is added to the exchange rate, not to the USDT amount
+        final_price = base_price + markup
         
         # Calculate settlement for each amount
         settlements = []
         for cny_amount in amounts:
-            # Calculate USDT amount: CNY / base_price, then add markup to USDT
-            usdt_amount_base = cny_amount / base_price
-            usdt_amount = usdt_amount_base + markup
+            # Calculate USDT amount: CNY / (base_price + markup)
+            # Example: 9700 CNY / (6.82 + 0.3) = 9700 / 7.12 ≈ 1362.36 USDT
+            usdt_amount = cny_amount / final_price
             
             settlement_data = {
                 'cny_amount': cny_amount,
@@ -323,13 +331,16 @@ def format_batch_settlement_bills(settlements: List[dict], usdt_address: str = N
     message += f"共 {len(settlements)} 笔交易\n"
     message += "────────────────────────\n\n"
     
-    # Rate info (no markup in price display)
+    # Rate info
     message += f"📊 汇率 (USDT/CNY): {base_price:.4f} (Binance P2P)\n"
     
-    # Markup display (if any)
+    # Markup display (if any) - now markup is added to exchange rate
     if markup != 0:
         markup_sign = "+" if markup > 0 else ""
-        message += f"➕ 加价: {markup_sign}{markup:.4f} USDT\n"
+        message += f"➕ 上浮: {markup_sign}{markup:.4f}\n"
+        message += f"📊 最终汇率: {final_price:.4f} (汇率 + 上浮)\n"
+    else:
+        message += f"📊 最终汇率: {final_price:.4f}\n"
     
     message += "\n"
     

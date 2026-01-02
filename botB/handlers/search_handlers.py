@@ -5,6 +5,7 @@ Handles advanced search and filtering UI
 import logging
 from typing import Optional
 from telegram import Update
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 from database import db
@@ -54,7 +55,14 @@ async def handle_search_filter_menu(update: Update, context: ContextTypes.DEFAUL
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         if query.message.text.startswith("🔍"):
-            await query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
+            try:
+                await query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
+            except BadRequest as e:
+                if "not modified" in str(e).lower():
+                    await query.answer("✅ 内容未更改")
+                    return
+                else:
+                    raise
         else:
             await query.message.reply_text(message, parse_mode="HTML", reply_markup=reply_markup)
         
@@ -62,7 +70,13 @@ async def handle_search_filter_menu(update: Update, context: ContextTypes.DEFAUL
         
     except Exception as e:
         logger.error(f"Error in handle_search_filter_menu: {e}", exc_info=True)
-        await (update.callback_query or update.message).reply_text(f"❌ 错误: {str(e)}")
+        try:
+            if update.callback_query:
+                await update.callback_query.answer(f"❌ 错误: {str(e)}", show_alert=True)
+            else:
+                await update.message.reply_text(f"❌ 错误: {str(e)}")
+        except Exception as inner_e:
+            logger.error(f"Error sending error message: {inner_e}", exc_info=True)
 
 
 async def handle_amount_filter(update: Update, context: ContextTypes.DEFAULT_TYPE, group_id: int):

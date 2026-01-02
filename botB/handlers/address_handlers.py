@@ -5,6 +5,7 @@ Handles multiple USDT address management
 import logging
 from typing import Optional
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 from database import db
 from admin_checker import is_admin
@@ -20,7 +21,10 @@ async def handle_address_list(update: Update, context: ContextTypes.DEFAULT_TYPE
         user_id = user.id
         
         if not is_admin(user_id):
-            await (query or update.message).reply_text("❌ 此功能仅限管理员使用")
+            if query:
+                await query.answer("❌ 此功能仅限管理员使用", show_alert=True)
+            else:
+                await update.message.reply_text("❌ 此功能仅限管理员使用")
             return
         
         chat = update.effective_chat
@@ -71,14 +75,27 @@ async def handle_address_list(update: Update, context: ContextTypes.DEFAULT_TYPE
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         if query:
-            await query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
-            await query.answer()
+            try:
+                await query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
+                await query.answer()
+            except BadRequest as e:
+                # Handle "Message is not modified" error
+                if "not modified" in str(e).lower():
+                    await query.answer("✅ 内容未更改")
+                else:
+                    raise
         else:
             await update.message.reply_text(message, parse_mode="HTML", reply_markup=reply_markup)
         
     except Exception as e:
         logger.error(f"Error in handle_address_list: {e}", exc_info=True)
-        await (query or update.message).reply_text("❌ 错误: " + str(e))
+        try:
+            if query:
+                await query.answer("❌ 错误: " + str(e), show_alert=True)
+            else:
+                await update.message.reply_text("❌ 错误: " + str(e))
+        except Exception as inner_e:
+            logger.error(f"Error sending error message: {inner_e}", exc_info=True)
 
 
 async def handle_address_add_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -102,7 +119,14 @@ async def handle_address_add_prompt(update: Update, context: ContextTypes.DEFAUL
             f"💡 <i>提示：地址格式应为有效的 USDT 钱包地址</i>"
         )
         
-        await query.edit_message_text(message, parse_mode="HTML")
+        try:
+            await query.edit_message_text(message, parse_mode="HTML")
+        except BadRequest as e:
+            # Handle "Message is not modified" error
+            if "not modified" in str(e).lower():
+                await query.answer("✅ 内容未更改")
+            else:
+                raise
         
         context.user_data['adding_address'] = True
         context.user_data['address_group_id'] = group_id
@@ -111,7 +135,11 @@ async def handle_address_add_prompt(update: Update, context: ContextTypes.DEFAUL
         
     except Exception as e:
         logger.error(f"Error in handle_address_add_prompt: {e}", exc_info=True)
-        await update.callback_query.answer("❌ 错误", show_alert=True)
+        try:
+            if update.callback_query:
+                await update.callback_query.answer("❌ 错误", show_alert=True)
+        except Exception as inner_e:
+            logger.error(f"Error sending error message: {inner_e}", exc_info=True)
 
 
 async def handle_address_input(update: Update, context: ContextTypes.DEFAULT_TYPE, address_text: str):

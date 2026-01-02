@@ -6,6 +6,7 @@ import logging
 import datetime
 from typing import Optional
 from telegram import Update
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 from telegram import Document
 from database import db
@@ -48,7 +49,10 @@ async def handle_history_bills(update: Update, context: ContextTypes.DEFAULT_TYP
     try:
         chat = update.effective_chat
         if chat.type not in ['group', 'supergroup']:
-            await (update.callback_query or update.message).reply_text("❌ 此功能仅在群组中可用")
+            if update.callback_query:
+                await update.callback_query.answer("❌ 此功能仅在群组中可用", show_alert=True)
+            else:
+                await update.message.reply_text("❌ 此功能仅在群组中可用")
             return
         
         group_id = chat.id
@@ -83,7 +87,13 @@ async def handle_history_bills(update: Update, context: ContextTypes.DEFAULT_TYP
             # Use send_with_reply_keyboard to ensure reply keyboard is shown in groups
             from utils.message_utils import send_with_reply_keyboard
             if edit_message and update.callback_query:
-                await update.callback_query.edit_message_text(no_data_msg)
+                try:
+                    await update.callback_query.edit_message_text(no_data_msg)
+                except BadRequest as e:
+                    if "not modified" in str(e).lower():
+                        await update.callback_query.answer("✅ 内容未更改")
+                    else:
+                        raise
                 # Also send reply keyboard if in group
                 if chat.type in ['group', 'supergroup']:
                     await send_with_reply_keyboard(update, "💡")  # Visible emoji to show keyboard reliably
@@ -162,8 +172,14 @@ async def handle_history_bills(update: Update, context: ContextTypes.DEFAULT_TYP
         # Use send_with_reply_keyboard to ensure reply keyboard is shown in groups
         from utils.message_utils import send_with_reply_keyboard
         if edit_message and update.callback_query:
-            await update.callback_query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
-            await update.callback_query.answer()
+            try:
+                await update.callback_query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
+                await update.callback_query.answer()
+            except BadRequest as e:
+                if "not modified" in str(e).lower():
+                    await update.callback_query.answer("✅ 内容未更改")
+                else:
+                    raise
             # Also send reply keyboard if in group
             if chat.type in ['group', 'supergroup']:
                 await send_with_reply_keyboard(update, "​")  # Zero-width space to show keyboard
@@ -199,7 +215,10 @@ async def handle_export_transactions(update: Update, context: ContextTypes.DEFAU
         
         # Check admin permission
         if not is_admin(user_id):
-            await (update.callback_query or update.message).reply_text("❌ 此功能仅限管理员使用")
+            if update.callback_query:
+                await update.callback_query.answer("❌ 此功能仅限管理员使用", show_alert=True)
+            else:
+                await update.message.reply_text("❌ 此功能仅限管理员使用")
             return
         
         # Show processing message
@@ -306,7 +325,13 @@ async def handle_export_transactions(update: Update, context: ContextTypes.DEFAU
         
     except Exception as e:
         logger.error(f"Error in handle_export_transactions: {e}", exc_info=True)
-        await (update.callback_query or update.message).reply_text(f"❌ 错误: {str(e)}")
+        try:
+            if update.callback_query:
+                await update.callback_query.answer(f"❌ 错误: {str(e)}", show_alert=True)
+            else:
+                await update.message.reply_text(f"❌ 错误: {str(e)}")
+        except Exception as inner_e:
+            logger.error(f"Error sending error message: {inner_e}", exc_info=True)
 
 
 async def handle_transaction_detail(update: Update, context: ContextTypes.DEFAULT_TYPE, 
@@ -353,12 +378,18 @@ async def handle_transaction_detail(update: Update, context: ContextTypes.DEFAUL
         
         reply_markup = get_transaction_detail_keyboard(transaction_id, group_id, return_page)
         
-        await update.callback_query.edit_message_text(
-            text=message,
-            parse_mode="HTML",
-            reply_markup=reply_markup
-        )
-        await update.callback_query.answer()
+        try:
+            await update.callback_query.edit_message_text(
+                text=message,
+                parse_mode="HTML",
+                reply_markup=reply_markup
+            )
+            await update.callback_query.answer()
+        except BadRequest as e:
+            if "not modified" in str(e).lower():
+                await update.callback_query.answer("✅ 内容未更改")
+            else:
+                raise
         
     except Exception as e:
         logger.error(f"Error in handle_transaction_detail: {e}", exc_info=True)

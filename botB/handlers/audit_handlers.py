@@ -6,6 +6,7 @@ import logging
 import datetime
 from typing import Optional
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 from database import db
 from admin_checker import is_admin
@@ -33,7 +34,10 @@ async def handle_view_logs(update: Update, context: ContextTypes.DEFAULT_TYPE,
         user_id = update.effective_user.id
         
         if not is_admin(user_id):
-            await (update.callback_query or update.message).reply_text("❌ 此功能仅限管理员使用")
+            if update.callback_query:
+                await update.callback_query.answer("❌ 此功能仅限管理员使用", show_alert=True)
+            else:
+                await update.message.reply_text("❌ 此功能仅限管理员使用")
             return
         
         limit = 10
@@ -117,8 +121,14 @@ async def handle_view_logs(update: Update, context: ContextTypes.DEFAULT_TYPE,
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         if update.callback_query:
-            await update.callback_query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
-            await update.callback_query.answer()
+            try:
+                await update.callback_query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
+                await update.callback_query.answer()
+            except BadRequest as e:
+                if "not modified" in str(e).lower():
+                    await update.callback_query.answer("✅ 内容未更改")
+                else:
+                    raise
         else:
             await update.message.reply_text(message, parse_mode="HTML", reply_markup=reply_markup)
         
@@ -126,7 +136,13 @@ async def handle_view_logs(update: Update, context: ContextTypes.DEFAULT_TYPE,
         
     except Exception as e:
         logger.error(f"Error in handle_view_logs: {e}", exc_info=True)
-        await (update.callback_query or update.message).reply_text(f"❌ 错误: {str(e)}")
+        try:
+            if update.callback_query:
+                await update.callback_query.answer(f"❌ 错误: {str(e)}", show_alert=True)
+            else:
+                await update.message.reply_text(f"❌ 错误: {str(e)}")
+        except Exception as inner_e:
+            logger.error(f"Error sending error message: {inner_e}", exc_info=True)
 
 
 async def handle_logs_pagination(update: Update, context: ContextTypes.DEFAULT_TYPE, page: int):
