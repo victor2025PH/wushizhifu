@@ -389,10 +389,16 @@ async def handle_confirm_bill(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def handle_group_settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle group settings menu callbacks"""
     query = update.callback_query
-    user_id = query.from_user.id
+    user = query.from_user
+    user_id = user.id
+    chat = query.message.chat
     
     # Add detailed logging for admin check
-    logger.info(f"Checking admin status for user {user_id} (username: {query.from_user.username}, name: {query.from_user.first_name})")
+    logger.info(
+        f"Group settings menu callback from user {user_id} "
+        f"(username: {user.username}, name: {user.first_name}, "
+        f"chat_id: {chat.id}, chat_type: {chat.type})"
+    )
     is_admin_user = is_admin(user_id)
     logger.info(f"Admin check result for user {user_id}: {is_admin_user}")
     

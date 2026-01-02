@@ -257,20 +257,43 @@ async def refresh_keyboard_command(update: Update, context: ContextTypes.DEFAULT
     from config import Config
     current_admins = Config.INITIAL_ADMINS
     
+    # Detailed diagnostic information
     message = (
         "🔄 <b>键盘已刷新</b>\n\n"
-        f"用户ID：<code>{user.id}</code>\n"
-        f"管理员状态：{'✅ 是' if is_admin_user else '❌ 否'}\n"
-        f"当前配置的管理员：<code>{', '.join([str(uid) for uid in current_admins])}</code>\n\n"
-        "💡 如果设置按钮仍然不可用，请尝试：\n"
-        "1. 完全退出并重新打开 Telegram\n"
-        "2. 或联系管理员添加您的账号"
+        f"<b>您的账号信息：</b>\n"
+        f"• 用户ID：<code>{user.id}</code>\n"
+        f"• 用户名：@{user.username if user.username else '未设置'}\n"
+        f"• 显示名称：{user.first_name or '未设置'}\n"
+        f"• 聊天类型：{'群组' if is_group else '私聊'}\n\n"
+        f"<b>管理员状态：</b>\n"
+        f"• 状态：{'✅ 是管理员' if is_admin_user else '❌ 不是管理员'}\n"
+        f"• 当前配置的管理员：<code>{', '.join([str(uid) for uid in current_admins])}</code>\n\n"
     )
+    
+    if not is_admin_user:
+        message += (
+            "💡 <b>如何添加管理员：</b>\n"
+            "1. 使用超级管理员账号发送：\n"
+            f"   <code>/addadmin {user.id}</code>\n\n"
+            "2. 或在服务器 .env 文件中添加：\n"
+            f"   <code>ADMIN_IDS={', '.join([str(uid) for uid in current_admins])},{user.id}</code>\n\n"
+            "3. 或联系现有管理员添加您的账号"
+        )
+    else:
+        message += "✅ 您已拥有管理员权限，可以使用所有管理功能！"
     
     await update.message.reply_text(
         message,
         parse_mode="HTML",
         reply_markup=reply_keyboard
+    )
+    
+    # Log detailed information
+    logger.info(
+        f"Refresh command executed by user {user.id} "
+        f"(username: {user.username}, name: {user.first_name}, "
+        f"chat_type: {'group' if is_group else 'private'}, "
+        f"is_admin: {is_admin_user})"
     )
 
 

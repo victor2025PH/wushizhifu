@@ -957,9 +957,18 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     from admin_checker import is_admin as check_is_admin
     
     text = update.message.text.strip()
-    user_id = update.effective_user.id
-    is_admin_user = check_is_admin(user_id)
+    user = update.effective_user
+    user_id = user.id
     chat = update.effective_chat
+    
+    # Log user information for debugging
+    logger.debug(
+        f"Message from user {user_id} "
+        f"(username: {user.username}, name: {user.first_name}, "
+        f"chat_id: {chat.id}, chat_type: {chat.type})"
+    )
+    
+    is_admin_user = check_is_admin(user_id)
     
     # Auto-track groups: ensure group exists in database when bot receives group messages
     # This allows "所有群组列表" to detect all groups bot is in, not just those with transactions/settings
