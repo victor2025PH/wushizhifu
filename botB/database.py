@@ -1074,14 +1074,24 @@ class Database:
     
     def get_all_groups(self) -> list:
         """
-        Get all groups with transactions (active groups).
-        Combines data from group_settings and transactions tables.
+        Get all groups where bot is present.
+        Combines data from groups table (all groups bot is in), group_settings, and transactions tables.
         
         Returns:
             List of group dictionaries with title, settings, and stats
         """
         conn = self.connect()
         cursor = conn.cursor()
+        
+        # Get all groups from groups table (all groups bot is in)
+        cursor.execute("""
+            SELECT group_id, group_title
+            FROM groups
+        """)
+        
+        all_group_ids = {}
+        for row in cursor.fetchall():
+            all_group_ids[row['group_id']] = row['group_title']
         
         # Get all unique group_ids from transactions, ordered by latest transaction time
         cursor.execute("""
@@ -1093,13 +1103,12 @@ class Database:
         """)
         
         transaction_groups = cursor.fetchall()
-        group_ids = [row[0] for row in transaction_groups]
+        transaction_group_ids = [row[0] for row in transaction_groups]
         
-        # Get configured groups
+        # Get configured groups (including inactive ones for display)
         cursor.execute("""
             SELECT group_id, group_title, markup, usdt_address, is_active, updated_at
             FROM group_settings
-            WHERE is_active = 1
         """)
         
         configured_groups = {}
@@ -1134,20 +1143,23 @@ class Database:
         
         # Combine all groups
         all_groups = []
+        processed_group_ids = set()
         
-        # Add configured groups
+        # Add configured groups first (they have settings)
         for group_id, group_data in configured_groups.items():
             stats = group_stats.get(group_id, {'tx_count': 0, 'last_active': None})
             group_data.update(stats)
             all_groups.append(group_data)
+            processed_group_ids.add(group_id)
         
         # Add groups with transactions but no configuration
-        for group_id in group_ids:
-            if group_id not in configured_groups:
+        for group_id in transaction_group_ids:
+            if group_id not in processed_group_ids:
                 stats = group_stats.get(group_id, {'tx_count': 0, 'last_active': None})
+                group_title = all_group_ids.get(group_id)  # Get title from groups table
                 all_groups.append({
                     'group_id': group_id,
-                    'group_title': None,  # Will try to get from Bot API
+                    'group_title': group_title,  # Use title from groups table if available
                     'markup': 0.0,
                     'usdt_address': '',
                     'is_active': True,
@@ -1156,9 +1168,28 @@ class Database:
                     'tx_count': stats.get('tx_count', 0),
                     'last_active': stats.get('last_active')
                 })
+                processed_group_ids.add(group_id)
         
-        # Sort by last_active (most recent first)
-        all_groups.sort(key=lambda x: x.get('last_active') or '', reverse=True)
+        # Add remaining groups from groups table (groups bot is in but no transactions/config)
+        for group_id, group_title in all_group_ids.items():
+            if group_id not in processed_group_ids:
+                all_groups.append({
+                    'group_id': group_id,
+                    'group_title': group_title,
+                    'markup': 0.0,
+                    'usdt_address': '',
+                    'is_active': True,
+                    'updated_at': None,
+                    'is_configured': False,
+                    'tx_count': 0,
+                    'last_active': None
+                })
+        
+        # Sort by last_active (most recent first), then by group_id
+        all_groups.sort(key=lambda x: (
+            x.get('last_active') or '',
+            x.get('group_id', 0)
+        ), reverse=True)
         
         return all_groups
     

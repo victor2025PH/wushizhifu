@@ -781,10 +781,11 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
                     logger.info(f"Attempting to delete group settings for group_id: {group_id}")
                     if db.delete_group_settings(group_id):
                         logger.info(f"Successfully deleted group settings for group_id: {group_id}")
-                        message = f"✅ <b>群组已删除</b>\n\n"
+                        message = f"✅ <b>群组配置已删除</b>\n\n"
                         message += f"群组: <b>{group_title}</b>\n"
                         message += f"ID: <code>{group_id}</code>\n\n"
-                        message += f"已完全删除群组的所有配置记录。\n\n"
+                        message += f"已完全删除群组的所有配置记录。\n"
+                        message += f"群组将使用全局默认设置。\n\n"
                         message += f"💡 点击「🔄 刷新列表」查看更新后的群组列表。"
                         
                         # 添加刷新按钮
