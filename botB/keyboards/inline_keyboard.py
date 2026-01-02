@@ -75,9 +75,9 @@ def get_groups_list_keyboard_with_edit(groups: list) -> InlineKeyboardMarkup:
         InlineKeyboardButton("🔄 刷新列表", callback_data="global_groups_list")
     ])
     
-    # Add back button to return to global management menu
+    # Add back button to return to main menu
     keyboard.append([
-        InlineKeyboardButton("🔙 返回", callback_data="global_management_menu")
+        InlineKeyboardButton("🔙 返回主菜单", callback_data="main_menu")
     ])
     
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
@@ -246,28 +246,7 @@ def get_group_settings_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
-def get_global_management_menu() -> InlineKeyboardMarkup:
-    """
-    Get inline keyboard for global management menu.
-    
-    Returns:
-        InlineKeyboardMarkup with global management options
-    """
-    keyboard = [
-        [
-            InlineKeyboardButton("📊 所有群组列表", callback_data="global_groups_list"),
-            InlineKeyboardButton("📈 全局统计", callback_data="global_stats")
-        ],
-        [
-            InlineKeyboardButton("👥 客服管理", callback_data="customer_service_management"),
-            InlineKeyboardButton("⚡ 管理员指令教程", callback_data="admin_commands_help")
-        ],
-        [
-            InlineKeyboardButton("🔙 返回主菜单", callback_data="main_menu")
-        ]
-    ]
-    
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+# get_global_management_menu() removed - old panel no longer used
 
 
 def get_customer_service_management_menu() -> InlineKeyboardMarkup:
@@ -287,7 +266,7 @@ def get_customer_service_management_menu() -> InlineKeyboardMarkup:
             InlineKeyboardButton("📊 客服统计报表", callback_data="customer_service_stats")
         ],
         [
-            InlineKeyboardButton("🔙 返回", callback_data="global_management_menu")
+            InlineKeyboardButton("🔙 返回主菜单", callback_data="main_menu")
         ]
     ]
     
@@ -435,11 +414,11 @@ def get_admin_commands_help_keyboard(is_group: bool = False) -> InlineKeyboardMa
     if is_group:
         callback_data = "group_settings_menu"
     else:
-        callback_data = "global_management_menu"
+        callback_data = "main_menu"  # Changed from global_management_menu to main_menu
     
     keyboard = [
         [
-            InlineKeyboardButton("🔙 返回管理菜单", callback_data=callback_data)
+            InlineKeyboardButton("🔙 返回主菜单", callback_data=callback_data)
         ]
     ]
     

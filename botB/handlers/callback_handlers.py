@@ -10,7 +10,7 @@ from telegram.ext import CallbackQueryHandler, ContextTypes
 from database import db
 from admin_checker import is_admin
 from keyboards.inline_keyboard import (
-    get_group_settings_menu, get_global_management_menu,
+    get_group_settings_menu,
     get_bills_history_keyboard, get_confirmation_keyboard,
     get_settlement_bill_keyboard, get_payment_hash_input_keyboard,
     get_paid_transactions_keyboard,
@@ -495,69 +495,8 @@ async def handle_group_settings_menu(update: Update, context: ContextTypes.DEFAU
 
 # ========== Global Management Menu ==========
 
-async def handle_global_management_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle global management menu callbacks"""
-    query = update.callback_query
-    
-    if not is_admin(query.from_user.id):
-        await query.answer("❌ 此功能仅限管理员使用", show_alert=True)
-        return
-    
-    callback_data = query.data
-    
-    try:
-        # Show help for each button if needed
-        from services.button_help_service import (
-            format_button_help_message, 
-            should_show_help, 
-            mark_help_shown
-        )
-        from keyboards.inline_keyboard import get_button_help_keyboard
-        
-        if callback_data == "global_groups_list":
-            # Answer callback first to prevent timeout
-            await query.answer()
-            
-            # Show help if needed
-            if should_show_help(query.from_user.id, "所有群组列表"):
-                help_message = format_button_help_message("所有群组列表")
-                if help_message:
-                    help_keyboard = get_button_help_keyboard("所有群组列表")
-                    await query.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
-                    mark_help_shown(query.from_user.id, "所有群组列表", shown=True)
-            
-            # Call handle_admin_w7 to show groups list
-            # handle_admin_w7 will edit the original message (global management menu) to show groups list
-            from handlers.message_handlers import handle_admin_w7
-            try:
-                await handle_admin_w7(update, context)
-            except Exception as e:
-                logger.error(f"Error calling handle_admin_w7 from callback: {e}", exc_info=True)
-                await query.message.reply_text(f"❌ 错误: {str(e)}", parse_mode="HTML")
-            return
-        
-        elif callback_data == "global_stats":
-            # Show help if needed
-            if should_show_help(query.from_user.id, "全局统计"):
-                help_message = format_button_help_message("全局统计")
-                if help_message:
-                    help_keyboard = get_button_help_keyboard("全局统计")
-                    await query.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
-                    mark_help_shown(query.from_user.id, "全局统计", shown=True)
-            
-            await handle_global_stats(update, context)
-            await query.answer()
-            return
-        
-        elif callback_data == "customer_service_management":
-            from handlers.customer_service_handlers import handle_customer_service_management
-            await handle_customer_service_management(update, context)
-            await query.answer()
-            return
-        
-    except Exception as e:
-        logger.error(f"Error in handle_global_management_menu: {e}", exc_info=True)
-        await query.answer("❌ 错误: " + str(e), show_alert=True)
+# handle_global_management_menu() removed - old panel no longer used
+# Functions are now handled directly in callback_handler
 
 
 # ========== Group Edit Handlers ==========
@@ -973,26 +912,67 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer()
         return
     
-    # Global management menu (when returning from help)
-    if callback_data == "global_management_menu":
-        from keyboards.inline_keyboard import get_global_management_menu
-        reply_markup = get_global_management_menu()
-        message = (
-            "🌐 <b>全局管理菜单</b>\n\n"
-            "请选择要执行的操作："
-        )
-        await query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
-        await query.answer()
-        return
-    
     # Group edit handlers (including delete)
     if callback_data.startswith("group_select_") or callback_data.startswith("group_edit_markup_") or callback_data.startswith("group_edit_address_") or callback_data.startswith("group_delete_"):
         await handle_group_edit(update, context)
         return
     
-    # Global management menu
-    if callback_data.startswith("global_settings") or callback_data == "global_groups_list" or callback_data == "global_stats":
-        await handle_global_management_menu(update, context)
+    # Handle global groups list directly (old global_management_menu removed)
+    if callback_data == "global_groups_list":
+        from handlers.message_handlers import handle_admin_w7
+        from services.button_help_service import (
+            format_button_help_message, 
+            should_show_help, 
+            mark_help_shown
+        )
+        from keyboards.inline_keyboard import get_button_help_keyboard
+        
+        if not is_admin(query.from_user.id):
+            await query.answer("❌ 此功能仅限管理员使用", show_alert=True)
+            return
+        
+        # Answer callback first to prevent timeout
+        await query.answer()
+        
+        # Show help if needed
+        if should_show_help(query.from_user.id, "所有群组列表"):
+            help_message = format_button_help_message("所有群组列表")
+            if help_message:
+                help_keyboard = get_button_help_keyboard("所有群组列表")
+                await query.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
+                mark_help_shown(query.from_user.id, "所有群组列表", shown=True)
+        
+        # Call handle_admin_w7 to show groups list
+        try:
+            await handle_admin_w7(update, context)
+        except Exception as e:
+            logger.error(f"Error calling handle_admin_w7 from callback: {e}", exc_info=True)
+            await query.message.reply_text(f"❌ 错误: {str(e)}", parse_mode="HTML")
+        return
+    
+    # Handle global stats directly (old global_management_menu removed)
+    if callback_data == "global_stats":
+        from services.button_help_service import (
+            format_button_help_message, 
+            should_show_help, 
+            mark_help_shown
+        )
+        from keyboards.inline_keyboard import get_button_help_keyboard
+        
+        if not is_admin(query.from_user.id):
+            await query.answer("❌ 此功能仅限管理员使用", show_alert=True)
+            return
+        
+        # Show help if needed
+        if should_show_help(query.from_user.id, "全局统计"):
+            help_message = format_button_help_message("全局统计")
+            if help_message:
+                help_keyboard = get_button_help_keyboard("全局统计")
+                await query.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
+                mark_help_shown(query.from_user.id, "全局统计", shown=True)
+        
+        await handle_global_stats(update, context)
+        await query.answer()
         return
     
     # Customer service management
