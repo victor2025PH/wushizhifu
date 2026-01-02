@@ -1898,18 +1898,23 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             usdt_address = None
             address_source = "全局默认"  # 地址来源标识
             
-            # 使用新的地址管理系统获取群组地址
+            # 使用新的地址管理系统获取群组地址对象
             try:
                 from services.settlement_service import get_settlement_address
+                from utils.qr_generator import generate_qr_code_bytes
                 
-                # 优先从新的地址管理系统获取已确认的地址
-                usdt_address = get_settlement_address(group_id=group_id, strategy='default')
-                if usdt_address:
+                # 获取地址对象（不只是字符串）
+                address_obj = db.get_active_address(group_id=group_id, strategy='default')
+                usdt_address = None
+                qr_code_file_id = None
+                
+                if address_obj:
+                    usdt_address = address_obj['address']
+                    qr_code_file_id = address_obj.get('qr_code_file_id')
                     address_source = "群组独立"
                     logger.info(f"Using group address from usdt_addresses table for {group_id}: {usdt_address[:15]}...")
-                
-                # 如果没有群组地址，使用全局地址
-                if not usdt_address:
+                else:
+                    # 如果没有群组地址，使用全局地址
                     global_addr = db.get_usdt_address()
                     if global_addr:
                         usdt_address = global_addr
@@ -1923,8 +1928,10 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 try:
                     usdt_address = db.get_usdt_address()
                     address_source = "全局默认"
+                    qr_code_file_id = None
                 except:
                     usdt_address = None
+                    qr_code_file_id = None
             
             # 构建美化的消息
             if usdt_address:
@@ -1936,7 +1943,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 else:
                     address_display = usdt_address
                 
-                # 美化的消息格式
+                # 构建消息文本
                 message = (
                     "╔═══════════════════════════════╗\n"
                     "║  🔗 USDT 收款地址             ║\n"
@@ -1947,12 +1954,50 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"<code>{full_address}</code>\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
                     "💡 <b>使用提示</b>：\n"
-                    "• 点击上方地址可快速复制\n"
+                    "• 扫描上方二维码或点击地址可快速复制\n"
                     "• 请仔细核对地址后再进行转账\n\n"
                     "🔒 <b>安全提示</b>：\n"
                     "⚠️ 为了账户安全，如需修改当前USDT收款地址，请联系客服进行修改！\n"
                     "📞 管理员可在机器人私聊中修改地址设置"
                 )
+                
+                # 发送二维码和消息
+                try:
+                    bot = context.bot
+                    
+                    # 如果有上传的二维码，使用它；否则自动生成
+                    if qr_code_file_id:
+                        # 使用已上传的二维码
+                        await bot.send_photo(
+                            chat_id=group_id,
+                            photo=qr_code_file_id,
+                            caption=message,
+                            parse_mode="HTML"
+                        )
+                        logger.info(f"Sent address with uploaded QR code for group {group_id}")
+                    else:
+                        # 自动生成二维码
+                        qr_bytes = generate_qr_code_bytes(usdt_address)
+                        if qr_bytes:
+                            await bot.send_photo(
+                                chat_id=group_id,
+                                photo=qr_bytes,
+                                caption=message,
+                                parse_mode="HTML"
+                            )
+                            logger.info(f"Sent address with auto-generated QR code for group {group_id}")
+                        else:
+                            # 如果生成失败，只发送文本消息
+                            await send_group_message(update, message, parse_mode="HTML")
+                            logger.warning(f"Failed to generate QR code, sent text only for group {group_id}")
+                except Exception as e:
+                    logger.error(f"Error sending address with QR code: {e}", exc_info=True)
+                    # 如果发送失败，尝试只发送文本消息
+                    try:
+                        await send_group_message(update, message, parse_mode="HTML")
+                    except Exception as inner_e:
+                        logger.error(f"Error sending text message: {inner_e}", exc_info=True)
+                        await send_group_message(update, "⚠️ 获取地址信息时出错，请稍后再试", parse_mode="HTML")
             else:
                 message = (
                     "╔═══════════════════════════════╗\n"
@@ -1968,17 +2013,12 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "🔒 <b>安全提示</b>：\n"
                     "⚠️ 为了账户安全，如需设置或修改USDT收款地址，请联系客服进行操作！"
                 )
-            
-            # 确保消息不为空后再发送
-            if message and message.strip():
+                
                 try:
                     await send_group_message(update, message, parse_mode="HTML")
                 except Exception as e:
                     logger.error(f"Error sending address message: {e}", exc_info=True)
                     await send_group_message(update, "⚠️ 获取地址信息时出错，请稍后再试", parse_mode="HTML")
-            else:
-                logger.error(f"Address message is empty for group {group_id}")
-                await send_group_message(update, "⚠️ 获取地址信息时出错，请稍后再试", parse_mode="HTML")
             return
         
         # 在私聊中：显示用户所在的所有群组的USDT地址
