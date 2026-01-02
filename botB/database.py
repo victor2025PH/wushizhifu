@@ -1217,13 +1217,53 @@ class Database:
                 all_groups.append(group_data)
                 processed_group_ids.add(group_id)
         
+        # Remove duplicates by group_title (same name but different IDs)
+        # This handles cases where a group was upgraded (ID changed from -522 to -100)
+        # or where duplicate records exist in database
+        seen_titles = {}
+        deduplicated_groups = []
+        for group in all_groups:
+            group_title = group.get('group_title')
+            group_id = group.get('group_id')
+            
+            # If we've seen this title before, prefer the one with configuration or more recent activity
+            if group_title and group_title in seen_titles:
+                existing_group = seen_titles[group_title]
+                existing_id = existing_group.get('group_id')
+                
+                # Prefer the one with configuration
+                if group.get('is_configured') and not existing_group.get('is_configured'):
+                    # Replace existing with configured one
+                    deduplicated_groups = [g for g in deduplicated_groups if g.get('group_id') != existing_id]
+                    deduplicated_groups.append(group)
+                    seen_titles[group_title] = group
+                # Prefer the one with transactions
+                elif group.get('tx_count', 0) > existing_group.get('tx_count', 0):
+                    # Replace existing with one with more transactions
+                    deduplicated_groups = [g for g in deduplicated_groups if g.get('group_id') != existing_id]
+                    deduplicated_groups.append(group)
+                    seen_titles[group_title] = group
+                # Prefer -100 (supergroup) over -522 (regular group) if both have same config/transactions
+                elif abs(group_id) >= 1000000000000 and abs(existing_id) < 1000000000000:
+                    # Replace existing with supergroup
+                    deduplicated_groups = [g for g in deduplicated_groups if g.get('group_id') != existing_id]
+                    deduplicated_groups.append(group)
+                    seen_titles[group_title] = group
+                # Otherwise keep existing
+                else:
+                    continue
+            else:
+                if group_title:
+                    seen_titles[group_title] = group
+                deduplicated_groups.append(group)
+        
         # Sort by last_active (most recent first), then by group_id
-        all_groups.sort(key=lambda x: (
+        deduplicated_groups.sort(key=lambda x: (
             x.get('last_active') or '',
             x.get('group_id', 0)
         ), reverse=True)
         
-        return all_groups
+        return deduplicated_groups
     
     # ========== Transaction Methods ==========
     
