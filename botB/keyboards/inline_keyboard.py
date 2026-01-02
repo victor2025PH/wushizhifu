@@ -28,11 +28,14 @@ def get_groups_list_keyboard() -> InlineKeyboardMarkup:
     Get inline keyboard for groups list.
     
     Returns:
-        InlineKeyboardMarkup with refresh button
+        InlineKeyboardMarkup with refresh button and back to main menu
     """
     keyboard = [
         [
             InlineKeyboardButton("🔄 刷新列表", callback_data="global_groups_list")
+        ],
+        [
+            InlineKeyboardButton("🔙 返回主菜单", callback_data="main_menu")
         ]
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
