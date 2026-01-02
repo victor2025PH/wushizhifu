@@ -129,13 +129,21 @@ async def handle_admin_w0(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message += f"群组: {chat.title or '未知群组'}\n"
         message += f"群组 ID: <code>{group_id}</code>\n\n"
         
+        # 使用新的地址管理系统获取群组地址
+        from services.settlement_service import get_settlement_address
+        group_address = get_settlement_address(group_id=group_id, strategy='default')
+        
         if group_setting:
             message += "<b>当前配置（群组独立）:</b>\n"
             message += f"• 加价: {group_setting['markup']:.4f} USDT\n"
-            address_display = group_setting['usdt_address'] if group_setting['usdt_address'] else "未设置"
-            if group_setting['usdt_address'] and len(group_setting['usdt_address']) > 20:
-                address_display = f"{group_setting['usdt_address'][:10]}...{group_setting['usdt_address'][-10:]}"
-            message += f"• USDT 地址: {address_display}\n\n"
+            # 使用新地址管理系统获取的地址
+            if group_address:
+                address_display = group_address
+                if len(group_address) > 20:
+                    address_display = f"{group_address[:10]}...{group_address[-10:]}"
+                message += f"• USDT 地址: {address_display}\n\n"
+            else:
+                message += "• USDT 地址: 未设置\n\n"
         else:
             message += "<b>当前配置:</b> 使用全局默认设置\n\n"
         
@@ -802,12 +810,11 @@ async def handle_math_settlement(update: Update, context: ContextTypes.DEFAULT_T
                 await update.message.reply_text(f"❌ {error_msg}")
                 return
             
-            # Get USDT address (group-specific or global)
+            # Get USDT address using new address management system
+            from services.settlement_service import get_settlement_address
             usdt_address = None
             if group_id:
-                group_setting = db.get_group_setting(group_id)
-                if group_setting and group_setting.get('usdt_address'):
-                    usdt_address = group_setting['usdt_address']
+                usdt_address = get_settlement_address(group_id=group_id, strategy='default')
             
             if not usdt_address:
                 usdt_address = db.get_usdt_address()
@@ -1407,15 +1414,14 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 from handlers.bills_handlers import handle_history_bills
                 await handle_history_bills(update, context, page=1)
             elif command == "地址":
-                # Show address (same logic as button handler)
+                # Show address using new address management system
                 chat = update.effective_chat
                 group_id = chat.id if chat.type in ['group', 'supergroup'] else None
                 usdt_address = None
                 
                 if group_id:
-                    group_setting = db.get_group_setting(group_id)
-                    if group_setting and group_setting.get('usdt_address'):
-                        usdt_address = group_setting['usdt_address']
+                    from services.settlement_service import get_settlement_address
+                    usdt_address = get_settlement_address(group_id=group_id, strategy='default')
                 
                 if not usdt_address:
                     usdt_address = db.get_usdt_address()
@@ -1892,21 +1898,15 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             usdt_address = None
             address_source = "全局默认"  # 地址来源标识
             
-            # 获取群组地址
+            # 使用新的地址管理系统获取群组地址
             try:
-                group_setting = db.get_group_setting(group_id)
-                logger.debug(f"Group {group_id} setting retrieved: {group_setting is not None}")
+                from services.settlement_service import get_settlement_address
                 
-                # 检查群组是否设置了地址（注意：空字符串也算未设置）
-                if group_setting:
-                    # 使用字典访问方式（因为get_group_setting返回的是字典）
-                    group_addr = group_setting.get('usdt_address', '')
-                    logger.debug(f"Group {group_id} address from setting: {group_addr[:20] if group_addr else 'None'}...")
-                    # 如果地址存在且不是空字符串，使用群组地址
-                    if group_addr and isinstance(group_addr, str) and group_addr.strip():
-                        usdt_address = group_addr.strip()
-                        address_source = "群组独立"
-                        logger.info(f"Using group address for {group_id}: {usdt_address[:15]}...")
+                # 优先从新的地址管理系统获取已确认的地址
+                usdt_address = get_settlement_address(group_id=group_id, strategy='default')
+                if usdt_address:
+                    address_source = "群组独立"
+                    logger.info(f"Using group address from usdt_addresses table for {group_id}: {usdt_address[:15]}...")
                 
                 # 如果没有群组地址，使用全局地址
                 if not usdt_address:
@@ -2000,7 +2000,11 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     member = await bot.get_chat_member(group_id, user_id)
                     # 检查用户是否在群组中（不是left或kicked）
                     if member.status not in ['left', 'kicked']:
-                        # 只显示设置了地址的群组，或者如果没有设置，显示全局地址
+                        # 使用新的地址管理系统获取群组地址
+                        from services.settlement_service import get_settlement_address
+                        usdt_address = get_settlement_address(group_id=group_id, strategy='default')
+                        
+                        # 如果没有群组地址，使用全局地址
                         if not usdt_address:
                             usdt_address = db.get_usdt_address()
                         
