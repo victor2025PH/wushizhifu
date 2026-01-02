@@ -770,14 +770,23 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
     try:
         # Parse: confirm_{action}_{data}
         if callback_data.startswith("confirm_"):
-            parts = callback_data.split("_", 2)
-            if len(parts) < 3:
-                logger.warning(f"Invalid confirmation callback format: {callback_data}")
-                await query.answer("❌ 无效的确认操作", show_alert=True)
-                return
+            # Remove "confirm_" prefix
+            rest = callback_data[8:]  # len("confirm_") = 8
             
-            action = parts[1]
-            data = parts[2] if len(parts) > 2 else ""
+            # Find the last underscore to separate action and data
+            # For "delete_group_from_list_-5226655675", we want:
+            # action = "delete_group_from_list"
+            # data = "-5226655675"
+            last_underscore_idx = rest.rfind("_")
+            
+            if last_underscore_idx == -1:
+                # No underscore found, treat entire rest as action
+                action = rest
+                data = ""
+            else:
+                # Split at last underscore
+                action = rest[:last_underscore_idx]
+                data = rest[last_underscore_idx + 1:]
             
             logger.info(f"Processing confirmation: action={action}, data={data}")
             
@@ -1201,14 +1210,16 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_address_show_qr(update, context)
         return
     
-    if callback_data.startswith("address_delete_"):
-        from handlers.address_handlers import handle_address_delete
-        await handle_address_delete(update, context)
-        return
-    
+    # Handle address delete confirmation first (more specific)
     if callback_data.startswith("address_delete_confirm_"):
         from handlers.address_handlers import handle_address_delete_confirm
         await handle_address_delete_confirm(update, context)
+        return
+    
+    # Handle address delete prompt (more general)
+    if callback_data.startswith("address_delete_"):
+        from handlers.address_handlers import handle_address_delete
+        await handle_address_delete(update, context)
         return
     
     if callback_data.startswith("address_edit_"):

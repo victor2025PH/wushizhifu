@@ -707,28 +707,55 @@ async def handle_address_delete_confirm(update: Update, context: ContextTypes.DE
     try:
         query = update.callback_query
         user_id = query.from_user.id
+        callback_data = query.data
+        
+        logger.info(f"handle_address_delete_confirm called: callback_data={callback_data}, user_id={user_id}")
         
         if not is_admin(user_id):
+            logger.warning(f"User {user_id} attempted to delete address but is not admin")
             await query.answer("❌ 此功能仅限管理员使用", show_alert=True)
             return
         
-        callback_data = query.data
-        address_id = int(callback_data.split("_")[-1])
+        try:
+            address_id = int(callback_data.split("_")[-1])
+            logger.info(f"Parsed address_id: {address_id}")
+        except (ValueError, IndexError) as e:
+            logger.error(f"Invalid address_id format: {callback_data}, error: {e}")
+            await query.answer("❌ 无效的地址ID", show_alert=True)
+            return
         
+        # Get address info before deletion for logging
+        address = db.get_address_by_id(address_id)
+        if not address:
+            logger.warning(f"Address {address_id} not found")
+            await query.answer("❌ 地址不存在", show_alert=True)
+            return
+        
+        logger.info(f"Attempting to delete address {address_id} (label: {address.get('label', 'N/A')}, group_id: {address.get('group_id', 'N/A')})")
+        
+        # Delete address
         if db.delete_usdt_address(address_id):
+            logger.info(f"Successfully deleted address {address_id} by admin {user_id}")
             message = "✅ 地址已删除"
             try:
                 await query.edit_message_text(message)
-            except BadRequest:
-                await query.message.reply_text(message)
+            except BadRequest as e:
+                logger.warning(f"Failed to edit message, trying reply: {e}")
+                try:
+                    await query.message.reply_text(message)
+                except Exception as reply_error:
+                    logger.error(f"Failed to send reply message: {reply_error}")
             await query.answer("✅ 已删除")
-            logger.info(f"Address {address_id} deleted by admin {user_id}")
         else:
-            await query.answer("❌ 删除失败", show_alert=True)
+            logger.error(f"delete_usdt_address returned False for address_id: {address_id}")
+            await query.answer("❌ 删除失败，请重试", show_alert=True)
         
     except Exception as e:
         logger.error(f"Error in handle_address_delete_confirm: {e}", exc_info=True)
-        await query.answer("❌ 错误: " + str(e), show_alert=True)
+        try:
+            await query.answer("❌ 错误: " + str(e), show_alert=True)
+        except Exception as answer_error:
+            logger.error(f"Error sending answer: {answer_error}", exc_info=True)
 
 
 async def handle_address_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
