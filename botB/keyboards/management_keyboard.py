@@ -9,31 +9,17 @@ from admin_checker import is_admin
 
 def get_management_menu_keyboard() -> ReplyKeyboardMarkup:
     """
-    Get management menu keyboard with all management options.
+    Get management menu keyboard - now returns main menu keyboard.
+    Old panel removed, use main menu instead.
     
     Returns:
-        ReplyKeyboardMarkup with management menu buttons (2 per row)
+        ReplyKeyboardMarkup with main menu buttons
     """
-    keyboard = [
-        [
-            KeyboardButton("📊 所有群组列表"),
-            KeyboardButton("📈 全局统计")
-        ],
-        [
-            KeyboardButton("👥 客服管理"),
-            KeyboardButton("⚡ 管理员指令教程")
-        ],
-        [
-            KeyboardButton("🔙 返回主菜单")
-        ]
-    ]
-    
-    return ReplyKeyboardMarkup(
-        keyboard=keyboard,
-        resize_keyboard=True,
-        one_time_keyboard=False,
-        input_field_placeholder="请选择操作..."
-    )
+    # Use main reply keyboard instead of old management panel
+    from keyboards.reply_keyboard import get_main_reply_keyboard
+    # Note: This function is deprecated, should use get_main_reply_keyboard directly
+    # Keeping for backward compatibility but returning main menu
+    return get_main_reply_keyboard()
 
 
 def get_customer_service_menu_keyboard() -> ReplyKeyboardMarkup:
@@ -53,7 +39,7 @@ def get_customer_service_menu_keyboard() -> ReplyKeyboardMarkup:
             KeyboardButton("📊 客服统计报表")
         ],
         [
-            KeyboardButton("🔙 返回管理菜单")
+            KeyboardButton("🔙 返回主菜单")
         ]
     ]
     

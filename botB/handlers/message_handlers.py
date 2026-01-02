@@ -659,9 +659,16 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if len(inactive_groups) > 5:
                 message += f"... 还有 {len(inactive_groups) - 5} 个无法访问的群组\n"
         
-        # Use management menu keyboard for navigation (return to management menu)
-        from keyboards.management_keyboard import get_management_menu_keyboard
-        reply_keyboard = get_management_menu_keyboard()
+        # Use main menu keyboard for navigation (old management panel removed)
+        from keyboards.reply_keyboard import get_main_reply_keyboard
+        user = update.effective_user
+        user_info = {
+            'id': user.id,
+            'first_name': user.first_name or '',
+            'username': user.username,
+            'language_code': user.language_code
+        }
+        reply_keyboard = get_main_reply_keyboard(user.id, is_group=False, user_info=user_info)
         
         # For groups list, we'll still use inline keyboard for selecting groups to edit
         # But add reply keyboard for navigation
@@ -684,17 +691,13 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     logger.warning(f"編輯消息失敗: {edit_error}")
                     await query.answer("⚠️ 更新消息時發生錯誤", show_alert=False)
             
-            # Also send a message with reply keyboard for navigation
-            try:
-                await query.message.reply_text("💡 使用底部按钮返回管理面板", reply_markup=reply_keyboard)
-            except Exception as e:
-                logger.debug(f"發送導航消息失敗（可能已存在）: {e}")
+            # Don't send additional navigation message - inline keyboard already has back button
         else:
             # If called from message, send new message with both keyboards
             inline_keyboard = get_groups_list_keyboard_with_edit(display_groups)
             await update.message.reply_text(message, parse_mode="HTML", reply_markup=inline_keyboard)
             # Also send reply keyboard for navigation
-            await update.message.reply_text("💡 使用底部按钮返回管理面板", reply_markup=reply_keyboard)
+            await update.message.reply_text("💡 使用底部按钮返回主菜单", reply_markup=reply_keyboard)
         
         logger.info(f"Admin {update.effective_user.id} executed w7/CKQL, showing {len(valid_groups)} groups")
             
