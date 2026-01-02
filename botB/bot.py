@@ -2438,6 +2438,10 @@ def main():
     # Register message handler (for admin shortcuts and math/settlement)
     application.add_handler(get_message_handler())
     
+    # Register photo handler (for QR code uploads)
+    from handlers.message_handlers import get_photo_handler
+    application.add_handler(get_photo_handler())
+    
     # Register callback handler (for inline keyboard buttons)
     application.add_handler(get_callback_handler())
     

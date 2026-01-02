@@ -584,7 +584,7 @@ def get_group_edit_keyboard(group_id: int) -> InlineKeyboardMarkup:
             InlineKeyboardButton("📈 编辑上浮汇率", callback_data=f"group_edit_markup_{group_id}")
         ],
         [
-            InlineKeyboardButton("📍 编辑地址", callback_data=f"group_edit_address_{group_id}")
+            InlineKeyboardButton("📍 地址管理", callback_data="address_list")
         ],
         [
             InlineKeyboardButton("🔙 返回群组列表", callback_data="global_groups_list")

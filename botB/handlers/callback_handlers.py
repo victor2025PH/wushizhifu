@@ -574,6 +574,9 @@ async def handle_group_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
             from keyboards.inline_keyboard import get_group_edit_keyboard
             from database import db
             
+            # Store selected group_id in context for address management
+            context.user_data['selected_group_id'] = group_id
+            
             # Get group info
             groups = db.get_all_groups()
             group = next((g for g in groups if g['group_id'] == group_id), None)
@@ -584,23 +587,17 @@ async def handle_group_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             group_title = group.get('group_title', f"群组 {group_id}")
             current_markup = group.get('markup', 0.0)
-            current_address = group.get('usdt_address', '')
             
-            message = f"⚙️ <b>编辑群组设置</b>\n\n"
+            # Get address count for this group
+            addresses = db.get_usdt_addresses(group_id=group_id, active_only=False)
+            active_count = sum(1 for a in addresses if a['is_active'] and not a['pending_confirmation'])
+            pending_count = sum(1 for a in addresses if a['pending_confirmation'])
+            
+            message = f"⚙️ <b>群组管理</b>\n\n"
             message += f"群组: <b>{group_title}</b>\n"
             message += f"ID: <code>{group_id}</code>\n\n"
-            message += f"当前上浮汇率: <code>{current_markup:+.4f} USDT</code>\n"
-            
-            if current_address:
-                addr_display = current_address[:15] + "..." + current_address[-15:] if len(current_address) > 30 else current_address
-                message += f"当前地址: <code>{addr_display}</code>\n"
-            else:
-                global_address = db.get_usdt_address()
-                if global_address:
-                    addr_display = global_address[:15] + "..." + global_address[-15:] if len(global_address) > 30 else global_address
-                    message += f"当前地址: <code>{addr_display}</code> (全局)\n"
-                else:
-                    message += f"当前地址: 未设置\n"
+            message += f"当前上浮汇率: <code>{current_markup:+.4f}</code>\n"
+            message += f"地址数量: {len(addresses)} 个（{active_count} 个可用，{pending_count} 个待确认）\n"
             
             reply_markup = get_group_edit_keyboard(group_id)
             await query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
@@ -1148,6 +1145,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     # Address management handlers
+    # Address management handlers
     if callback_data == "address_list" or callback_data == "address_manage":
         from handlers.address_handlers import handle_address_list
         await handle_address_list(update, context)
@@ -1156,6 +1154,76 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if callback_data == "address_add":
         from handlers.address_handlers import handle_address_add_prompt
         await handle_address_add_prompt(update, context)
+        return
+    
+    if callback_data.startswith("address_detail_"):
+        from handlers.address_handlers import handle_address_detail
+        await handle_address_detail(update, context)
+        return
+    
+    if callback_data.startswith("address_show_qr_"):
+        from handlers.address_handlers import handle_address_show_qr
+        await handle_address_show_qr(update, context)
+        return
+    
+    if callback_data.startswith("address_delete_"):
+        from handlers.address_handlers import handle_address_delete
+        await handle_address_delete(update, context)
+        return
+    
+    if callback_data.startswith("address_delete_confirm_"):
+        from handlers.address_handlers import handle_address_delete_confirm
+        await handle_address_delete_confirm(update, context)
+        return
+    
+    if callback_data.startswith("address_edit_"):
+        from handlers.address_handlers import handle_address_edit
+        await handle_address_edit(update, context)
+        return
+    
+    if callback_data.startswith("address_set_default_"):
+        from handlers.address_handlers import handle_address_set_default
+        await handle_address_set_default(update, context)
+        return
+    
+    if callback_data.startswith("address_toggle_"):
+        from handlers.address_handlers import handle_address_toggle
+        await handle_address_toggle(update, context)
+        return
+    
+    if callback_data.startswith("address_confirm_"):
+        from handlers.address_handlers import handle_address_confirm
+        await handle_address_confirm(update, context)
+        return
+    
+    if callback_data.startswith("address_reject_"):
+        from handlers.address_handlers import handle_address_reject
+        await handle_address_reject(update, context)
+        return
+    
+    if callback_data == "address_add_skip_qr":
+        from handlers.address_handlers import handle_address_add_skip_qr
+        await handle_address_add_skip_qr(update, context)
+        return
+    
+    if callback_data == "address_add_cancel":
+        from handlers.address_handlers import handle_address_add_cancel
+        await handle_address_add_cancel(update, context)
+        return
+    
+    if callback_data.startswith("address_edit_label_"):
+        from handlers.address_handlers import handle_address_edit_label
+        await handle_address_edit_label(update, context)
+        return
+    
+    if callback_data.startswith("address_edit_addr_"):
+        from handlers.address_handlers import handle_address_edit_addr
+        await handle_address_edit_addr(update, context)
+        return
+    
+    if callback_data.startswith("address_edit_qr_"):
+        from handlers.address_handlers import handle_address_edit_qr
+        await handle_address_edit_qr(update, context)
         return
     
     # Help handlers

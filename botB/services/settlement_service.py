@@ -11,12 +11,13 @@ from typing import List
 logger = logging.getLogger(__name__)
 
 
-def get_settlement_address(group_id: Optional[int] = None, strategy: str = 'default') -> Optional[str]:
+def get_settlement_address(group_id: int, strategy: str = 'default') -> Optional[str]:
     """
     Get USDT address for settlement using address management.
+    Only returns confirmed and active addresses.
     
     Args:
-        group_id: Optional group ID
+        group_id: Group ID (required)
         strategy: Address selection strategy ('default', 'round_robin', 'random')
         
     Returns:
@@ -24,20 +25,17 @@ def get_settlement_address(group_id: Optional[int] = None, strategy: str = 'defa
     """
     from database import db
     
-    # Try to get from address management first
+    if not group_id:
+        return None
+    
+    # Get active and confirmed address
     address_obj = db.get_active_address(group_id=group_id, strategy=strategy)
     if address_obj:
         # Increment usage
         db.increment_address_usage(address_obj['id'])
         return address_obj['address']
     
-    # Fallback to legacy single address (group or global)
-    if group_id:
-        group_setting = db.get_group_setting(group_id)
-        if group_setting and group_setting.get('usdt_address'):
-            return group_setting['usdt_address']
-    
-    return db.get_usdt_address()
+    return None
 
 
 def calculate_settlement(amount_text: str, group_id: Optional[int] = None) -> Tuple[Optional[dict], Optional[str]]:

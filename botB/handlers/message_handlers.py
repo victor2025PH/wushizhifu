@@ -990,6 +990,17 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_address_input(update, context, text)
         return
     
+    # Handle address editing inputs
+    if 'editing_address_label' in context.user_data:
+        from handlers.address_handlers import handle_address_label_input
+        await handle_address_label_input(update, context, text)
+        return
+    
+    if 'editing_address' in context.user_data:
+        from handlers.address_handlers import handle_address_addr_input
+        await handle_address_addr_input(update, context, text)
+        return
+    
     # Handle customer service username input (after admin clicks add customer service)
     if 'waiting_for' in context.user_data and context.user_data['waiting_for'] == 'customer_service_username':
         from services.customer_service_service import customer_service
@@ -4592,6 +4603,29 @@ async def handle_admin_group_detail(update: Update, context: ContextTypes.DEFAUL
         await send_group_message(update, "❌ 系统错误，请稍后再试", parse_mode="HTML")
 
 
+async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle photo uploads for QR code"""
+    try:
+        from handlers.address_handlers import (
+            handle_address_photo, 
+            handle_address_qr_photo
+        )
+        
+        # Check if editing QR code
+        if 'editing_address_qr' in context.user_data:
+            await handle_address_qr_photo(update, context)
+        else:
+            # Adding new address
+            await handle_address_photo(update, context)
+    except Exception as e:
+        logger.error(f"Error in photo_handler: {e}", exc_info=True)
+
+
 def get_message_handler():
     """Get message handler instance"""
     return MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler)
+
+
+def get_photo_handler():
+    """Get photo handler instance for QR code uploads"""
+    return MessageHandler(filters.PHOTO, photo_handler)

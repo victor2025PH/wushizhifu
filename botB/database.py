@@ -182,11 +182,16 @@ class Database:
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS usdt_addresses (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                group_id BIGINT,
+                group_id BIGINT NOT NULL,
                 address TEXT NOT NULL,
                 label TEXT,
+                qr_code_file_id TEXT,
                 is_default BOOLEAN DEFAULT 0,
                 is_active BOOLEAN DEFAULT 1,
+                needs_confirmation BOOLEAN DEFAULT 0,
+                pending_confirmation BOOLEAN DEFAULT 0,
+                confirmed_by BIGINT,
+                confirmed_at TIMESTAMP,
                 usage_count INTEGER DEFAULT 0,
                 last_used_at TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -204,6 +209,46 @@ class Database:
             CREATE INDEX IF NOT EXISTS idx_usdt_addresses_active 
             ON usdt_addresses(is_active)
         """)
+        
+        # Migrate existing table: add new columns if they don't exist
+        try:
+            # Check if qr_code_file_id column exists
+            cursor.execute("PRAGMA table_info(usdt_addresses)")
+            columns = [row[1] for row in cursor.fetchall()]
+            
+            if 'qr_code_file_id' not in columns:
+                cursor.execute("ALTER TABLE usdt_addresses ADD COLUMN qr_code_file_id TEXT")
+                logger.info("Added qr_code_file_id column to usdt_addresses")
+            
+            if 'needs_confirmation' not in columns:
+                cursor.execute("ALTER TABLE usdt_addresses ADD COLUMN needs_confirmation BOOLEAN DEFAULT 0")
+                logger.info("Added needs_confirmation column to usdt_addresses")
+            
+            if 'pending_confirmation' not in columns:
+                cursor.execute("ALTER TABLE usdt_addresses ADD COLUMN pending_confirmation BOOLEAN DEFAULT 0")
+                logger.info("Added pending_confirmation column to usdt_addresses")
+            
+            if 'confirmed_by' not in columns:
+                cursor.execute("ALTER TABLE usdt_addresses ADD COLUMN confirmed_by BIGINT")
+                logger.info("Added confirmed_by column to usdt_addresses")
+            
+            if 'confirmed_at' not in columns:
+                cursor.execute("ALTER TABLE usdt_addresses ADD COLUMN confirmed_at TIMESTAMP")
+                logger.info("Added confirmed_at column to usdt_addresses")
+            
+            # Handle existing NULL group_id records (migration from old global addresses)
+            # Set them to a special group_id or delete them (user should re-add)
+            cursor.execute("SELECT COUNT(*) FROM usdt_addresses WHERE group_id IS NULL")
+            null_count = cursor.fetchone()[0]
+            if null_count > 0:
+                logger.warning(f"Found {null_count} addresses with NULL group_id. These will be deleted as global addresses are no longer supported.")
+                cursor.execute("DELETE FROM usdt_addresses WHERE group_id IS NULL")
+                logger.info(f"Deleted {null_count} addresses with NULL group_id")
+            
+            conn.commit()
+        except Exception as e:
+            logger.error(f"Error migrating usdt_addresses table: {e}", exc_info=True)
+            conn.rollback()
         
         # Create operation_logs table for audit trail
         cursor.execute("""
@@ -2433,13 +2478,13 @@ class Database:
     
     # ========== USDT Address Management Methods ==========
     
-    def get_usdt_addresses(self, group_id: Optional[int] = None, active_only: bool = True) -> list:
+    def get_usdt_addresses(self, group_id: int, active_only: bool = True) -> list:
         """
-        Get USDT addresses for a group or globally.
+        Get USDT addresses for a group.
         
         Args:
-            group_id: Optional group ID (None for global addresses)
-            active_only: If True, only return active addresses
+            group_id: Group ID (required, no global addresses)
+            active_only: If True, only return active and confirmed addresses
             
         Returns:
             List of address dictionaries
@@ -2447,40 +2492,24 @@ class Database:
         conn = self.connect()
         cursor = conn.cursor()
         
-        if group_id:
-            if active_only:
-                cursor.execute("""
-                    SELECT id, group_id, address, label, is_default, is_active,
-                           usage_count, last_used_at, created_at
-                    FROM usdt_addresses
-                    WHERE group_id = ? AND is_active = 1
-                    ORDER BY is_default DESC, usage_count DESC, created_at DESC
-                """, (group_id,))
-            else:
-                cursor.execute("""
-                    SELECT id, group_id, address, label, is_default, is_active,
-                           usage_count, last_used_at, created_at
-                    FROM usdt_addresses
-                    WHERE group_id = ?
-                    ORDER BY is_default DESC, usage_count DESC, created_at DESC
-                """, (group_id,))
+        if active_only:
+            cursor.execute("""
+                SELECT id, group_id, address, label, qr_code_file_id, is_default, is_active,
+                       needs_confirmation, pending_confirmation, confirmed_by, confirmed_at,
+                       usage_count, last_used_at, created_at, created_by
+                FROM usdt_addresses
+                WHERE group_id = ? AND is_active = 1 AND pending_confirmation = 0
+                ORDER BY is_default DESC, usage_count DESC, created_at DESC
+            """, (group_id,))
         else:
-            if active_only:
-                cursor.execute("""
-                    SELECT id, group_id, address, label, is_default, is_active,
-                           usage_count, last_used_at, created_at
-                    FROM usdt_addresses
-                    WHERE group_id IS NULL AND is_active = 1
-                    ORDER BY is_default DESC, usage_count DESC, created_at DESC
-                """)
-            else:
-                cursor.execute("""
-                    SELECT id, group_id, address, label, is_default, is_active,
-                           usage_count, last_used_at, created_at
-                    FROM usdt_addresses
-                    WHERE group_id IS NULL
-                    ORDER BY is_default DESC, usage_count DESC, created_at DESC
-                """)
+            cursor.execute("""
+                SELECT id, group_id, address, label, qr_code_file_id, is_default, is_active,
+                       needs_confirmation, pending_confirmation, confirmed_by, confirmed_at,
+                       usage_count, last_used_at, created_at, created_by
+                FROM usdt_addresses
+                WHERE group_id = ?
+                ORDER BY pending_confirmation DESC, is_default DESC, usage_count DESC, created_at DESC
+            """, (group_id,))
         
         rows = cursor.fetchall()
         addresses = []
@@ -2490,20 +2519,26 @@ class Database:
                 'group_id': row['group_id'],
                 'address': row['address'],
                 'label': row['label'],
+                'qr_code_file_id': row['qr_code_file_id'],
                 'is_default': bool(row['is_default']),
                 'is_active': bool(row['is_active']),
+                'needs_confirmation': bool(row['needs_confirmation']) if row['needs_confirmation'] is not None else False,
+                'pending_confirmation': bool(row['pending_confirmation']) if row['pending_confirmation'] is not None else False,
+                'confirmed_by': row['confirmed_by'],
+                'confirmed_at': row['confirmed_at'],
                 'usage_count': int(row['usage_count']) if row['usage_count'] else 0,
                 'last_used_at': row['last_used_at'],
-                'created_at': row['created_at']
+                'created_at': row['created_at'],
+                'created_by': row['created_by']
             })
         return addresses
     
-    def get_active_address(self, group_id: Optional[int] = None, strategy: str = 'default') -> Optional[dict]:
+    def get_active_address(self, group_id: int, strategy: str = 'default') -> Optional[dict]:
         """
-        Get an active address using the specified strategy.
+        Get an active and confirmed address using the specified strategy.
         
         Args:
-            group_id: Optional group ID (None for global addresses)
+            group_id: Group ID (required)
             strategy: Selection strategy ('default', 'round_robin', 'random')
             
         Returns:
@@ -2534,52 +2569,55 @@ class Database:
             # Default to first address
             return addresses[0] if addresses else None
     
-    def add_usdt_address(self, group_id: Optional[int], address: str, label: str = None, 
-                        is_default: bool = False, created_by: int = None) -> bool:
+    def add_usdt_address(self, group_id: int, address: str, label: str = None, 
+                        qr_code_file_id: str = None, is_default: bool = False, 
+                        needs_confirmation: bool = True, created_by: int = None) -> Optional[int]:
         """
         Add a new USDT address.
         
         Args:
-            group_id: Optional group ID (None for global address)
+            group_id: Group ID (required)
             address: USDT address
             label: Optional label for the address
+            qr_code_file_id: Optional Telegram file ID for QR code
             is_default: Whether this should be the default address
+            needs_confirmation: Whether this address needs confirmation (default True)
             created_by: Optional user ID who created this address
             
         Returns:
-            True if successful
+            Address ID if successful, None otherwise
         """
         try:
             conn = self.connect()
             cursor = conn.cursor()
             
-            # If setting as default, unset other defaults
+            # If setting as default, unset other defaults for the same group
             if is_default:
-                if group_id:
-                    cursor.execute("""
-                        UPDATE usdt_addresses 
-                        SET is_default = 0 
-                        WHERE group_id = ?
-                    """, (group_id,))
-                else:
-                    cursor.execute("""
-                        UPDATE usdt_addresses 
-                        SET is_default = 0 
-                        WHERE group_id IS NULL
-                    """)
+                cursor.execute("""
+                    UPDATE usdt_addresses 
+                    SET is_default = 0 
+                    WHERE group_id = ?
+                """, (group_id,))
+            
+            # Set pending_confirmation if needs_confirmation is True
+            pending_confirmation = 1 if needs_confirmation else 0
             
             cursor.execute("""
-                INSERT INTO usdt_addresses (group_id, address, label, is_default, created_by)
-                VALUES (?, ?, ?, ?, ?)
-            """, (group_id, address, label or '未命名地址', 1 if is_default else 0, created_by))
+                INSERT INTO usdt_addresses (group_id, address, label, qr_code_file_id, is_default, 
+                                          needs_confirmation, pending_confirmation, created_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (group_id, address, label or '未命名地址', qr_code_file_id, 
+                  1 if is_default else 0, 1 if needs_confirmation else 0, 
+                  pending_confirmation, created_by))
             
+            address_id = cursor.lastrowid
             conn.commit()
-            logger.info(f"USDT address added (group_id: {group_id}, label: {label})")
-            return True
+            logger.info(f"USDT address added (id: {address_id}, group_id: {group_id}, label: {label})")
+            return address_id
             
         except Exception as e:
             logger.error(f"Error adding USDT address: {e}", exc_info=True)
-            return False
+            return None
     
     def increment_address_usage(self, address_id: int) -> bool:
         """
@@ -2610,7 +2648,8 @@ class Database:
             return False
     
     def update_usdt_address(self, address_id: int, address: str = None, label: str = None, 
-                           is_default: bool = None, is_active: bool = None) -> bool:
+                           qr_code_file_id: str = None, is_default: bool = None, 
+                           is_active: bool = None, needs_confirmation: bool = None) -> bool:
         """
         Update an existing USDT address.
         
@@ -2618,8 +2657,10 @@ class Database:
             address_id: Address ID
             address: Optional new address
             label: Optional new label
+            qr_code_file_id: Optional new QR code file ID
             is_default: Optional default status
             is_active: Optional active status
+            needs_confirmation: Optional needs confirmation flag (if True, sets pending_confirmation=1)
             
         Returns:
             True if successful
@@ -2639,6 +2680,10 @@ class Database:
                 updates.append("label = ?")
                 params.append(label)
             
+            if qr_code_file_id is not None:
+                updates.append("qr_code_file_id = ?")
+                params.append(qr_code_file_id)
+            
             if is_default is not None:
                 updates.append("is_default = ?")
                 params.append(1 if is_default else 0)
@@ -2651,22 +2696,24 @@ class Database:
                     row = cursor.fetchone()
                     if row:
                         group_id = row['group_id']
-                        if group_id:
-                            cursor.execute("""
-                                UPDATE usdt_addresses 
-                                SET is_default = 0 
-                                WHERE group_id = ? AND id != ?
-                            """, (group_id, address_id))
-                        else:
-                            cursor.execute("""
-                                UPDATE usdt_addresses 
-                                SET is_default = 0 
-                                WHERE group_id IS NULL AND id != ?
-                            """, (address_id,))
+                        cursor.execute("""
+                            UPDATE usdt_addresses 
+                            SET is_default = 0 
+                            WHERE group_id = ? AND id != ?
+                        """, (group_id, address_id))
             
             if is_active is not None:
                 updates.append("is_active = ?")
                 params.append(1 if is_active else 0)
+            
+            if needs_confirmation is not None:
+                updates.append("needs_confirmation = ?")
+                params.append(1 if needs_confirmation else 0)
+                # If needs confirmation, set pending_confirmation
+                if needs_confirmation:
+                    updates.append("pending_confirmation = 1")
+                    updates.append("confirmed_by = NULL")
+                    updates.append("confirmed_at = NULL")
             
             if not updates:
                 return True
@@ -2707,6 +2754,116 @@ class Database:
             
         except Exception as e:
             logger.error(f"Error deleting USDT address: {e}", exc_info=True)
+            return False
+    
+    def get_address_by_id(self, address_id: int) -> Optional[dict]:
+        """
+        Get address details by ID.
+        
+        Args:
+            address_id: Address ID
+            
+        Returns:
+            Address dictionary or None
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT id, group_id, address, label, qr_code_file_id, is_default, is_active,
+                       needs_confirmation, pending_confirmation, confirmed_by, confirmed_at,
+                       usage_count, last_used_at, created_at, created_by
+                FROM usdt_addresses
+                WHERE id = ?
+            """, (address_id,))
+            
+            row = cursor.fetchone()
+            if not row:
+                return None
+            
+            return {
+                'id': row['id'],
+                'group_id': row['group_id'],
+                'address': row['address'],
+                'label': row['label'],
+                'qr_code_file_id': row['qr_code_file_id'],
+                'is_default': bool(row['is_default']),
+                'is_active': bool(row['is_active']),
+                'needs_confirmation': bool(row['needs_confirmation']) if row['needs_confirmation'] is not None else False,
+                'pending_confirmation': bool(row['pending_confirmation']) if row['pending_confirmation'] is not None else False,
+                'confirmed_by': row['confirmed_by'],
+                'confirmed_at': row['confirmed_at'],
+                'usage_count': int(row['usage_count']) if row['usage_count'] else 0,
+                'last_used_at': row['last_used_at'],
+                'created_at': row['created_at'],
+                'created_by': row['created_by']
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting address by ID: {e}", exc_info=True)
+            return None
+    
+    def confirm_address(self, address_id: int, confirmed_by: int) -> bool:
+        """
+        Confirm an address.
+        
+        Args:
+            address_id: Address ID
+            confirmed_by: User ID who confirmed the address
+            
+        Returns:
+            True if successful
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                UPDATE usdt_addresses 
+                SET pending_confirmation = 0,
+                    confirmed_by = ?,
+                    confirmed_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (confirmed_by, address_id))
+            
+            conn.commit()
+            logger.info(f"Address {address_id} confirmed by user {confirmed_by}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error confirming address: {e}", exc_info=True)
+            return False
+    
+    def update_address_qr_code(self, address_id: int, qr_code_file_id: str) -> bool:
+        """
+        Update QR code file ID for an address.
+        
+        Args:
+            address_id: Address ID
+            qr_code_file_id: Telegram file ID for QR code
+            
+        Returns:
+            True if successful
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                UPDATE usdt_addresses 
+                SET qr_code_file_id = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (qr_code_file_id, address_id))
+            
+            conn.commit()
+            logger.info(f"QR code updated for address {address_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error updating QR code: {e}", exc_info=True)
             return False
     
     # ========== Template Methods ==========
