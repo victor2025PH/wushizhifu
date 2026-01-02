@@ -693,11 +693,10 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             # Don't send additional navigation message - inline keyboard already has back button
         else:
-            # If called from message, send new message with both keyboards
+            # If called from message, send new message with inline keyboard only
+            # Reply keyboard is not needed as inline keyboard has back button
             inline_keyboard = get_groups_list_keyboard_with_edit(display_groups)
             await update.message.reply_text(message, parse_mode="HTML", reply_markup=inline_keyboard)
-            # Also send reply keyboard for navigation
-            await update.message.reply_text("💡 使用底部按钮返回主菜单", reply_markup=reply_keyboard)
         
         logger.info(f"Admin {update.effective_user.id} executed w7/CKQL, showing {len(valid_groups)} groups")
             
