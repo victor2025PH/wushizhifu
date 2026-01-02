@@ -344,9 +344,9 @@ async def address_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     usdt_address = None
     
     if group_id:
-        group_setting = db.get_group_setting(group_id)
-        if group_setting and group_setting.get('usdt_address'):
-            usdt_address = group_setting['usdt_address']
+        # Use new address management system
+        from services.settlement_service import get_settlement_address
+        usdt_address = get_settlement_address(group_id=group_id, strategy='default')
     
     if not usdt_address:
         usdt_address = db.get_usdt_address()
