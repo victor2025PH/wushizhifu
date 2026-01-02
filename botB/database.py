@@ -978,6 +978,7 @@ class Database:
         """
         Ensure group record exists in database (auto-create if not exists).
         This is called automatically when bot receives messages from groups to track all groups.
+        Creates records in both group_settings and groups tables.
         
         Args:
             group_id: Telegram group ID
@@ -990,12 +991,14 @@ class Database:
             conn = self.connect()
             cursor = conn.cursor()
             
-            # Check if group already exists
+            # Check if group already exists in group_settings
             cursor.execute("""
                 SELECT id FROM group_settings WHERE group_id = ?
             """, (group_id,))
             
-            if cursor.fetchone():
+            group_exists = cursor.fetchone() is not None
+            
+            if group_exists:
                 # Group exists, just update title if provided and different
                 if group_title:
                     cursor.execute("""
@@ -1005,16 +1008,36 @@ class Database:
                         WHERE group_id = ? AND (group_title IS NULL OR group_title != ?)
                     """, (group_title, group_id, group_title))
                     conn.commit()
-                return True
+            else:
+                # Group doesn't exist, create it in group_settings
+                cursor.execute("""
+                    INSERT INTO group_settings (group_id, group_title, is_active, created_at, updated_at)
+                    VALUES (?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """, (group_id, group_title))
+                logger.debug(f"Auto-created group_settings record: {group_id} - {group_title or 'Unknown'}")
             
-            # Group doesn't exist, create it
+            # Also ensure group exists in groups table (for get_all_groups to work correctly)
             cursor.execute("""
-                INSERT INTO group_settings (group_id, group_title, is_active, created_at, updated_at)
-                VALUES (?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            """, (group_id, group_title))
+                SELECT group_id FROM groups WHERE group_id = ?
+            """, (group_id,))
+            
+            if not cursor.fetchone():
+                # Group doesn't exist in groups table, create it
+                cursor.execute("""
+                    INSERT INTO groups (group_id, group_title, created_at, updated_at)
+                    VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """, (group_id, group_title))
+                logger.debug(f"Auto-created groups table record: {group_id} - {group_title or 'Unknown'}")
+            elif group_title:
+                # Update title if provided and different
+                cursor.execute("""
+                    UPDATE groups 
+                    SET group_title = COALESCE(?, group_title),
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE group_id = ? AND (group_title IS NULL OR group_title != ?)
+                """, (group_title, group_id, group_title))
             
             conn.commit()
-            logger.debug(f"Auto-created group record: {group_id} - {group_title or 'Unknown'}")
             return True
             
         except Exception as e:
@@ -1184,6 +1207,15 @@ class Database:
                     'tx_count': 0,
                     'last_active': None
                 })
+        
+        # Also add groups from group_settings that might not be in groups table yet
+        # (for backward compatibility and to ensure all configured groups are shown)
+        for group_id, group_data in configured_groups.items():
+            if group_id not in processed_group_ids:
+                stats = group_stats.get(group_id, {'tx_count': 0, 'last_active': None})
+                group_data.update(stats)
+                all_groups.append(group_data)
+                processed_group_ids.add(group_id)
         
         # Sort by last_active (most recent first), then by group_id
         all_groups.sort(key=lambda x: (
