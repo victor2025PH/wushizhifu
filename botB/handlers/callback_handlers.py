@@ -568,12 +568,13 @@ async def handle_group_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
             group_title = group.get('group_title', f"群组 {group_id}")
             
             # Show confirmation dialog
-            message = f"🗑️ <b>确认删除群组</b>\n\n"
+            message = f"🗑️ <b>确认删除群组配置</b>\n\n"
             message += f"群组: <b>{group_title}</b>\n"
             message += f"ID: <code>{group_id}</code>\n\n"
             message += f"⚠️ <b>警告：</b>此操作将完全删除群组的所有配置记录。\n"
-            message += f"删除后，群组将使用全局默认设置。\n\n"
-            message += f"确定要删除吗？"
+            message += f"删除后，群组将使用全局默认设置。\n"
+            message += f"群组本身不会被删除，仍会显示在群组列表中。\n\n"
+            message += f"确定要删除配置吗？"
             
             reply_markup = get_confirmation_keyboard("delete_group_from_list", str(group_id))
             await query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
