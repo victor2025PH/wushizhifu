@@ -1901,18 +1901,31 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # 使用新的地址管理系统获取群组地址对象
             try:
                 from services.settlement_service import get_settlement_address
-                from utils.qr_generator import generate_qr_code_bytes
+                from utils.qr_generator import generate_qr_code_bytes, QRCODE_AVAILABLE
                 
-                # 获取地址对象（不只是字符串）
+                # 获取地址对象（包括待确认的地址）
+                # 先尝试获取已确认的地址
                 address_obj = db.get_active_address(group_id=group_id, strategy='default')
+                
+                # 如果没有已确认的地址，尝试获取待确认的地址
+                if not address_obj:
+                    addresses = db.get_usdt_addresses(group_id=group_id, active_only=False)
+                    # 查找待确认的地址
+                    for addr in addresses:
+                        if addr.get('pending_confirmation'):
+                            address_obj = addr
+                            break
+                
                 usdt_address = None
                 qr_code_file_id = None
+                is_pending = False
                 
                 if address_obj:
                     usdt_address = address_obj['address']
                     qr_code_file_id = address_obj.get('qr_code_file_id')
+                    is_pending = address_obj.get('pending_confirmation', False)
                     address_source = "群组独立"
-                    logger.info(f"Using group address from usdt_addresses table for {group_id}: {usdt_address[:15]}...")
+                    logger.info(f"Using group address from usdt_addresses table for {group_id}: {usdt_address[:15]}... (pending: {is_pending})")
                 else:
                     # 如果没有群组地址，使用全局地址
                     global_addr = db.get_usdt_address()
@@ -1944,12 +1957,16 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     address_display = usdt_address
                 
                 # 构建消息文本
+                pending_notice = ""
+                if is_pending:
+                    pending_notice = "\n⏳ <b>注意：此地址正在等待群组成员确认</b>\n"
+                
                 message = (
                     "╔═══════════════════════════════╗\n"
                     "║  🔗 USDT 收款地址             ║\n"
                     "╚═══════════════════════════════╝\n\n"
                     f"📍 <b>当前群组</b>：{chat.title or '未知群组'}\n"
-                    f"🏷️  <b>地址类型</b>：{address_source}\n\n"
+                    f"🏷️  <b>地址类型</b>：{address_source}{pending_notice}\n\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                     f"<code>{full_address}</code>\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
@@ -1965,6 +1982,12 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 try:
                     bot = context.bot
                     
+                    # 检查qrcode库是否可用
+                    if not QRCODE_AVAILABLE:
+                        logger.warning("qrcode library not available, sending text only")
+                        await send_group_message(update, message + "\n\n⚠️ <i>二维码生成功能不可用，请安装qrcode库</i>", parse_mode="HTML")
+                        return
+                    
                     # 如果有上传的二维码，使用它；否则自动生成
                     if qr_code_file_id:
                         # 使用已上传的二维码
@@ -1979,13 +2002,23 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         # 自动生成二维码
                         qr_bytes = generate_qr_code_bytes(usdt_address)
                         if qr_bytes:
-                            await bot.send_photo(
+                            sent_message = await bot.send_photo(
                                 chat_id=group_id,
                                 photo=qr_bytes,
                                 caption=message,
                                 parse_mode="HTML"
                             )
                             logger.info(f"Sent address with auto-generated QR code for group {group_id}")
+                            
+                            # 如果地址已确认，保存生成的二维码file_id到数据库
+                            if address_obj and not is_pending and address_obj.get('id'):
+                                try:
+                                    file_id = sent_message.photo[-1].file_id if sent_message.photo else None
+                                    if file_id:
+                                        db.update_address_qr_code(address_obj['id'], file_id)
+                                        logger.info(f"Saved auto-generated QR code file_id for address {address_obj['id']}")
+                                except Exception as save_error:
+                                    logger.warning(f"Failed to save QR code file_id: {save_error}")
                         else:
                             # 如果生成失败，只发送文本消息
                             await send_group_message(update, message, parse_mode="HTML")

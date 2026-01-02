@@ -604,6 +604,26 @@ async def handle_address_confirm(update: Update, context: ContextTypes.DEFAULT_T
         
         # Confirm address
         if db.confirm_address(address_id, user_id):
+            # 如果地址没有二维码，自动生成并保存
+            if not address.get('qr_code_file_id'):
+                try:
+                    from utils.qr_generator import generate_and_send_qr_code, QRCODE_AVAILABLE
+                    if QRCODE_AVAILABLE:
+                        bot = context.bot
+                        # 生成二维码并发送到群组（静默发送，不显示给用户）
+                        file_id = await generate_and_send_qr_code(
+                            bot=bot,
+                            chat_id=address['group_id'],
+                            address=address['address'],
+                            caption=None  # 静默发送，不显示caption
+                        )
+                        if file_id:
+                            # 保存二维码file_id到数据库
+                            db.update_address_qr_code(address_id, file_id)
+                            logger.info(f"Auto-generated and saved QR code for confirmed address {address_id}")
+                except Exception as qr_error:
+                    logger.warning(f"Failed to auto-generate QR code for address {address_id}: {qr_error}")
+            
             message = (
                 f"✅ <b>地址已确认</b>\n\n"
                 f"<b>标签：</b>{address['label'] or '未命名'}\n"
