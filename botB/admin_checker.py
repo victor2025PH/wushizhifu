@@ -67,11 +67,16 @@ def is_admin(user_id: int) -> bool:
     
     # Fallback to Config.INITIAL_ADMINS
     from config import Config
-    if user_id in Config.INITIAL_ADMINS:
+    current_admins = Config.INITIAL_ADMINS
+    if user_id in current_admins:
         logger.info(f"✅ User {user_id} is admin (from Config.INITIAL_ADMINS)")
         return True
     else:
-        logger.debug(f"User {user_id} is not in Config.INITIAL_ADMINS. Current admins: {Config.INITIAL_ADMINS}")
+        logger.warning(
+            f"❌ User {user_id} is not in Config.INITIAL_ADMINS. "
+            f"Current admins: {current_admins}. "
+            f"Check if ADMIN_IDS environment variable is set and includes this user."
+        )
     
     logger.warning(f"❌ User {user_id} is not recognized as admin")
     return False

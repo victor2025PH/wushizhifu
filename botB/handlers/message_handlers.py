@@ -1485,9 +1485,25 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
                 mark_help_shown(user_id, button_text, shown=True)
         
-        # Check admin permission
-        if not is_admin_user:
-            await update.message.reply_text("❌ 此功能仅限管理员使用")
+        # Check admin permission - re-check to ensure consistency
+        # The button is only shown to admins, so if user can see it, they should be admin
+        # But we double-check here for security
+        from admin_checker import is_admin
+        current_admin_status = is_admin(user_id)
+        logger.info(f"Settings button clicked by user {user_id}. Initial check: {is_admin_user}, Re-check: {current_admin_status}")
+        
+        if not current_admin_status:
+            logger.warning(f"User {user_id} clicked settings button but is not admin. Initial check was: {is_admin_user}")
+            # Provide helpful message with user ID
+            help_message = (
+                "❌ 此功能仅限管理员使用\n\n"
+                "💡 如何添加管理员：\n"
+                "1. 使用超级管理员账号发送：\n"
+                f"   <code>/addadmin {user_id}</code>\n\n"
+                "2. 或联系现有管理员添加您的账号\n\n"
+                f"您的用户ID：<code>{user_id}</code>"
+            )
+            await update.message.reply_text(help_message, parse_mode="HTML")
             return
         
         # For group chats, show group settings menu
