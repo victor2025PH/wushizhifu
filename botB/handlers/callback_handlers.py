@@ -389,9 +389,25 @@ async def handle_confirm_bill(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def handle_group_settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle group settings menu callbacks"""
     query = update.callback_query
+    user_id = query.from_user.id
     
-    if not is_admin(query.from_user.id):
-        await query.answer("❌ 此功能仅限管理员使用", show_alert=True)
+    # Add detailed logging for admin check
+    logger.info(f"Checking admin status for user {user_id} (username: {query.from_user.username}, name: {query.from_user.first_name})")
+    is_admin_user = is_admin(user_id)
+    logger.info(f"Admin check result for user {user_id}: {is_admin_user}")
+    
+    if not is_admin_user:
+        logger.warning(f"User {user_id} attempted to access group settings menu but is not admin")
+        # Provide helpful message with instructions
+        help_message = (
+            "❌ 此功能仅限管理员使用\n\n"
+            "💡 如何添加管理员：\n"
+            "1. 使用超级管理员账号发送：\n"
+            "   <code>/addadmin {user_id}</code>\n\n"
+            "2. 或联系现有管理员添加您的账号\n\n"
+            f"您的用户ID：<code>{user_id}</code>"
+        )
+        await query.answer(help_message, show_alert=True)
         return
     
     chat = query.message.chat

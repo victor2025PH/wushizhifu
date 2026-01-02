@@ -48,25 +48,31 @@ def is_admin(user_id: int) -> bool:
         
         try:
             from database.admin_repository import AdminRepository
-            if AdminRepository.is_admin(user_id):
-                logger.info(f"User {user_id} is admin (from Bot A database)")
+            is_admin_from_db = AdminRepository.is_admin(user_id)
+            if is_admin_from_db:
+                logger.info(f"✅ User {user_id} is admin (from Bot A database)")
                 return True
+            else:
+                logger.debug(f"User {user_id} is not admin in Bot A database")
         except ImportError as e:
             logger.debug(f"Could not import Bot A's admin repository: {e}")
         except Exception as e:
-            logger.warning(f"Error checking Bot A database for admin {user_id}: {e}")
+            logger.warning(f"Error checking Bot A database for admin {user_id}: {e}", exc_info=True)
         finally:
             # Clean up path only if we added it
             if path_added and root_str in sys.path:
                 sys.path.remove(root_str)
     except Exception as e:
-        logger.debug(f"Error accessing Bot A database: {e}")
+        logger.debug(f"Error accessing Bot A database: {e}", exc_info=True)
     
     # Fallback to Config.INITIAL_ADMINS
     from config import Config
     if user_id in Config.INITIAL_ADMINS:
-        logger.debug(f"User {user_id} is admin (from Config.INITIAL_ADMINS)")
+        logger.info(f"✅ User {user_id} is admin (from Config.INITIAL_ADMINS)")
         return True
+    else:
+        logger.debug(f"User {user_id} is not in Config.INITIAL_ADMINS. Current admins: {Config.INITIAL_ADMINS}")
     
+    logger.warning(f"❌ User {user_id} is not recognized as admin")
     return False
 
