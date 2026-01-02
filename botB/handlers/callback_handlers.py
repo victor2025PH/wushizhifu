@@ -759,22 +759,27 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
     """Handle confirmation callbacks"""
     query = update.callback_query
     
+    callback_data = query.data
+    logger.info(f"handle_confirmation called with callback_data: {callback_data}, user_id: {query.from_user.id}")
+    
     if not is_admin(query.from_user.id):
+        logger.warning(f"User {query.from_user.id} attempted confirmation but is not admin")
         await query.answer("❌ 此功能仅限管理员使用", show_alert=True)
         return
-    
-    callback_data = query.data
     
     try:
         # Parse: confirm_{action}_{data}
         if callback_data.startswith("confirm_"):
             parts = callback_data.split("_", 2)
             if len(parts) < 3:
+                logger.warning(f"Invalid confirmation callback format: {callback_data}")
                 await query.answer("❌ 无效的确认操作", show_alert=True)
                 return
             
             action = parts[1]
             data = parts[2] if len(parts) > 2 else ""
+            
+            logger.info(f"Processing confirmation: action={action}, data={data}")
             
             chat = query.message.chat
             
@@ -803,24 +808,31 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
             
             elif action == "delete_group_from_list":
                 # 从群组列表中删除群组
+                logger.info(f"Processing delete_group_from_list with data: {data}")
                 try:
                     group_id = int(data)
-                except (ValueError, TypeError):
+                    logger.info(f"Parsed group_id: {group_id}")
+                except (ValueError, TypeError) as e:
+                    logger.error(f"Invalid group_id format: {data}, error: {e}")
                     await query.answer("❌ 无效的群组ID", show_alert=True)
                     return
                 
                 # 获取群组信息（用于显示）
                 try:
                     groups = db.get_all_groups()
+                    logger.info(f"Retrieved {len(groups)} groups from database")
                     group = next((g for g in groups if g['group_id'] == group_id), None)
                     group_title = group.get('group_title', f"群组 {group_id}") if group else f"群组 {group_id}"
+                    logger.info(f"Group found: {group_title} (ID: {group_id})")
                 except Exception as e:
                     logger.error(f"Error getting group info: {e}", exc_info=True)
                     group_title = f"群组 {group_id}"
                 
                 # 删除群组配置
                 try:
+                    logger.info(f"Attempting to delete group settings for group_id: {group_id}")
                     if db.delete_group_settings(group_id):
+                        logger.info(f"Successfully deleted group settings for group_id: {group_id}")
                         message = f"✅ <b>群组已删除</b>\n\n"
                         message += f"群组: <b>{group_title}</b>\n"
                         message += f"ID: <code>{group_id}</code>\n\n"
@@ -836,6 +848,7 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
                         # 记录操作日志
                         logger.info(f"Admin {query.from_user.id} deleted group {group_id} ({group_title}) from list")
                     else:
+                        logger.warning(f"delete_group_settings returned False for group_id: {group_id}")
                         await query.answer("❌ 删除失败，请重试", show_alert=True)
                 except Exception as e:
                     logger.error(f"Error deleting group {group_id}: {e}", exc_info=True)
@@ -884,7 +897,11 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
         
     except Exception as e:
         logger.error(f"Error in handle_confirmation: {e}", exc_info=True)
-        await query.answer("❌ 错误: " + str(e), show_alert=True)
+        logger.error(f"Callback data was: {callback_data}, User ID: {query.from_user.id}", exc_info=True)
+        try:
+            await query.answer("❌ 错误: " + str(e), show_alert=True)
+        except Exception as answer_error:
+            logger.error(f"Error sending answer: {answer_error}", exc_info=True)
 
 
 # ========== Main Callback Handler ==========
