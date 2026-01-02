@@ -93,7 +93,7 @@ def get_admin_submenu_keyboard(submenu: str = None) -> ReplyKeyboardMarkup:
                 KeyboardButton("⚙️ 用户操作")
             ],
             [
-                KeyboardButton("🔙 返回管理面板")
+                KeyboardButton("🔙 返回主菜单")
             ]
         ]
     elif submenu == "stats":
@@ -105,7 +105,7 @@ def get_admin_submenu_keyboard(submenu: str = None) -> ReplyKeyboardMarkup:
             ],
             [
                 KeyboardButton("📋 操作日志"),
-                KeyboardButton("🔙 返回管理面板")
+                KeyboardButton("🔙 返回主菜单")
             ]
         ]
     elif submenu == "words":
@@ -121,7 +121,7 @@ def get_admin_submenu_keyboard(submenu: str = None) -> ReplyKeyboardMarkup:
             ],
             [
                 KeyboardButton("💾 完整导出"),
-                KeyboardButton("🔙 返回管理面板")
+                KeyboardButton("🔙 返回主菜单")
             ]
         ]
     elif submenu == "verify":
@@ -136,7 +136,7 @@ def get_admin_submenu_keyboard(submenu: str = None) -> ReplyKeyboardMarkup:
                 KeyboardButton("📋 审核历史")
             ],
             [
-                KeyboardButton("🔙 返回管理面板")
+                KeyboardButton("🔙 返回主菜单")
             ]
         ]
     elif submenu == "group":
@@ -152,7 +152,7 @@ def get_admin_submenu_keyboard(submenu: str = None) -> ReplyKeyboardMarkup:
             ],
             [
                 KeyboardButton("🗑️ 删除群组"),
-                KeyboardButton("🔙 返回管理面板")
+                KeyboardButton("🔙 返回主菜单")
             ]
         ]
     elif submenu == "add":
@@ -163,14 +163,14 @@ def get_admin_submenu_keyboard(submenu: str = None) -> ReplyKeyboardMarkup:
                 KeyboardButton("🗑️ 删除管理员")
             ],
             [
-                KeyboardButton("🔙 返回管理面板")
+                KeyboardButton("🔙 返回主菜单")
             ]
         ]
     else:
         # Default: return to admin panel
         keyboard = [
             [
-                KeyboardButton("🔙 返回管理面板")
+                KeyboardButton("🔙 返回主菜单")
             ]
         ]
     

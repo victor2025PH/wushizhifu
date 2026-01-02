@@ -2417,9 +2417,21 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await handle_verify_all_reject(update, context)
             return
         
-        # Handle return buttons
+        # Handle return buttons - old "返回管理面板" removed, use "返回主菜单" instead
         if text == "🔙 返回管理面板":
-            await handle_admin_panel(update, context)
+            # Old panel removed, redirect to main menu instead
+            from keyboards.reply_keyboard import get_main_reply_keyboard
+            user = update.effective_user
+            chat = update.effective_chat
+            is_group = chat.type in ['group', 'supergroup']
+            user_info = {
+                'id': user.id,
+                'first_name': user.first_name or '',
+                'username': user.username,
+                'language_code': user.language_code
+            }
+            reply_keyboard = get_main_reply_keyboard(user.id, is_group, user_info)
+            await send_group_message(update, "✅ 已返回主菜单", reply_markup=reply_keyboard)
             return
         
         if text == "🔙 返回主菜单":
@@ -2946,7 +2958,7 @@ async def handle_unified_stats(update: Update, context: ContextTypes.DEFAULT_TYP
             ],
             [
                 KeyboardButton("📋 操作日志"),
-                KeyboardButton("🔙 返回管理面板")
+                KeyboardButton("🔙 返回主菜单")
             ]
         ]
         reply_markup = ReplyKeyboardMarkup(
@@ -2992,7 +3004,7 @@ async def handle_group_management(update: Update, context: ContextTypes.DEFAULT_
                 KeyboardButton("🗑️ 删除群组")
             ],
             [
-                KeyboardButton("🔙 返回管理面板")
+                KeyboardButton("🔙 返回主菜单")
             ]
         ]
         reply_markup = ReplyKeyboardMarkup(
@@ -3030,7 +3042,7 @@ async def handle_system_settings(update: Update, context: ContextTypes.DEFAULT_T
             ],
             [
                 KeyboardButton("📋 管理员列表"),
-                KeyboardButton("🔙 返回管理面板")
+                KeyboardButton("🔙 返回主菜单")
             ]
         ]
         reply_markup = ReplyKeyboardMarkup(
