@@ -1956,26 +1956,22 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 else:
                     address_display = usdt_address
                 
-                # 构建消息文本
+                # 构建消息文本（简洁格式，无装饰性横线）
                 pending_notice = ""
                 if is_pending:
                     pending_notice = "\n⏳ <b>注意：此地址正在等待群组成员确认</b>\n"
                 
                 message = (
-                    "╔═══════════════════════════════╗\n"
-                    "║  🔗 USDT 收款地址             ║\n"
-                    "╚═══════════════════════════════╝\n\n"
+                    f"🔗 <b>USDT 收款地址</b>\n\n"
                     f"📍 <b>当前群组</b>：{chat.title or '未知群组'}\n"
                     f"🏷️  <b>地址类型</b>：{address_source}{pending_notice}\n\n"
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"<code>{full_address}</code>\n"
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                    "💡 <b>使用提示</b>：\n"
-                    "• 扫描上方二维码或点击地址可快速复制\n"
-                    "• 请仔细核对地址后再进行转账\n\n"
-                    "🔒 <b>安全提示</b>：\n"
-                    "⚠️ 为了账户安全，如需修改当前USDT收款地址，请联系客服进行修改！\n"
-                    "📞 管理员可在机器人私聊中修改地址设置"
+                    f"<code>{full_address}</code>\n\n"
+                    f"💡 <b>使用提示</b>\n"
+                    f"扫描上方二维码或点击地址可快速复制\n"
+                    f"请仔细核对地址后再进行转账\n\n"
+                    f"🔒 <b>安全提示</b>\n"
+                    f"⚠️ 为了账户安全，如需修改当前USDT收款地址，请联系客服进行修改\n"
+                    f"📞 管理员可在机器人私聊中修改地址设置"
                 )
                 
                 # 发送二维码和消息
@@ -2033,18 +2029,14 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         await send_group_message(update, "⚠️ 获取地址信息时出错，请稍后再试", parse_mode="HTML")
             else:
                 message = (
-                    "╔═══════════════════════════════╗\n"
-                    "║  ⚠️ 地址未设置                ║\n"
-                    "╚═══════════════════════════════╝\n\n"
+                    f"⚠️ <b>地址未设置</b>\n\n"
                     f"📍 <b>当前群组</b>：{chat.title or '未知群组'}\n\n"
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "当前群组和全局均未设置USDT收款地址\n"
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                    "💡 <b>设置提示</b>：\n"
-                    "• 管理员可在机器人私聊中使用命令设置\n"
-                    "• 或联系客服协助设置\n\n"
-                    "🔒 <b>安全提示</b>：\n"
-                    "⚠️ 为了账户安全，如需设置或修改USDT收款地址，请联系客服进行操作！"
+                    f"当前群组和全局均未设置USDT收款地址\n\n"
+                    f"💡 <b>设置提示</b>\n"
+                    f"管理员可在机器人私聊中使用命令设置\n"
+                    f"或联系客服协助设置\n\n"
+                    f"🔒 <b>安全提示</b>\n"
+                    f"⚠️ 为了账户安全，如需设置或修改USDT收款地址，请联系客服进行操作"
                 )
                 
                 try:
