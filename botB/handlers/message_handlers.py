@@ -952,9 +952,13 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
         return
     
+    # Import is_admin at function level to avoid UnboundLocalError
+    # This ensures the function is always available even if there are scope issues
+    from admin_checker import is_admin as check_is_admin
+    
     text = update.message.text.strip()
     user_id = update.effective_user.id
-    is_admin_user = is_admin(user_id)
+    is_admin_user = check_is_admin(user_id)
     chat = update.effective_chat
     
     # Auto-track groups: ensure group exists in database when bot receives group messages
@@ -1488,20 +1492,29 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Check admin permission - re-check to ensure consistency
         # The button is only shown to admins, so if user can see it, they should be admin
         # But we double-check here for security
-        from admin_checker import is_admin
-        current_admin_status = is_admin(user_id)
+        # Use the imported function from function scope to avoid UnboundLocalError
+        from admin_checker import is_admin as check_is_admin
+        current_admin_status = check_is_admin(user_id)
         logger.info(f"Settings button clicked by user {user_id}. Initial check: {is_admin_user}, Re-check: {current_admin_status}")
         
         if not current_admin_status:
             logger.warning(f"User {user_id} clicked settings button but is not admin. Initial check was: {is_admin_user}")
-            # Provide helpful message with user ID
+            # Show current admin list for diagnosis
+            from config import Config
+            current_admins = Config.INITIAL_ADMINS
+            admin_list = ", ".join([str(uid) for uid in current_admins])
+            
+            # Provide helpful message with user ID and current admin list
             help_message = (
                 "❌ 此功能仅限管理员使用\n\n"
+                f"您的用户ID：<code>{user_id}</code>\n"
+                f"当前配置的管理员：<code>{admin_list}</code>\n\n"
                 "💡 如何添加管理员：\n"
                 "1. 使用超级管理员账号发送：\n"
                 f"   <code>/addadmin {user_id}</code>\n\n"
-                "2. 或联系现有管理员添加您的账号\n\n"
-                f"您的用户ID：<code>{user_id}</code>"
+                "2. 或在服务器 .env 文件中添加：\n"
+                f"   <code>ADMIN_IDS={admin_list},{user_id}</code>\n\n"
+                "3. 或联系现有管理员添加您的账号"
             )
             await update.message.reply_text(help_message, parse_mode="HTML")
             return
