@@ -235,6 +235,45 @@ async def price_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await handle_p2p_price_command(update, context, payment_method="alipay")
 
 
+async def refresh_keyboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /refresh command - force refresh reply keyboard"""
+    from keyboards.reply_keyboard import get_main_reply_keyboard
+    user = update.effective_user
+    chat = update.effective_chat
+    is_group = chat.type in ['group', 'supergroup']
+    
+    user_info = {
+        'id': user.id,
+        'first_name': user.first_name or '',
+        'username': user.username,
+        'language_code': user.language_code
+    }
+    
+    # Get fresh keyboard
+    reply_keyboard = get_main_reply_keyboard(user.id, is_group, user_info)
+    
+    # Check admin status for diagnostic
+    is_admin_user = check_admin(user.id)
+    from config import Config
+    current_admins = Config.INITIAL_ADMINS
+    
+    message = (
+        "🔄 <b>键盘已刷新</b>\n\n"
+        f"用户ID：<code>{user.id}</code>\n"
+        f"管理员状态：{'✅ 是' if is_admin_user else '❌ 否'}\n"
+        f"当前配置的管理员：<code>{', '.join([str(uid) for uid in current_admins])}</code>\n\n"
+        "💡 如果设置按钮仍然不可用，请尝试：\n"
+        "1. 完全退出并重新打开 Telegram\n"
+        "2. 或联系管理员添加您的账号"
+    )
+    
+    await update.message.reply_text(
+        message,
+        parse_mode="HTML",
+        reply_markup=reply_keyboard
+    )
+
+
 async def settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /settings command - display current settings"""
     # Auto-track groups
@@ -394,6 +433,7 @@ def main():
     application.add_handler(CommandHandler("admin_help", admin_help_command))
     application.add_handler(CommandHandler("price", price_command))
     application.add_handler(CommandHandler("settings", settings_command))
+    application.add_handler(CommandHandler("refresh", refresh_keyboard_command))
     
     # Register common function commands
     # Note: Telegram Bot API only supports commands with letters, numbers, and underscores
