@@ -805,23 +805,36 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
                     await query.answer(f"❌ 删除失败: {str(e)}", show_alert=True)
                 return
             
-            elif action == "delete" and data.startswith("customer_service"):
+            elif action == "delete_customer_service":
                 # Handle customer service account deletion confirmation
                 # Format: confirm_delete_customer_service_{account_id}
-                account_id = int(data.split("_")[-1])
+                # data contains the account_id
+                try:
+                    account_id = int(data)
+                    logger.info(f"Deleting customer service account ID: {account_id}")
+                except (ValueError, TypeError) as e:
+                    logger.error(f"Invalid account_id format: {data}, error: {e}")
+                    await query.answer("❌ 无效的账号ID", show_alert=True)
+                    return
+                
                 from services.customer_service_service import customer_service
                 from handlers.customer_service_handlers import handle_customer_service_list
                 
                 account = customer_service.get_account(account_id=account_id)
                 if not account:
+                    logger.warning(f"Customer service account {account_id} not found")
                     await query.answer("❌ 客服账号不存在", show_alert=True)
                     return
                 
+                logger.info(f"Attempting to delete customer service account: {account_id} ({account.get('username', 'N/A')})")
                 success = customer_service.delete_account(account_id)
+                
                 if not success:
+                    logger.error(f"Failed to delete customer service account {account_id}")
                     await query.answer("❌ 删除失败", show_alert=True)
                     return
                 
+                logger.info(f"Successfully deleted customer service account {account_id}")
                 message = f"✅ <b>客服账号已删除</b>\n\n"
                 message += f"账号: <b>{account['display_name']}</b>\n"
                 message += f"用户名: @{account['username']}\n\n"
