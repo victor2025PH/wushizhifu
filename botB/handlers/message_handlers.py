@@ -3612,11 +3612,14 @@ async def handle_admin_stats_detail(update: Update, context: ContextTypes.DEFAUL
 
 
 async def handle_admin_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle add admin (using reply keyboard)"""
+    """Handle add admin (using reply keyboard) - prompts for admin ID"""
     from database import db
     from keyboards.admin_keyboard import get_admin_submenu_keyboard
     
     try:
+        # Set context to await admin ID input
+        context.user_data['awaiting_admin_id'] = True
+        
         conn = db.connect()
         cursor = conn.cursor()
         
@@ -3633,14 +3636,12 @@ async def handle_admin_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cursor.close()
         
         text = (
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"  👤 添加管理员\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"👤 <b>添加管理员</b>\n\n"
             f"<b>📋 当前管理员（共 {len(admins)} 人）：</b>\n\n"
         )
         
         if not admins:
-            text += "暂无管理员"
+            text += "暂无管理员\n\n"
         else:
             for idx, admin in enumerate(admins[:10], 1):
                 user_id = admin['user_id']
@@ -3656,14 +3657,9 @@ async def handle_admin_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
         
         text += (
-            f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"<b>添加方式</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"请使用命令：\n"
-            f"<code>/addadmin &lt;user_id&gt;</code>\n\n"
-            f"例如：\n"
-            f"<code>/addadmin 123456789</code>\n\n"
-            f"💡 界面添加功能开发中..."
+            f"<b>💡 请输入要添加的管理员ID：</b>\n\n"
+            f"例如：<code>123456789</code>\n\n"
+            f"⚠️ 只有超级管理员可以添加管理员"
         )
         
         reply_markup = get_admin_submenu_keyboard("add")
@@ -3672,6 +3668,90 @@ async def handle_admin_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"Error in handle_admin_add: {e}", exc_info=True)
         await send_group_message(update, "❌ 系统错误，请稍后再试", parse_mode="HTML")
+
+
+async def handle_admin_id_input(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id_text: str):
+    """Handle admin ID input after user clicks '添加管理员'"""
+    from database import db
+    from services.permission_service import PermissionService
+    from keyboards.admin_keyboard import get_admin_submenu_keyboard
+    
+    try:
+        user = update.effective_user
+        
+        # Check if user has permission to add admins
+        if not PermissionService.can_manage_admins(user.id):
+            del context.user_data['awaiting_admin_id']
+            await send_group_message(update, 
+                "❌ 您没有权限添加管理员\n\n"
+                "💡 只有超级管理员可以添加或删除管理员",
+                parse_mode="HTML"
+            )
+            return
+        
+        # Parse user ID
+        try:
+            new_admin_id = int(user_id_text.strip())
+        except ValueError:
+            await send_group_message(update, 
+                "❌ 无效的用户ID格式\n\n"
+                "💡 请输入数字ID，例如：<code>123456789</code>",
+                parse_mode="HTML"
+            )
+            return
+        
+        # Check if already admin
+        conn = db.connect()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM admins WHERE user_id = ? AND status = 'active'", (new_admin_id,))
+        if cursor.fetchone()[0] > 0:
+            cursor.close()
+            del context.user_data['awaiting_admin_id']
+            await send_group_message(update, 
+                f"❌ 添加失败\n\n"
+                f"用户 <code>{new_admin_id}</code> 已经是管理员",
+                parse_mode="HTML"
+            )
+            return
+        
+        # Add admin
+        from datetime import datetime
+        now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute("""
+            INSERT INTO admins (user_id, role, status, added_by, added_at)
+            VALUES (?, 'admin', 'active', ?, ?)
+        """, (new_admin_id, user.id, now))
+        conn.commit()
+        cursor.close()
+        
+        # Also add to shared database (Bot A)
+        try:
+            from database.admin_repository import AdminRepository
+            AdminRepository.add_admin(new_admin_id, role="admin", added_by=user.id)
+        except Exception as e:
+            logger.warning(f"Failed to add admin to shared database: {e}")
+        
+        # Clean up context
+        del context.user_data['awaiting_admin_id']
+        
+        # Success message
+        message = (
+            f"✅ <b>已添加管理员</b>\n\n"
+            f"用户ID：<code>{new_admin_id}</code>\n"
+            f"角色：普通管理员\n\n"
+            f"📝 此管理员已同步到 Bot A 和 Bot B，无需重启服务即可生效。"
+        )
+        
+        reply_markup = get_admin_submenu_keyboard("add")
+        await send_group_message(update, message, parse_mode="HTML", reply_markup=reply_markup)
+        
+        logger.info(f"Super admin {user.id} added admin {new_admin_id} via UI")
+        
+    except Exception as e:
+        logger.error(f"Error in handle_admin_id_input: {e}", exc_info=True)
+        if 'awaiting_admin_id' in context.user_data:
+            del context.user_data['awaiting_admin_id']
+        await send_group_message(update, "❌ 添加失败，请稍后再试", parse_mode="HTML")
 
 
 async def handle_admin_words(update: Update, context: ContextTypes.DEFAULT_TYPE):
