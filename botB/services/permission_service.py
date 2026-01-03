@@ -2,9 +2,38 @@
 Permission service for managing admin permissions
 """
 import logging
-from database.admin_repository import AdminRepository
+import sys
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+# Try to import AdminRepository from database package
+# Handle case where database is in parent directory
+AdminRepository = None
+try:
+    from database.admin_repository import AdminRepository
+except ImportError:
+    # Try adding parent directory to path
+    try:
+        parent_dir = Path(__file__).parent.parent.parent
+        if str(parent_dir) not in sys.path:
+            sys.path.insert(0, str(parent_dir))
+        from database.admin_repository import AdminRepository
+    except ImportError:
+        logger.warning("Could not import AdminRepository from database.admin_repository. Admin management features may be limited.")
+        # Create a fallback class
+        class AdminRepository:
+            @staticmethod
+            def is_admin(user_id: int) -> bool:
+                return False
+            
+            @staticmethod
+            def get_admin(user_id: int):
+                return None
+            
+            @staticmethod
+            def add_admin(user_id: int, role: str = "admin", added_by: int = None):
+                pass
 
 
 class PermissionService:
