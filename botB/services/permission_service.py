@@ -78,16 +78,32 @@ class PermissionService:
         """
         Check if user is super admin.
         
+        Initial admins from Config.INITIAL_ADMINS are considered super admins.
+        
         Args:
             user_id: Telegram user ID
             
         Returns:
-            True if user is super admin
+            True if user is super admin or in INITIAL_ADMINS
         """
-        admin_info = AdminRepository.get_admin(user_id)
-        if not admin_info:
-            return False
-        return admin_info.get('role') == PermissionService.SUPER_ADMIN
+        # Check if user is in INITIAL_ADMINS (these are super admins)
+        try:
+            from config import Config
+            if user_id in Config.INITIAL_ADMINS:
+                return True
+        except Exception as e:
+            logger.debug(f"Could not check INITIAL_ADMINS: {e}")
+        
+        # Check database for super_admin role
+        if AdminRepository:
+            try:
+                admin_info = AdminRepository.get_admin(user_id)
+                if admin_info:
+                    return admin_info.get('role') == PermissionService.SUPER_ADMIN
+            except Exception as e:
+                logger.debug(f"Could not check admin role from database: {e}")
+        
+        return False
     
     @staticmethod
     def is_admin(user_id: int) -> bool:
@@ -155,7 +171,21 @@ class PermissionService:
     
     @staticmethod
     def can_manage_admins(user_id: int) -> bool:
-        """Check if user can manage admins (only super admin)"""
+        """
+        Check if user can manage admins (super admin or initial admin)
+        
+        Initial admins from Config.INITIAL_ADMINS should be able to manage admins
+        even if they haven't been explicitly set as super_admin in the database.
+        """
+        # Check if user is in INITIAL_ADMINS (these should have full permissions)
+        try:
+            from config import Config
+            if user_id in Config.INITIAL_ADMINS:
+                return True
+        except Exception as e:
+            logger.debug(f"Could not check INITIAL_ADMINS: {e}")
+        
+        # Check if user has admin_manage permission (super admin)
         return PermissionService.has_permission(user_id, PermissionService.PERM_ADMIN_MANAGE)
     
     @staticmethod
