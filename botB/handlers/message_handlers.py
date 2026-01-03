@@ -2744,6 +2744,11 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await send_group_message(update, "✅ 已返回主菜单", reply_markup=reply_markup)
             return
     
+    # Check if awaiting admin ID input (must check BEFORE number check)
+    if 'awaiting_admin_id' in context.user_data:
+        await handle_admin_id_input(update, context, text)
+        return
+    
     # Check if message is a number, math expression, or batch amounts (settlement calculation)
     if is_number(text) or is_simple_math(text) or is_batch_amounts(text):
         await handle_math_settlement(update, context, text)
