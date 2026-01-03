@@ -993,6 +993,11 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_template_input(update, context, text)
         return
     
+    # Check if awaiting admin ID input (must check BEFORE number check and other handlers)
+    if 'awaiting_admin_id' in context.user_data:
+        await handle_admin_id_input(update, context, text)
+        return
+    
     # Handle address input (after admin clicks add address)
     if 'adding_address' in context.user_data:
         from handlers.address_handlers import handle_address_input
@@ -2718,6 +2723,13 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
         
+        if text == "➕ 添加管理员":
+            if not is_admin_user:
+                await send_group_message(update, "❌ 此功能仅限管理员使用")
+                return
+            await handle_admin_add(update, context)
+            return
+        
         if text == "🗑️ 删除管理员":
             await send_group_message(update,
                 "💡 使用命令删除管理员：\n"
@@ -2727,6 +2739,13 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "⚠️ 删除操作不可恢复，请谨慎操作",
                 parse_mode="HTML"
             )
+            return
+        
+        if text == "📋 管理员列表":
+            if not is_admin_user:
+                await send_group_message(update, "❌ 此功能仅限管理员使用")
+                return
+            await handle_admin_add(update, context)  # handle_admin_add also shows admin list
             return
         
         if text == "🔙 返回主菜单":
@@ -2744,15 +2763,12 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await send_group_message(update, "✅ 已返回主菜单", reply_markup=reply_markup)
             return
     
-    # Check if awaiting admin ID input (must check BEFORE number check)
-    if 'awaiting_admin_id' in context.user_data:
-        await handle_admin_id_input(update, context, text)
-        return
-    
     # Check if message is a number, math expression, or batch amounts (settlement calculation)
-    if is_number(text) or is_simple_math(text) or is_batch_amounts(text):
-        await handle_math_settlement(update, context, text)
-        return
+    # BUT only if NOT awaiting admin ID input (already checked earlier)
+    if 'awaiting_admin_id' not in context.user_data:
+        if is_number(text) or is_simple_math(text) or is_batch_amounts(text):
+            await handle_math_settlement(update, context, text)
+            return
     
     # Otherwise, ignore the message
 
