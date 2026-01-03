@@ -19,21 +19,86 @@ except ImportError:
         if str(parent_dir) not in sys.path:
             sys.path.insert(0, str(parent_dir))
         from database.admin_repository import AdminRepository
-    except ImportError:
-        logger.warning("Could not import AdminRepository from database.admin_repository. Admin management features may be limited.")
-        # Create a fallback class
+        logger.info("Successfully imported AdminRepository from database.admin_repository")
+    except ImportError as e:
+        logger.warning(f"Could not import AdminRepository from database.admin_repository: {e}")
+        logger.info("Admin management will use Bot B's own database instead")
+        # Create a fallback class that uses Bot B's database
         class AdminRepository:
             @staticmethod
             def is_admin(user_id: int) -> bool:
-                return False
+                """Check admin status using Bot B's database"""
+                try:
+                    from database import db
+                    conn = db.connect()
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        "SELECT COUNT(*) FROM admins WHERE user_id = ? AND status = 'active'",
+                        (user_id,)
+                    )
+                    count = cursor.fetchone()[0]
+                    cursor.close()
+                    return count > 0
+                except Exception as e:
+                    logger.error(f"Error checking admin in Bot B database: {e}")
+                    return False
             
             @staticmethod
             def get_admin(user_id: int):
-                return None
+                """Get admin info from Bot B's database"""
+                try:
+                    from database import db
+                    conn = db.connect()
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        "SELECT user_id, role, status, added_by, added_at FROM admins WHERE user_id = ? AND status = 'active'",
+                        (user_id,)
+                    )
+                    row = cursor.fetchone()
+                    cursor.close()
+                    if row:
+                        return {
+                            'user_id': row[0],
+                            'role': row[1],
+                            'status': row[2],
+                            'added_by': row[3],
+                            'added_at': row[4]
+                        }
+                    return None
+                except Exception as e:
+                    logger.error(f"Error getting admin from Bot B database: {e}")
+                    return None
             
             @staticmethod
             def add_admin(user_id: int, role: str = "admin", added_by: int = None):
-                pass
+                """Add admin to Bot B's database"""
+                try:
+                    from database import db
+                    from datetime import datetime
+                    conn = db.connect()
+                    cursor = conn.cursor()
+                    
+                    # Check if already exists
+                    cursor.execute(
+                        "SELECT COUNT(*) FROM admins WHERE user_id = ? AND status = 'active'",
+                        (user_id,)
+                    )
+                    if cursor.fetchone()[0] > 0:
+                        cursor.close()
+                        logger.info(f"User {user_id} is already an admin in Bot B database")
+                        return
+                    
+                    # Add admin
+                    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+                    cursor.execute(
+                        "INSERT INTO admins (user_id, role, status, added_by, added_at) VALUES (?, ?, 'active', ?, ?)",
+                        (user_id, role, added_by, now)
+                    )
+                    conn.commit()
+                    cursor.close()
+                    logger.info(f"Added admin {user_id} to Bot B database")
+                except Exception as e:
+                    logger.error(f"Error adding admin to Bot B database: {e}")
 
 
 class PermissionService:

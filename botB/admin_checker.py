@@ -1,10 +1,14 @@
 """
 Admin checker for Bot B
-Checks admin status from both Bot A's database and Config.INITIAL_ADMINS
+Checks admin status from multiple sources:
+1. Bot A's database (shared admins) - if available
+2. Bot B's own database (admins table) - primary source for dynamically added admins
+3. Config.INITIAL_ADMINS - fallback for initial admins
 
-This allows Bot B to recognize admins added via Bot A's /addadmin command
-without requiring a restart. Bot B will check Bot A's database first,
-then fall back to Config.INITIAL_ADMINS.
+This allows:
+- Bot A's /addadmin command to automatically grant admin access in Bot B
+- Bot B's UI to add admins that are immediately recognized
+- Initial admins from config to work without database
 """
 import logging
 import sys
@@ -15,13 +19,30 @@ logger = logging.getLogger(__name__)
 # Cache for sys.path modification to avoid repeated operations
 _root_dir = None
 
+# Cache for Bot B database instance to avoid repeated initialization
+_bot_b_db = None
+
+
+def _get_bot_b_database():
+    """Get or create Bot B database instance"""
+    global _bot_b_db
+    if _bot_b_db is None:
+        try:
+            from database import db
+            _bot_b_db = db
+        except Exception as e:
+            logger.debug(f"Could not initialize Bot B database: {e}")
+            return None
+    return _bot_b_db
+
 
 def is_admin(user_id: int) -> bool:
     """
     Check if user is admin.
-    First checks Bot A's database, then falls back to Config.INITIAL_ADMINS.
-    
-    This allows Bot A's /addadmin command to automatically grant admin access in Bot B.
+    Checks in this order:
+    1. Bot A's database (shared admins) - if available
+    2. Bot B's own database (admins table) - for dynamically added admins
+    3. Config.INITIAL_ADMINS - fallback for initial admins
     
     Args:
         user_id: Telegram user ID
@@ -31,7 +52,7 @@ def is_admin(user_id: int) -> bool:
     """
     global _root_dir
     
-    # First, check Bot A's database (shared admins)
+    # Step 1: Check Bot A's database (shared admins)
     # This allows Bot A's /addadmin command to automatically grant admin access in Bot B
     try:
         # Import Bot A's database module
@@ -65,17 +86,40 @@ def is_admin(user_id: int) -> bool:
     except Exception as e:
         logger.debug(f"Error accessing Bot A database: {e}", exc_info=True)
     
-    # Fallback to Config.INITIAL_ADMINS
+    # Step 2: Check Bot B's own database (admins table)
+    # This is the primary source for admins added via Bot B's UI
+    try:
+        db = _get_bot_b_database()
+        if db:
+            conn = db.connect()
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT COUNT(*) FROM admins WHERE user_id = ? AND status = 'active'",
+                (user_id,)
+            )
+            count = cursor.fetchone()[0]
+            cursor.close()
+            
+            if count > 0:
+                logger.info(f"✅ User {user_id} is admin (from Bot B database)")
+                return True
+            else:
+                logger.debug(f"User {user_id} is not admin in Bot B database")
+        else:
+            logger.debug("Bot B database not available for admin check")
+    except Exception as e:
+        logger.warning(f"Error checking Bot B database for admin {user_id}: {e}", exc_info=True)
+    
+    # Step 3: Fallback to Config.INITIAL_ADMINS
     from config import Config
     current_admins = Config.INITIAL_ADMINS
     if user_id in current_admins:
         logger.info(f"✅ User {user_id} is admin (from Config.INITIAL_ADMINS)")
         return True
     else:
-        logger.warning(
-            f"❌ User {user_id} is not in Config.INITIAL_ADMINS. "
-            f"Current admins: {current_admins}. "
-            f"Check if ADMIN_IDS environment variable is set and includes this user."
+        logger.debug(
+            f"User {user_id} is not in Config.INITIAL_ADMINS. "
+            f"Current admins: {current_admins}."
         )
     
     logger.warning(f"❌ User {user_id} is not recognized as admin")
