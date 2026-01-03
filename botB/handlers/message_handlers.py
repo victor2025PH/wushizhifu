@@ -3742,7 +3742,18 @@ async def handle_admin_id_input(update: Update, context: ContextTypes.DEFAULT_TY
         
         # Also add to shared database (Bot A)
         try:
-            from database.admin_repository import AdminRepository
+            import sys
+            from pathlib import Path
+            # Try to import AdminRepository
+            try:
+                from database.admin_repository import AdminRepository
+            except ImportError:
+                # Add parent directory to path if needed
+                parent_dir = Path(__file__).parent.parent.parent
+                if str(parent_dir) not in sys.path:
+                    sys.path.insert(0, str(parent_dir))
+                from database.admin_repository import AdminRepository
+            
             AdminRepository.add_admin(new_admin_id, role="admin", added_by=user.id)
         except Exception as e:
             logger.warning(f"Failed to add admin to shared database: {e}")
