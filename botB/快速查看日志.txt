@@ -1,13 +1,16 @@
 === Bot 日志快速查看命令 ===
 
+【⚠️ 如果命令没有响应，先执行诊断】
+echo "=== 服务文件 ===" && ls /etc/systemd/system/*bot*.service 2>/dev/null && echo -e "\n=== 服务状态 ===" && sudo systemctl status otc-bot --no-pager -l 2>&1 | head -15 && echo -e "\n=== 进程 ===" && ps aux | grep -E "bot.py|python.*bot" | grep -v grep
+
 【实时查看日志】（最常用）
 sudo journalctl -u otc-bot -f
 
 【查看最近 100 行】
 sudo journalctl -u otc-bot -n 100
 
-【查看服务状态】
-sudo systemctl status otc-bot
+【查看服务状态】（如果没输出，加 -l 参数）
+sudo systemctl status otc-bot -l --no-pager
 
 【重启服务】
 sudo systemctl restart otc-bot
@@ -19,12 +22,20 @@ sudo journalctl -u otc-bot | grep -i error
 sudo journalctl -u otc-bot --since today
 
 【如果服务名不是 otc-bot，先查找服务名】
-sudo systemctl list-units | grep -i bot
+sudo systemctl list-units --all | grep -i bot
+sudo systemctl list-unit-files | grep -i bot
+
+【检查进程是否运行】
+ps aux | grep python | grep bot
+
+【如果服务不存在，检查服务文件】
+ls -la /etc/systemd/system/*bot*.service
+cat /home/ubuntu/wushizhifu/botB/otc-bot.service
 
 === 常用组合命令 ===
 
-【一键查看状态和日志】
-sudo systemctl status otc-bot --no-pager && echo "---" && sudo journalctl -u otc-bot -n 50 --no-pager
+【一键诊断（推荐先执行）】
+echo "=== 服务文件 ===" && ls /etc/systemd/system/*bot*.service 2>/dev/null && echo -e "\n=== 服务状态 ===" && sudo systemctl status otc-bot --no-pager -l 2>&1 | head -15 && echo -e "\n=== 进程 ===" && ps aux | grep -E "bot.py|python.*bot" | grep -v grep && echo -e "\n=== 日志 ===" && sudo journalctl -u otc-bot -n 10 --no-pager 2>&1 | tail -10
 
 【实时监控错误】
 sudo journalctl -u otc-bot -f | grep -i error
