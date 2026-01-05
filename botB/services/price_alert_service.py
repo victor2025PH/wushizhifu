@@ -30,8 +30,16 @@ async def check_price_alerts(group_id: Optional[int] = None) -> List[Dict]:
             logger.warning(f"Failed to get price for alert checking: {error_msg}")
             return []
         
-        # Save price history
-        db.save_price_history(base_price, final_price, markup, 'binance_p2p')
+        # Save price history with correct source
+        if source == 'okx':
+            history_source = 'okx_c2c'
+        elif source == 'binance':
+            history_source = 'binance_p2p'
+        elif source == 'coingecko':
+            history_source = 'coingecko'
+        else:
+            history_source = 'unknown'
+        db.save_price_history(base_price, final_price, markup, history_source)
         
         # Get all active alerts
         active_alerts = db.get_active_alerts()
