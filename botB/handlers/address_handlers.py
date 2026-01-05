@@ -97,8 +97,8 @@ async def handle_address_list(update: Update, context: ContextTypes.DEFAULT_TYPE
             ])
         
         keyboard.append([
-            InlineKeyboardButton("➕ 添加地址", callback_data="address_add"),
-            InlineKeyboardButton("🔄 刷新", callback_data="address_list")
+                InlineKeyboardButton("➕ 添加地址", callback_data="address_add"),
+                InlineKeyboardButton("🔄 刷新", callback_data="address_list")
         ])
         
         # Add back button based on context
@@ -115,8 +115,8 @@ async def handle_address_list(update: Update, context: ContextTypes.DEFAULT_TYPE
         
         if query:
             try:
-                await query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
-                await query.answer()
+            await query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
+            await query.answer()
             except BadRequest as e:
                 if "not modified" in str(e).lower():
                     await query.answer("✅ 内容未更改")
@@ -307,7 +307,7 @@ async def handle_address_add_prompt(update: Update, context: ContextTypes.DEFAUL
         )
         
         try:
-            await query.edit_message_text(message, parse_mode="HTML")
+        await query.edit_message_text(message, parse_mode="HTML")
         except BadRequest as e:
             if "not modified" in str(e).lower():
                 await query.answer("✅ 内容未更改")
@@ -324,7 +324,7 @@ async def handle_address_add_prompt(update: Update, context: ContextTypes.DEFAUL
         logger.error(f"Error in handle_address_add_prompt: {e}", exc_info=True)
         try:
             if update.callback_query:
-                await update.callback_query.answer("❌ 错误", show_alert=True)
+        await update.callback_query.answer("❌ 错误", show_alert=True)
         except Exception as inner_e:
             logger.error(f"Error sending error message: {inner_e}", exc_info=True)
 

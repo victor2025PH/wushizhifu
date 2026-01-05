@@ -1,6 +1,6 @@
 """
 Settlement calculation service
-Handles OTC settlement calculations with Binance P2P price (CoinGecko fallback) and admin markup
+Handles OTC settlement calculations with OKX C2C price (Binance P2P and CoinGecko fallback) and admin markup
 """
 import logging
 from typing import Tuple, Optional
@@ -81,9 +81,9 @@ def calculate_settlement(amount_text: str, group_id: Optional[int] = None) -> Tu
         # Get base price (without markup) and markup separately
         from database import db
         
-        # Get base price from Binance P2P (with CoinGecko fallback)
+        # Get base price from OKX C2C (with Binance P2P and CoinGecko fallback)
         from services.price_service import get_usdt_cny_price
-        base_price, price_error = get_usdt_cny_price()
+        base_price, price_error, _ = get_usdt_cny_price()
         
         if base_price is None:
             return None, f"无法获取价格: {price_error or '未知错误'}"

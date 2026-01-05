@@ -24,7 +24,7 @@ async def check_price_alerts(group_id: Optional[int] = None) -> List[Dict]:
     """
     try:
         # Get current price
-        final_price, error_msg, base_price, markup = get_price_with_markup(group_id)
+        final_price, error_msg, base_price, markup, source = get_price_with_markup(group_id)
         
         if final_price is None:
             logger.warning(f"Failed to get price for alert checking: {error_msg}")
@@ -142,7 +142,7 @@ async def monitor_price_alerts(context: ContextTypes.DEFAULT_TYPE):
             return
         
         # Get current price for notifications
-        final_price, _, _, _ = get_price_with_markup(group_id=None)
+        final_price, _, _, _, _ = get_price_with_markup(group_id=None)
         
         if final_price is None:
             return

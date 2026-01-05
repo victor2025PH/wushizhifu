@@ -175,15 +175,26 @@ async def handle_admin_w1(update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat = update.effective_chat
         group_id = chat.id if chat.type in ['group', 'supergroup'] else None
         
-        final_price, error_msg, base_price, markup = get_price_with_markup(group_id)
+        final_price, error_msg, base_price, markup, source = get_price_with_markup(group_id)
         
         if final_price is None:
             message = f"❌ 获取价格失败\n\n{error_msg or '未知错误'}"
         else:
             markup_source = "群组" if group_id and db.get_group_setting(group_id) else "全局"
+            
+            # Determine data source display name
+            if source == 'okx':
+                source_name = "欧易 OKX"
+            elif source == 'binance':
+                source_name = "币安 Binance"
+            elif source == 'coingecko':
+                source_name = "CoinGecko"
+            else:
+                source_name = "默认价格"
+            
             message = (
                 f"💱 <b>USDT/CNY 价格信息</b>\n\n"
-                f"📊 Binance P2P 基础价格: {base_price:.4f} CNY\n"
+                f"📊 {source_name} 基础价格: {base_price:.4f} CNY\n"
                 f"➕ 加价（{markup_source}）: {markup:.4f} USDT\n"
                 f"💰 最终价格: {final_price:.4f} CNY\n"
             )
@@ -904,7 +915,7 @@ async def handle_math_settlement(update: Update, context: ContextTypes.DEFAULT_T
 # ========== Button Handlers ==========
 
 async def handle_price_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle price button click - show Binance P2P merchant leaderboard"""
+    """Handle price button click - show P2P merchant leaderboard (OKX/Binance)"""
     from handlers.p2p_handlers import handle_p2p_price_command
     await handle_p2p_price_command(update, context, payment_method="alipay")
 

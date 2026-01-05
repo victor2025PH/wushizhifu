@@ -52,7 +52,7 @@ async def handle_admin_commands_help(update: Update, context: ContextTypes.DEFAU
                 "示例：<code>w0</code> 或 <code>SZ</code>\n\n"
                 
                 "<b>w1 / HL</b> - 查看价格详情\n"
-                "功能：查看 Binance P2P 实时汇率、加价、最终价格\n"
+                "功能：查看实时汇率（欧易/币安）、加价、最终价格\n"
                 "示例：<code>w1</code> 或 <code>HL</code>\n\n"
                 
                 "<b>w2 [数字] / SJJ [数字]</b> - 设置群组加价\n"
@@ -81,7 +81,7 @@ async def handle_admin_commands_help(update: Update, context: ContextTypes.DEFAU
                 "━━━━━━━━━━━━━━━━━━━━\n\n"
                 
                 "<b>w1 / HL</b> - 查看价格详情\n"
-                "功能：查看 Binance P2P 实时汇率、全局加价、最终价格\n"
+                "功能：查看实时汇率（欧易/币安）、全局加价、最终价格\n"
                 "示例：<code>w1</code> 或 <code>HL</code>\n\n"
                 
                 "<b>w4 / CKQJ</b> - 查看全局设置\n"

@@ -153,7 +153,7 @@ async def handle_alert_threshold_input(update: Update, context: ContextTypes.DEF
         
         if db.create_price_alert(user_id, alert_type_name, threshold, operator):
             # Get current price for display
-            current_price, _, _, _ = get_price_with_markup(group_id=None, save_history=False)
+            current_price, _, _, _, _ = get_price_with_markup(group_id=None, save_history=False)
             
             message = (
                 f"✅ <b>价格预警已创建</b>\n\n"

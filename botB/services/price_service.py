@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 # In-memory cache for price data
 _price_cache = {
     'price': None,
+    'source': None,  # Track which data source was used
     'timestamp': 0,
     'cache_duration': 60  # Cache valid for 60 seconds
 }
@@ -68,14 +69,16 @@ def _is_cache_valid() -> bool:
     return cache_age < _price_cache['cache_duration']
 
 
-def _update_cache(price: float):
+def _update_cache(price: float, source: str = None):
     """
-    Update the price cache with new price and timestamp.
+    Update the price cache with new price, source, and timestamp.
     
     Args:
         price: The price to cache
+        source: The data source used ('okx', 'binance', 'coingecko', or None)
     """
     _price_cache['price'] = price
+    _price_cache['source'] = source
     _price_cache['timestamp'] = time.time()
 
 
@@ -322,7 +325,7 @@ def _fetch_coingecko_price() -> Tuple[Optional[float], Optional[str]]:
         return None, f"Unexpected error: {str(e)}"
 
 
-def get_usdt_cny_price() -> Tuple[Optional[float], Optional[str]]:
+def get_usdt_cny_price() -> Tuple[Optional[float], Optional[str], Optional[str]]:
     """
     Fetch USDT/CNY average price from OKX C2C API (Alipay payment method only).
     Falls back to Binance P2P API, then CoinGecko API if OKX fails.
@@ -330,22 +333,23 @@ def get_usdt_cny_price() -> Tuple[Optional[float], Optional[str]]:
     This function is called only when requested (no background polling).
     
     Returns:
-        Tuple of (average_price: float or None, error_message: str or None)
-        - If successful: (average_price, None)
-        - If failed: (fallback_price, "Using fallback price")
+        Tuple of (average_price: float or None, error_message: str or None, source: str or None)
+        - source: 'okx', 'binance', 'coingecko', or None
+        - If successful: (average_price, None, source)
+        - If failed: (fallback_price, "Using fallback price", source)
     """
     # Check cache first
     if _is_cache_valid():
-        logger.info(f"Returning cached price: {_price_cache['price']}")
-        return _price_cache['price'], None
+        logger.info(f"Returning cached price: {_price_cache['price']} from {_price_cache['source']}")
+        return _price_cache['price'], None, _price_cache['source']
     
     # Try OKX C2C first (primary source - Alipay average price)
     price, error_msg = _fetch_okx_price()
     
     if price is not None:
         # Update cache with successful average price
-        _update_cache(price)
-        return price, None
+        _update_cache(price, 'okx')
+        return price, None, 'okx'
     
     # If OKX failed, try Binance P2P as fallback
     logger.warning(f"OKX C2C failed ({error_msg}), trying Binance P2P fallback...")
@@ -353,8 +357,8 @@ def get_usdt_cny_price() -> Tuple[Optional[float], Optional[str]]:
     
     if price is not None:
         # Update cache with fallback price
-        _update_cache(price)
-        return price, f"Using Binance P2P fallback (OKX C2C failed: {error_msg})"
+        _update_cache(price, 'binance')
+        return price, f"Using Binance P2P fallback (OKX C2C failed: {error_msg})", 'binance'
     
     # If Binance P2P also failed, try CoinGecko as last fallback
     logger.warning(f"Binance P2P also failed ({binance_error}), trying CoinGecko fallback...")
@@ -362,8 +366,8 @@ def get_usdt_cny_price() -> Tuple[Optional[float], Optional[str]]:
     
     if price is not None:
         # Update cache with fallback price
-        _update_cache(price)
-        return price, f"Using CoinGecko fallback (OKX C2C failed: {error_msg}, Binance P2P failed: {binance_error})"
+        _update_cache(price, 'coingecko')
+        return price, f"Using CoinGecko fallback (OKX C2C failed: {error_msg}, Binance P2P failed: {binance_error})", 'coingecko'
     
     # All APIs failed, use hardcoded fallback
     logger.error(f"All APIs failed. Using hardcoded fallback price: {Config.DEFAULT_FALLBACK_PRICE}")
@@ -371,10 +375,10 @@ def get_usdt_cny_price() -> Tuple[Optional[float], Optional[str]]:
     logger.error(f"Binance P2P error: {binance_error}")
     logger.error(f"CoinGecko error: {coingecko_error}")
     
-    return Config.DEFAULT_FALLBACK_PRICE, f"All APIs failed (OKX C2C: {error_msg}, Binance P2P: {binance_error}, CoinGecko: {coingecko_error}), using fallback price"
+    return Config.DEFAULT_FALLBACK_PRICE, f"All APIs failed (OKX C2C: {error_msg}, Binance P2P: {binance_error}, CoinGecko: {coingecko_error}), using fallback price", None
 
 
-def get_price_with_markup(group_id: Optional[int] = None, save_history: bool = True) -> Tuple[Optional[float], Optional[str], float, float]:
+def get_price_with_markup(group_id: Optional[int] = None, save_history: bool = True) -> Tuple[Optional[float], Optional[str], float, float, Optional[str]]:
     """
     Get USDT/CNY price from OKX C2C (with Binance P2P and CoinGecko fallback) with markup applied (group-specific or global).
     
@@ -383,15 +387,16 @@ def get_price_with_markup(group_id: Optional[int] = None, save_history: bool = T
         save_history: Whether to save price to history (default: True)
         
     Returns:
-        Tuple of (final_price: float or None, error_message: str or None, base_price: float, markup: float)
+        Tuple of (final_price: float or None, error_message: str or None, base_price: float, markup: float, source: str or None)
+        - source: 'okx', 'binance', 'coingecko', or None
     """
     from database import db
     
     # Get base price from OKX C2C (with Binance P2P and CoinGecko fallback)
-    base_price, error_msg = get_usdt_cny_price()
+    base_price, error_msg, source = get_usdt_cny_price()
     
     if base_price is None:
-        return None, error_msg or "Failed to fetch price", 0.0, 0.0
+        return None, error_msg or "Failed to fetch price", 0.0, 0.0, source
     
     # Check for group-specific markup first
     markup = 0.0
@@ -411,16 +416,18 @@ def get_price_with_markup(group_id: Optional[int] = None, save_history: bool = T
     
     # Save price history if requested
     if save_history:
-        # Determine source from error message
-        if error_msg is None or 'okx' in (error_msg or '').lower():
-            source = 'okx_c2c'
-        elif 'binance' in (error_msg or '').lower():
-            source = 'binance_p2p'
+        # Determine source for history
+        if source == 'okx':
+            history_source = 'okx_c2c'
+        elif source == 'binance':
+            history_source = 'binance_p2p'
+        elif source == 'coingecko':
+            history_source = 'coingecko'
         else:
-            source = 'coingecko'
-        db.save_price_history(base_price, final_price, markup, source)
+            history_source = 'unknown'
+        db.save_price_history(base_price, final_price, markup, history_source)
     
-    logger.info(f"Price calculation: {base_price} (base) + {markup} (markup) = {final_price} (final)")
+    logger.info(f"Price calculation: {base_price} (base) + {markup} (markup) = {final_price} (final) from {source}")
     
-    return final_price, error_msg, base_price, markup
+    return final_price, error_msg, base_price, markup, source
 

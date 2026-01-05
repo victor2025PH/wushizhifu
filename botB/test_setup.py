@@ -125,7 +125,7 @@ def test_price_service():
             print(f"  (This might be OK if CoinGecko API is temporarily unavailable)")
         
         print(f"\n  Testing price with markup...")
-        final_price, error_msg, base_price = get_price_with_markup()
+        final_price, error_msg, base_price, markup, source = get_price_with_markup()
         
         if final_price is not None:
             print(f"  ✓ Final price calculated: {final_price:.4f} CNY")
