@@ -495,6 +495,8 @@ def init_database():
             cursor.execute("ALTER TABLE otc_transactions ADD COLUMN cancelled_at TIMESTAMP")
         if 'cancelled_by' not in columns:
             cursor.execute("ALTER TABLE otc_transactions ADD COLUMN cancelled_by BIGINT")
+        if 'price_source' not in columns:
+            cursor.execute("ALTER TABLE otc_transactions ADD COLUMN price_source TEXT")
         
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_otc_transactions_group_id 

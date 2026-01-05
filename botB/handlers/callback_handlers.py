@@ -308,7 +308,8 @@ async def refresh_transaction_message(query, transaction):
         'base_price': transaction['exchange_rate'] - (transaction['markup'] or 0.0),
         'markup': transaction['markup'] or 0.0,
         'final_price': transaction['exchange_rate'],
-        'usdt_amount': transaction['usdt_amount']
+        'usdt_amount': transaction['usdt_amount'],
+        'price_source': transaction.get('price_source')  # May be None for old transactions
     }
     
     # Format time strings

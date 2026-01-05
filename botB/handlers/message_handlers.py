@@ -842,7 +842,8 @@ async def handle_math_settlement(update: Update, context: ContextTypes.DEFAULT_T
                     usdt_amount=settlement['usdt_amount'],
                     exchange_rate=settlement['final_price'],
                     markup=settlement['markup'],
-                    usdt_address=usdt_address or ''
+                    usdt_address=usdt_address or '',
+                    price_source=settlement.get('price_source')
                 )
                 if transaction_id:
                     transaction_ids.append(transaction_id)
@@ -887,7 +888,8 @@ async def handle_math_settlement(update: Update, context: ContextTypes.DEFAULT_T
             usdt_amount=settlement_data['usdt_amount'],
             exchange_rate=settlement_data['final_price'],
             markup=settlement_data['markup'],
-            usdt_address=usdt_address or ''
+            usdt_address=usdt_address or '',
+            price_source=settlement_data.get('price_source')
         )
         
         # Format and send settlement bill (with status 'pending')
@@ -1362,7 +1364,8 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 'base_price': transaction['exchange_rate'] - (transaction['markup'] or 0.0),
                 'markup': transaction['markup'] or 0.0,
                 'final_price': transaction['exchange_rate'],
-                'usdt_amount': transaction['usdt_amount']
+                'usdt_amount': transaction['usdt_amount'],
+                'price_source': transaction.get('price_source')  # May be None for old transactions
             }
             
             paid_at = transaction.get('paid_at')

@@ -1269,7 +1269,8 @@ class Database:
     
     def create_transaction(self, group_id: Optional[int], user_id: int, username: str, 
                           first_name: str, cny_amount: float, usdt_amount: float,
-                          exchange_rate: float, markup: float, usdt_address: str) -> Optional[str]:
+                          exchange_rate: float, markup: float, usdt_address: str,
+                          price_source: Optional[str] = None) -> Optional[str]:
         """
         Create a new transaction record.
         
@@ -1283,6 +1284,7 @@ class Database:
             exchange_rate: Exchange rate used
             markup: Markup applied
             usdt_address: USDT address used
+            price_source: Price data source ('okx', 'binance', 'coingecko', or None)
             
         Returns:
             Transaction ID if successful, None otherwise
@@ -1299,13 +1301,13 @@ class Database:
             cursor.execute("""
                 INSERT INTO otc_transactions (
                     transaction_id, group_id, user_id, username, first_name,
-                    cny_amount, usdt_amount, exchange_rate, markup, usdt_address, status
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+                    cny_amount, usdt_amount, exchange_rate, markup, usdt_address, status, price_source
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
             """, (transaction_id, group_id, user_id, username or '', first_name or '',
-                  cny_amount, usdt_amount, exchange_rate, markup, usdt_address or ''))
+                  cny_amount, usdt_amount, exchange_rate, markup, usdt_address or '', price_source))
             
             conn.commit()
-            logger.info(f"Transaction created: {transaction_id}")
+            logger.info(f"Transaction created: {transaction_id} (price_source: {price_source})")
             return transaction_id
             
         except Exception as e:

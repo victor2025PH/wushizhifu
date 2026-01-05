@@ -55,11 +55,12 @@ def calculate_settlement(amount_text: str, group_id: Optional[int] = None) -> Tu
     Settlement data structure:
         {
             'cny_amount': float,      # Input CNY amount (after calculation)
-            'base_price': float,       # Base USDT/CNY price from Binance P2P
+            'base_price': float,       # Base USDT/CNY price from OKX/Binance/CoinGecko
             'markup': float,          # Markup applied (group-specific or global)
             'final_price': float,      # Final USDT/CNY price (base + markup)
             'usdt_amount': float,      # Calculated USDT amount to settle
             'price_error': str or None,
+            'price_source': str or None,  # Data source: 'okx', 'binance', 'coingecko', or None
             'group_id': int or None    # Group ID if group-specific
         }
         
@@ -83,7 +84,7 @@ def calculate_settlement(amount_text: str, group_id: Optional[int] = None) -> Tu
         
         # Get base price from OKX C2C (with Binance P2P and CoinGecko fallback)
         from services.price_service import get_usdt_cny_price
-        base_price, price_error, _ = get_usdt_cny_price()
+        base_price, price_error, source = get_usdt_cny_price()
         
         if base_price is None:
             return None, f"无法获取价格: {price_error or '未知错误'}"
@@ -117,6 +118,7 @@ def calculate_settlement(amount_text: str, group_id: Optional[int] = None) -> Tu
             'final_price': final_price,    # Final USDT/CNY price (base + markup)
             'usdt_amount': usdt_amount,    # Calculated USDT amount
             'price_error': price_error,
+            'price_source': source,        # Data source: 'okx', 'binance', 'coingecko', or None
             'group_id': group_id           # Group ID if applicable
         }
         
@@ -179,8 +181,18 @@ def format_settlement_bill(settlement_data: dict, usdt_address: str = None, tran
     # Input: CNY amount
     message += f"💰 已收人民币: <b><code>{cny_amount:,.2f} CNY</code></b>\n\n"
     
-    # Exchange rate display
-    message += f"📊 汇率 (USDT/CNY): {base_price:.4f} (Binance P2P)\n"
+    # Exchange rate display - determine source name
+    price_source = settlement_data.get('price_source')
+    if price_source == 'okx':
+        source_name = "欧易 OKX"
+    elif price_source == 'binance':
+        source_name = "币安 Binance"
+    elif price_source == 'coingecko':
+        source_name = "CoinGecko"
+    else:
+        source_name = "默认价格"
+    
+    message += f"📊 汇率 (USDT/CNY): {base_price:.4f} ({source_name})\n"
     
     # Markup display (if any) - now markup is added to exchange rate
     if markup != 0:
@@ -251,7 +263,7 @@ def calculate_batch_settlement(amounts_text: str, group_id: Optional[int] = None
         from database import db
         from services.price_service import get_usdt_cny_price
         
-        base_price, price_error = get_usdt_cny_price()
+        base_price, price_error, source = get_usdt_cny_price()
         
         if base_price is None:
             return None, f"无法获取价格: {price_error or '未知错误'}"
@@ -288,6 +300,7 @@ def calculate_batch_settlement(amounts_text: str, group_id: Optional[int] = None
                 'final_price': final_price,
                 'usdt_amount': usdt_amount,
                 'price_error': price_error,
+                'price_source': source,  # Data source: 'okx', 'binance', 'coingecko', or None
                 'group_id': group_id
             }
             settlements.append(settlement_data)
@@ -319,6 +332,17 @@ def format_batch_settlement_bills(settlements: List[dict], usdt_address: str = N
     base_price = settlements[0]['base_price']
     markup = settlements[0]['markup']
     price_error = settlements[0].get('price_error')
+    price_source = settlements[0].get('price_source')
+    
+    # Determine source name
+    if price_source == 'okx':
+        source_name = "欧易 OKX"
+    elif price_source == 'binance':
+        source_name = "币安 Binance"
+    elif price_source == 'coingecko':
+        source_name = "CoinGecko"
+    else:
+        source_name = "默认价格"
     
     # Calculate totals
     total_cny = sum(s['cny_amount'] for s in settlements)
@@ -330,7 +354,7 @@ def format_batch_settlement_bills(settlements: List[dict], usdt_address: str = N
     message += "────────────────────────\n\n"
     
     # Rate info
-    message += f"📊 汇率 (USDT/CNY): {base_price:.4f} (Binance P2P)\n"
+    message += f"📊 汇率 (USDT/CNY): {base_price:.4f} ({source_name})\n"
     
     # Markup display (if any) - now markup is added to exchange rate
     if markup != 0:

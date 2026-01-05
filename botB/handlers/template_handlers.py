@@ -182,7 +182,8 @@ async def handle_template_use(update: Update, context: ContextTypes.DEFAULT_TYPE
             usdt_amount=settlement_data['usdt_amount'],
             exchange_rate=settlement_data['final_price'],
             markup=settlement_data['markup'],
-            usdt_address=usdt_address or ''
+            usdt_address=usdt_address or '',
+            price_source=settlement_data.get('price_source')
         )
         
         # Format and send settlement bill
