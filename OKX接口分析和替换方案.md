@@ -71,7 +71,7 @@ https://www.okx.com/v3/c2c/tradingOrders/books?t=%7B$t%7D&quoteCurrency=cny&base
 
 ## 🔍 当前系统使用币安接口的情况
 
-### Bot B（机器人）
+### Bot B（机器人）- 核心价格服务
 
 **文件：** `botB/services/price_service.py`
 
@@ -88,22 +88,61 @@ https://www.okx.com/v3/c2c/tradingOrders/books?t=%7B$t%7D&quoteCurrency=cny&base
 - 显示汇率信息时
 - 所有需要 USDT/CNY 价格的地方
 
-### MiniApp（小程序）
+**关键函数：**
+- `get_usdt_cny_price()` - 获取基础价格
+- `get_price_with_markup()` - 获取加价后的价格
+- `_fetch_binance_p2p_price()` - 获取币安价格
 
-**文件：** `wushizhifu-full/components/Dashboard.tsx`
+### Bot A（机器人）- 商家排行榜服务
+
+**文件：** `botA/services/p2p_leaderboard_service.py`
 
 **当前实现：**
-- 调用后端 API：`/api/binance/p2p`
+- 使用币安 P2P API 获取商家排行榜
+- 支持支付宝、微信、银行卡三种支付方式
+- 返回商家详细信息（价格、限额、完成率等）
+- 用于显示商家排行榜
+
+**使用场景：**
+- 显示币安 P2P 商家排行榜
+- 计算器中选择商家汇率
+
+**关键函数：**
+- `get_p2p_leaderboard()` - 获取商家排行榜
+- `format_p2p_leaderboard_html()` - 格式化显示
+
+### MiniApp（小程序）- 前端
+
+**文件：** 
+- `wushizhifu-full/api.ts` - API 客户端
+- `wushizhifu-full/components/Dashboard.tsx` - 主面板
+- `wushizhifu-full/components/BinanceRateModal.tsx` - 汇率显示组件
+
+**当前实现：**
+- 调用后端 API：`/binance/p2p`（通过 `apiClient.getBinanceP2P()`）
 - 用于显示币安 P2P 商家排行榜（`BinanceRateModal`）
 - 前端使用固定汇率：`EXCHANGE_RATE_CNY_USDT = 7.24`（在 `types.ts` 中）
+- 计算器和支付表单使用固定汇率
 
 **使用场景：**
 - 显示币安 P2P 商家排行榜
 - 计算器中使用固定汇率（需要改为动态获取）
+- 支付表单计算 USDT 金额
+
+**API 调用：**
+```typescript
+apiClient.getBinanceP2P({
+  payment_method: 'alipay',
+  rows: 10,
+  page: 1
+})
+```
 
 ### API 服务器（Bot A）
 
-**需要检查：** `botA/api_server.py` 中是否有 `/api/binance/p2p` 端点
+**需要确认：** 
+- `botA/api_server.py` 中是否有 `/binance/p2p` 端点
+- 如果没有，MiniApp 的调用会失败，需要添加该端点
 
 ## 📋 替换方案
 
