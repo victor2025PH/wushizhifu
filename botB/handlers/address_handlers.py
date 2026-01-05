@@ -30,15 +30,18 @@ async def handle_address_list(update: Update, context: ContextTypes.DEFAULT_TYPE
         chat = update.effective_chat
         group_id = chat.id if chat.type in ['group', 'supergroup'] else None
         
-        # Get group_id from context if in private chat
+        # Get group_id from context if in private chat (from group detail view)
         if not group_id and 'selected_group_id' in context.user_data:
             group_id = context.user_data['selected_group_id']
+            logger.info(f"Using selected_group_id from context: {group_id}")
         
         if not group_id:
+            error_msg = "❌ 请在群组中使用此功能，或从私聊中选择群组"
             if query:
-                await query.answer("❌ 请在群组中使用此功能，或从私聊中选择群组", show_alert=True)
+                await query.answer(error_msg, show_alert=True)
+                logger.warning(f"Address management called without group_id. Chat type: {chat.type}, has selected_group_id: {'selected_group_id' in context.user_data}")
             else:
-                await update.message.reply_text("❌ 请在群组中使用此功能，或从私聊中选择群组")
+                await update.message.reply_text(error_msg)
             return
         
         addresses = db.get_usdt_addresses(group_id=group_id, active_only=False)
@@ -115,8 +118,8 @@ async def handle_address_list(update: Update, context: ContextTypes.DEFAULT_TYPE
         
         if query:
             try:
-            await query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
-            await query.answer()
+                await query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
+                await query.answer()
             except BadRequest as e:
                 if "not modified" in str(e).lower():
                     await query.answer("✅ 内容未更改")
@@ -307,7 +310,7 @@ async def handle_address_add_prompt(update: Update, context: ContextTypes.DEFAUL
         )
         
         try:
-        await query.edit_message_text(message, parse_mode="HTML")
+            await query.edit_message_text(message, parse_mode="HTML")
         except BadRequest as e:
             if "not modified" in str(e).lower():
                 await query.answer("✅ 内容未更改")
@@ -324,7 +327,7 @@ async def handle_address_add_prompt(update: Update, context: ContextTypes.DEFAUL
         logger.error(f"Error in handle_address_add_prompt: {e}", exc_info=True)
         try:
             if update.callback_query:
-        await update.callback_query.answer("❌ 错误", show_alert=True)
+                await update.callback_query.answer("❌ 错误", show_alert=True)
         except Exception as inner_e:
             logger.error(f"Error sending error message: {inner_e}", exc_info=True)
 

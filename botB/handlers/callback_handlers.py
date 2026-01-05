@@ -516,6 +516,7 @@ async def handle_group_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             # Store selected group_id in context for address management
             context.user_data['selected_group_id'] = group_id
+            logger.info(f"Stored selected_group_id: {group_id} in context for user {query.from_user.id}")
             
             # Get group info
             groups = db.get_all_groups()
@@ -1185,10 +1186,14 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     # Address management handlers
-    # Address management handlers
     if callback_data == "address_list" or callback_data == "address_manage":
+        logger.info(f"Address management callback received: {callback_data}, user_id: {query.from_user.id}")
         from handlers.address_handlers import handle_address_list
-        await handle_address_list(update, context)
+        try:
+            await handle_address_list(update, context)
+        except Exception as e:
+            logger.error(f"Error in handle_address_list: {e}", exc_info=True)
+            await query.answer("❌ 打开地址管理失败，请重试", show_alert=True)
         return
     
     if callback_data == "address_add":
