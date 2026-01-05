@@ -12,6 +12,7 @@ import { CalculatorModal } from './components/CalculatorModal';
 import { WelcomeModal } from './components/WelcomeModal';
 import { AppState, PaymentProvider, Language, TelegramUser } from './types';
 import { Globe } from 'lucide-react';
+import { ExchangeRateProvider } from './hooks/useExchangeRate';
 
 // Mock Telegram WebApp type for development outside TG
 declare global {
@@ -405,6 +406,7 @@ export default function App() {
   const showBottomNav = mainTabs.includes(view);
 
   return (
+    <ExchangeRateProvider>
     <div className="min-h-screen w-full bg-tech-bg text-tech-text overflow-hidden relative selection:bg-champagne-200">
       {/* Tech Luxury Background - Light & Airy with Champagne Accents */}
       <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-blue-100/40 rounded-full blur-[100px] pointer-events-none mix-blend-multiply opacity-70" />
@@ -500,5 +502,6 @@ export default function App() {
         </AnimatePresence>
       </main>
     </div>
+    </ExchangeRateProvider>
   );
 }

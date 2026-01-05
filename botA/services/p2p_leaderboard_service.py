@@ -1,6 +1,7 @@
 """
-Binance P2P Merchant Leaderboard Service
-Fetches real-time P2P merchant data from Binance and formats it for display
+P2P Merchant Leaderboard Service
+Fetches real-time P2P merchant data from OKX C2C API (primary) and Binance P2P API (fallback)
+Only uses Alipay payment method for price calculation
 """
 import requests
 import logging
@@ -9,7 +10,23 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-# Binance P2P API configuration
+# OKX C2C API configuration (Primary source)
+OKX_C2C_URL = "https://www.okx.com/v3/c2c/tradingOrders/books"
+OKX_C2C_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+}
+
+# Payment method mapping for OKX
+OKX_PAYMENT_METHOD_MAP = {
+    "bank": "bank",
+    "alipay": "aliPay",
+    "wechat": "weChat",
+    "银行卡": "bank",
+    "支付宝": "aliPay",
+    "微信": "weChat"
+}
+
+# Binance P2P API configuration (Fallback)
 BINANCE_P2P_URL = "https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search"
 BINANCE_P2P_HEADERS = {
     "Content-Type": "application/json",
@@ -39,9 +56,148 @@ PAYMENT_METHOD_LABELS = {
 RANK_EMOJIS = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
 
 
-def get_p2p_leaderboard(payment_method: str = "alipay", rows: int = 10, page: int = 1) -> Optional[Dict]:
+def _fetch_okx_leaderboard(payment_method: str = "alipay", rows: int = 10) -> Optional[Dict]:
     """
-    Fetch P2P merchant leaderboard from Binance API.
+    Fetch P2P merchant leaderboard from OKX C2C API.
+    
+    Args:
+        payment_method: Payment method code ("bank", "alipay", "wechat")
+        rows: Number of merchants to fetch (OKX doesn't support pagination, so we fetch all and slice)
+        
+    Returns:
+        Dictionary with merchant data or None if error
+    """
+    try:
+        # Map payment method to OKX API codes
+        okx_payment = OKX_PAYMENT_METHOD_MAP.get(payment_method.lower(), "aliPay")
+        
+        # Prepare params
+        params = {
+            "quoteCurrency": "cny",
+            "baseCurrency": "usdt",
+            "side": "sell",  # Showing sellers (we want to buy USDT, so we show sellers)
+            "paymentMethod": okx_payment,
+            "userType": "all",
+            "receivingAds": "false"
+        }
+        
+        logger.info(f"Fetching OKX C2C leaderboard for payment method: {payment_method}")
+        
+        # Make GET request
+        response = requests.get(
+            OKX_C2C_URL,
+            params=params,
+            headers=OKX_C2C_HEADERS,
+            timeout=10
+        )
+        
+        # Check HTTP status
+        response.raise_for_status()
+        
+        # Parse JSON response
+        data = response.json()
+        
+        if data.get('code') == 0:
+            sell_data = data.get('data', {}).get('sell', [])
+            if len(sell_data) > 0:
+                merchants = []
+                
+                # Filter by payment method and limit to rows
+                filtered_data = []
+                for item in sell_data:
+                    payment_methods = item.get('paymentMethods', [])
+                    # Check if the requested payment method is in the list
+                    if okx_payment in payment_methods or okx_payment.lower() in [pm.lower() for pm in payment_methods]:
+                        filtered_data.append(item)
+                    if len(filtered_data) >= rows:
+                        break
+                
+                for idx, item in enumerate(filtered_data[:rows], 1):
+                    # Extract merchant information
+                    price = float(item.get('price', 0))
+                    min_amount = float(item.get('quoteMinAmountPerOrder', 0))
+                    max_amount = float(item.get('quoteMaxAmountPerOrder', 0))
+                    merchant_name = item.get('nickName', 'Unknown')
+                    
+                    # Extract trade statistics
+                    completed_order_quantity = item.get('completedOrderQuantity', 0) or 0
+                    completed_rate = float(item.get('completedRate', 0) or 0)
+                    
+                    trade_count = completed_order_quantity
+                    if trade_count == 0:
+                        trade_count = 5
+                    
+                    total_orders_estimate = trade_count * 12
+                    
+                    merchants.append({
+                        'rank': idx,
+                        'price': price,
+                        'min_amount': min_amount,
+                        'max_amount': max_amount,
+                        'merchant_name': merchant_name,
+                        'trade_count': trade_count,
+                        'finish_rate': completed_rate,
+                        'total_orders_estimate': total_orders_estimate,
+                        'credibility_icon': '🌟' if total_orders_estimate > 1000 else '⭐' if total_orders_estimate > 500 else ''
+                    })
+                
+                payment_label = PAYMENT_METHOD_LABELS.get(payment_method.lower(), "支付宝")
+                
+                # Calculate market statistics
+                if merchants:
+                    prices = [m['price'] for m in merchants]
+                    min_price = min(prices)
+                    max_price = max(prices)
+                    avg_price = sum(prices) / len(prices)
+                    total_trades = sum(m['trade_count'] for m in merchants)
+                else:
+                    min_price = max_price = avg_price = 0
+                    total_trades = 0
+                
+                return {
+                    'merchants': merchants,
+                    'payment_method': payment_method,
+                    'payment_label': payment_label,
+                    'total': len(merchants),
+                    'timestamp': datetime.now(),
+                    'page': 1,
+                    'market_stats': {
+                        'min_price': min_price,
+                        'max_price': max_price,
+                        'avg_price': avg_price,
+                        'total_trades': total_trades,
+                        'merchant_count': len(merchants)
+                    }
+                }
+            else:
+                logger.warning("No sell data found in OKX C2C API response")
+                return None
+        
+        error_code = data.get('code', 'Unknown')
+        error_message = data.get('msg', 'Unknown error')
+        logger.warning(f"OKX C2C API error - Code: {error_code}, Message: {error_message}")
+        return None
+        
+    except requests.exceptions.Timeout:
+        logger.error("OKX C2C API request timeout")
+        return None
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"OKX C2C API request failed: {e}")
+        return None
+        
+    except (KeyError, ValueError, TypeError) as e:
+        logger.error(f"Error parsing OKX C2C response: {e}", exc_info=True)
+        return None
+        
+    except Exception as e:
+        logger.error(f"Unexpected error fetching OKX C2C leaderboard: {e}", exc_info=True)
+        return None
+
+
+def _fetch_binance_leaderboard(payment_method: str = "alipay", rows: int = 10, page: int = 1) -> Optional[Dict]:
+    """
+    Fetch P2P merchant leaderboard from Binance P2P API (fallback).
     
     Args:
         payment_method: Payment method code ("bank", "alipay", "wechat")
@@ -68,7 +224,7 @@ def get_p2p_leaderboard(payment_method: str = "alipay", rows: int = 10, page: in
             "shieldMerchantAds": False
         }
         
-        logger.info(f"Fetching P2P leaderboard for payment method: {payment_method}")
+        logger.info(f"Fetching Binance P2P leaderboard for payment method: {payment_method}")
         
         # Make POST request
         response = requests.post(
@@ -172,8 +328,40 @@ def get_p2p_leaderboard(payment_method: str = "alipay", rows: int = 10, page: in
         return None
         
     except Exception as e:
-        logger.error(f"Unexpected error fetching P2P leaderboard: {e}", exc_info=True)
+        logger.error(f"Unexpected error fetching Binance P2P leaderboard: {e}", exc_info=True)
         return None
+
+
+def get_p2p_leaderboard(payment_method: str = "alipay", rows: int = 10, page: int = 1) -> Optional[Dict]:
+    """
+    Fetch P2P merchant leaderboard from OKX C2C API (primary) or Binance P2P API (fallback).
+    Only uses Alipay payment method for price calculation.
+    
+    Args:
+        payment_method: Payment method code ("bank", "alipay", "wechat")
+        rows: Number of merchants to fetch per request (default: 10)
+        page: Page number (default: 1, OKX doesn't support pagination)
+        
+    Returns:
+        Dictionary with merchant data or None if error
+    """
+    # Try OKX C2C first (primary source)
+    result = _fetch_okx_leaderboard(payment_method, rows)
+    
+    if result is not None:
+        logger.info(f"Successfully fetched leaderboard from OKX C2C")
+        return result
+    
+    # If OKX failed, try Binance P2P as fallback
+    logger.warning(f"OKX C2C failed, trying Binance P2P fallback...")
+    result = _fetch_binance_leaderboard(payment_method, rows, page)
+    
+    if result is not None:
+        logger.info(f"Successfully fetched leaderboard from Binance P2P (fallback)")
+        return result
+    
+    logger.error("Both OKX C2C and Binance P2P failed")
+    return None
 
 
 def format_p2p_leaderboard_html(leaderboard_data: Dict, page: int = 1, per_page: int = 5, total_pages: int = 1) -> str:

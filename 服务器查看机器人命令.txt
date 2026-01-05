@@ -1,24 +1,167 @@
-# 重启 Bot A
-sudo systemctl restart botA.service
+# Bot 日志查看命令
 
-# 重启 Bot B
-sudo systemctl restart botB.service
+## 📊 实时查看日志
 
-# 同时重启两个
-sudo systemctl restart botA.service botB.service
+### 查看 Bot 实时日志（推荐）
+```bash
+# 实时跟踪日志（按 Ctrl+C 退出）
+# 根据实际服务名称选择：
+sudo journalctl -u otc-bot -f          # Bot B 服务名（根据 otc-bot.service）
 
-停止服务
-sudo systemctl stop botA.service
-sudo systemctl stop botB.service
+# 或者
+sudo journalctl -u wushipay-bot -f     # 如果使用其他服务名
 
-# 查看 Bot A 状态
-sudo systemctl status botA.service
+# 如果不知道服务名，先查找：
+sudo systemctl list-units | grep -i bot
+```
 
-# 查看 Bot B 状态
-sudo systemctl status botB.service
+### 查看最近 100 行日志
+```bash
+sudo journalctl -u wushipay-bot -n 100
+```
 
-# Bot A 日志
-sudo journalctl -u botA.service -n 50 -f
+### 查看最近 1 小时的日志
+```bash
+sudo journalctl -u wushipay-bot --since "1 hour ago"
+```
 
-# Bot B 日志
-sudo journalctl -u botB.service -n 50 -f
+### 查看今天的日志
+```bash
+sudo journalctl -u wushipay-bot --since today
+```
+
+### 查看指定时间段的日志
+```bash
+# 查看今天 12:00 到现在的日志
+sudo journalctl -u wushipay-bot --since "12:00" --until now
+
+# 查看昨天的日志
+sudo journalctl -u wushipay-bot --since yesterday --until today
+```
+
+## 🔍 搜索日志
+
+### 搜索包含特定关键词的日志
+```bash
+# 搜索包含 "admin" 的日志
+sudo journalctl -u wushipay-bot | grep -i admin
+
+# 搜索包含 "error" 的日志
+sudo journalctl -u wushipay-bot | grep -i error
+
+# 搜索包含用户ID的日志
+sudo journalctl -u wushipay-bot | grep "7965752450"
+```
+
+### 实时搜索日志
+```bash
+# 实时搜索包含 "error" 的日志
+sudo journalctl -u wushipay-bot -f | grep -i error
+```
+
+## 📋 服务状态命令
+
+### 查看服务状态
+```bash
+sudo systemctl status wushipay-bot
+```
+
+### 重启服务
+```bash
+sudo systemctl restart wushipay-bot
+```
+
+### 停止服务
+```bash
+sudo systemctl stop wushipay-bot
+```
+
+### 启动服务
+```bash
+sudo systemctl start wushipay-bot
+```
+
+### 查看服务是否运行
+```bash
+sudo systemctl is-active wushipay-bot
+```
+
+## 🐛 调试命令
+
+### 查看服务启动日志
+```bash
+sudo journalctl -u wushipay-bot -b
+```
+
+### 查看所有日志（包括历史）
+```bash
+sudo journalctl -u wushipay-bot --no-pager
+```
+
+### 导出日志到文件
+```bash
+# 导出最近 1000 行日志
+sudo journalctl -u wushipay-bot -n 1000 > bot_logs.txt
+
+# 导出今天的日志
+sudo journalctl -u wushipay-bot --since today > bot_logs_today.txt
+```
+
+## 🔧 快速诊断命令
+
+### 一键查看服务状态和最近日志
+```bash
+echo "=== 服务状态 ===" && \
+sudo systemctl status wushipay-bot --no-pager -l && \
+echo -e "\n=== 最近 50 行日志 ===" && \
+sudo journalctl -u wushipay-bot -n 50 --no-pager
+```
+
+### 查看错误日志
+```bash
+sudo journalctl -u wushipay-bot -p err --since "1 hour ago"
+```
+
+### 查看警告和错误
+```bash
+sudo journalctl -u wushipay-bot -p warning --since "1 hour ago"
+```
+
+## 📝 常用组合命令
+
+### 实时监控 + 高亮错误
+```bash
+sudo journalctl -u wushipay-bot -f | grep --color=always -E "ERROR|WARNING|error|warning|$"
+```
+
+### 查看特定用户的交互日志
+```bash
+# 替换 USER_ID 为实际用户ID
+sudo journalctl -u wushipay-bot -f | grep "USER_ID"
+```
+
+## 💡 提示
+
+1. **服务名称可能不同**：如果 `wushipay-bot` 不工作，尝试：
+   - `otc-bot`
+   - `botB`
+   - 或检查 `/etc/systemd/system/` 目录中的 `.service` 文件
+
+2. **查看服务文件**：
+   ```bash
+   cat /etc/systemd/system/wushipay-bot.service
+   ```
+
+3. **如果服务不存在**，可能需要：
+   ```bash
+   # 查找所有 bot 相关服务
+   sudo systemctl list-units | grep -i bot
+   ```
+
+4. **直接查看 Python 日志文件**（如果配置了文件日志）：
+   ```bash
+   # 查看日志目录
+   ls -la /opt/wushizhifu/bot/logs/ 2>/dev/null || \
+   ls -la ~/wushizhifu/botB/logs/ 2>/dev/null || \
+   find . -name "*.log" -type f
+   ```

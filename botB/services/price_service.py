@@ -1,6 +1,7 @@
 """
-Price service for fetching USDT/CNY exchange rate from Binance P2P API
-Falls back to CoinGecko API if Binance P2P fails
+Price service for fetching USDT/CNY exchange rate from OKX C2C API
+Falls back to Binance P2P API, then CoinGecko API if OKX fails
+Only uses Alipay payment method for price calculation
 """
 import requests
 import logging
@@ -17,7 +18,21 @@ _price_cache = {
     'cache_duration': 60  # Cache valid for 60 seconds
 }
 
-# Binance P2P API configuration
+# OKX C2C API configuration (Primary source)
+OKX_C2C_URL = "https://www.okx.com/v3/c2c/tradingOrders/books"
+OKX_C2C_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+}
+OKX_C2C_PARAMS = {
+    "quoteCurrency": "cny",
+    "baseCurrency": "usdt",
+    "side": "sell",  # sell means merchants are selling USDT
+    "paymentMethod": "aliPay",  # Only use Alipay payment method
+    "userType": "all",
+    "receivingAds": "false"
+}
+
+# Binance P2P API configuration (Fallback)
 BINANCE_P2P_URL = "https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search"
 BINANCE_P2P_HEADERS = {
     "Content-Type": "application/json",
@@ -62,6 +77,98 @@ def _update_cache(price: float):
     """
     _price_cache['price'] = price
     _price_cache['timestamp'] = time.time()
+
+
+def _fetch_okx_price() -> Tuple[Optional[float], Optional[str]]:
+    """
+    Fetch USDT/CNY average price from OKX C2C API (Alipay only).
+    Calculates average price from multiple merchants to get more accurate rate.
+    
+    Returns:
+        Tuple of (average_price: float or None, error_message: str or None)
+    """
+    try:
+        logger.info("Fetching USDT/CNY average price from OKX C2C API (Alipay only)...")
+        
+        # Make GET request to OKX C2C API
+        response = requests.get(
+            OKX_C2C_URL,
+            params=OKX_C2C_PARAMS,
+            headers=OKX_C2C_HEADERS,
+            timeout=10  # 10 second timeout
+        )
+        
+        # Check HTTP status
+        response.raise_for_status()
+        
+        # Parse JSON response
+        data = response.json()
+        
+        # OKX C2C API response structure:
+        # {
+        #   "code": 0,
+        #   "data": {
+        #     "sell": [
+        #       {
+        #         "price": "6.88",  // String price
+        #         "paymentMethods": ["aliPay"],
+        #         ...
+        #       },
+        #       ...
+        #     ]
+        #   }
+        # }
+        
+        if data.get('code') == 0:
+            sell_data = data.get('data', {}).get('sell', [])
+            if len(sell_data) > 0:
+                prices = []
+                for item in sell_data:
+                    # Only use Alipay merchants
+                    payment_methods = item.get('paymentMethods', [])
+                    if 'aliPay' in payment_methods or 'aliPay' in [pm.lower() for pm in payment_methods]:
+                        price_str = item.get('price')
+                        if price_str:
+                            try:
+                                price = float(price_str)
+                                prices.append(price)
+                            except (ValueError, TypeError):
+                                continue
+                
+                if prices:
+                    # Calculate average price
+                    average_price = sum(prices) / len(prices)
+                    logger.info(f"OKX C2C Alipay average price calculated: {average_price} (from {len(prices)} merchants)")
+                    return average_price, None
+                else:
+                    error_msg = "No valid Alipay prices found in OKX C2C API response"
+                    logger.warning(error_msg)
+                    return None, error_msg
+            else:
+                error_msg = "No sell data found in OKX C2C API response"
+                logger.warning(error_msg)
+                return None, error_msg
+        
+        # If data structure is unexpected
+        error_msg = f"Unexpected response structure from OKX C2C API (code: {data.get('code')})"
+        logger.warning(error_msg)
+        return None, error_msg
+        
+    except requests.exceptions.Timeout:
+        logger.error("OKX C2C API request timeout")
+        return None, "Request timeout"
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"OKX C2C API request failed: {e}")
+        return None, f"Request failed: {str(e)}"
+        
+    except (KeyError, ValueError, TypeError) as e:
+        logger.error(f"Error parsing OKX C2C response: {e}")
+        return None, f"Failed to parse response: {str(e)}"
+        
+    except Exception as e:
+        logger.error(f"Unexpected error fetching OKX C2C price: {e}", exc_info=True)
+        return None, f"Unexpected error: {str(e)}"
 
 
 def _fetch_binance_p2p_price() -> Tuple[Optional[float], Optional[str]]:
@@ -217,8 +324,8 @@ def _fetch_coingecko_price() -> Tuple[Optional[float], Optional[str]]:
 
 def get_usdt_cny_price() -> Tuple[Optional[float], Optional[str]]:
     """
-    Fetch USDT/CNY average price from Binance P2P API (Alipay payment method only).
-    Falls back to CoinGecko API if Binance P2P fails.
+    Fetch USDT/CNY average price from OKX C2C API (Alipay payment method only).
+    Falls back to Binance P2P API, then CoinGecko API if OKX fails.
     Uses in-memory cache (60 seconds) to prevent API rate limiting.
     This function is called only when requested (no background polling).
     
@@ -232,34 +339,44 @@ def get_usdt_cny_price() -> Tuple[Optional[float], Optional[str]]:
         logger.info(f"Returning cached price: {_price_cache['price']}")
         return _price_cache['price'], None
     
-    # Try Binance P2P first (primary source - Alipay average price)
-    price, error_msg = _fetch_binance_p2p_price()
+    # Try OKX C2C first (primary source - Alipay average price)
+    price, error_msg = _fetch_okx_price()
     
     if price is not None:
         # Update cache with successful average price
         _update_cache(price)
         return price, None
     
-    # If Binance P2P failed, try CoinGecko as fallback
-    logger.warning(f"Binance P2P failed ({error_msg}), trying CoinGecko fallback...")
-    price, fallback_error = _fetch_coingecko_price()
+    # If OKX failed, try Binance P2P as fallback
+    logger.warning(f"OKX C2C failed ({error_msg}), trying Binance P2P fallback...")
+    price, binance_error = _fetch_binance_p2p_price()
     
     if price is not None:
         # Update cache with fallback price
         _update_cache(price)
-        return price, f"Using CoinGecko fallback (Binance P2P failed: {error_msg})"
+        return price, f"Using Binance P2P fallback (OKX C2C failed: {error_msg})"
     
-    # Both APIs failed, use hardcoded fallback
-    logger.error(f"Both Binance P2P and CoinGecko failed. Using hardcoded fallback price: {Config.DEFAULT_FALLBACK_PRICE}")
-    logger.error(f"Binance P2P error: {error_msg}")
-    logger.error(f"CoinGecko error: {fallback_error}")
+    # If Binance P2P also failed, try CoinGecko as last fallback
+    logger.warning(f"Binance P2P also failed ({binance_error}), trying CoinGecko fallback...")
+    price, coingecko_error = _fetch_coingecko_price()
     
-    return Config.DEFAULT_FALLBACK_PRICE, f"Both APIs failed (Binance P2P: {error_msg}, CoinGecko: {fallback_error}), using fallback price"
+    if price is not None:
+        # Update cache with fallback price
+        _update_cache(price)
+        return price, f"Using CoinGecko fallback (OKX C2C failed: {error_msg}, Binance P2P failed: {binance_error})"
+    
+    # All APIs failed, use hardcoded fallback
+    logger.error(f"All APIs failed. Using hardcoded fallback price: {Config.DEFAULT_FALLBACK_PRICE}")
+    logger.error(f"OKX C2C error: {error_msg}")
+    logger.error(f"Binance P2P error: {binance_error}")
+    logger.error(f"CoinGecko error: {coingecko_error}")
+    
+    return Config.DEFAULT_FALLBACK_PRICE, f"All APIs failed (OKX C2C: {error_msg}, Binance P2P: {binance_error}, CoinGecko: {coingecko_error}), using fallback price"
 
 
 def get_price_with_markup(group_id: Optional[int] = None, save_history: bool = True) -> Tuple[Optional[float], Optional[str], float, float]:
     """
-    Get USDT/CNY price from Binance P2P (with CoinGecko fallback) with markup applied (group-specific or global).
+    Get USDT/CNY price from OKX C2C (with Binance P2P and CoinGecko fallback) with markup applied (group-specific or global).
     
     Args:
         group_id: Optional Telegram group ID for group-specific markup
@@ -270,7 +387,7 @@ def get_price_with_markup(group_id: Optional[int] = None, save_history: bool = T
     """
     from database import db
     
-    # Get base price from Binance P2P (with CoinGecko fallback)
+    # Get base price from OKX C2C (with Binance P2P and CoinGecko fallback)
     base_price, error_msg = get_usdt_cny_price()
     
     if base_price is None:
@@ -294,7 +411,13 @@ def get_price_with_markup(group_id: Optional[int] = None, save_history: bool = T
     
     # Save price history if requested
     if save_history:
-        source = 'binance_p2p' if 'binance' in (error_msg or '').lower() or error_msg is None else 'coingecko'
+        # Determine source from error message
+        if error_msg is None or 'okx' in (error_msg or '').lower():
+            source = 'okx_c2c'
+        elif 'binance' in (error_msg or '').lower():
+            source = 'binance_p2p'
+        else:
+            source = 'coingecko'
         db.save_price_history(base_price, final_price, markup, source)
     
     logger.info(f"Price calculation: {base_price} (base) + {markup} (markup) = {final_price} (final)")

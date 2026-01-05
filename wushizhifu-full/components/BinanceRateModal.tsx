@@ -135,7 +135,7 @@ export const BinanceRateModal: React.FC<BinanceRateModalProps> = ({
                   </div>
                   <div>
                     <h2 className="text-lg font-bold text-tech-text">{t.exchangeRate || '实时汇率'}</h2>
-                    <p className="text-xs text-tech-sub">Binance P2P 商家数据</p>
+                    <p className="text-xs text-tech-sub">实时商家数据</p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">

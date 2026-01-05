@@ -19,6 +19,7 @@ from database.user_repository import UserRepository
 from database.transaction_repository import TransactionRepository
 from database.rate_repository import RateRepository
 from database.video_repository import VideoRepository
+from services.p2p_leaderboard_service import get_p2p_leaderboard
 import httpx
 
 # Configure logging
@@ -505,6 +506,70 @@ async def get_alipay_video_url():
         raise
     except Exception as e:
         logger.error(f"Error getting Alipay video URL: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@app.get("/api/binance/p2p")
+async def get_binance_p2p(
+    payment_method: str = "alipay",
+    rows: int = 10,
+    page: int = 1
+):
+    """
+    Get P2P merchant leaderboard from OKX C2C (primary) or Binance P2P (fallback).
+    Only uses Alipay payment method for price calculation.
+    
+    Args:
+        payment_method: Payment method ("bank", "alipay", "wechat")
+        rows: Number of merchants to fetch
+        page: Page number (for Binance fallback)
+        
+    Returns:
+        Dictionary with merchant data
+    """
+    try:
+        # Get leaderboard data (OKX primary, Binance fallback)
+        leaderboard_data = get_p2p_leaderboard(
+            payment_method=payment_method,
+            rows=rows,
+            page=page
+        )
+        
+        if not leaderboard_data:
+            raise HTTPException(status_code=500, detail="Failed to fetch P2P leaderboard data")
+        
+        # Format response for MiniApp
+        merchants = []
+        for merchant in leaderboard_data.get('merchants', []):
+            merchants.append({
+                'rank': merchant.get('rank', 0),
+                'price': merchant.get('price', 0),
+                'min_amount': merchant.get('min_amount', 0),
+                'max_amount': merchant.get('max_amount', 0),
+                'merchant_name': merchant.get('merchant_name', 'Unknown'),
+                'trade_count': merchant.get('trade_count', 0),
+                'finish_rate': merchant.get('finish_rate', 0)
+            })
+        
+        return {
+            'merchants': merchants,
+            'payment_method': leaderboard_data.get('payment_method', payment_method),
+            'payment_label': leaderboard_data.get('payment_label', '支付宝'),
+            'total': leaderboard_data.get('total', len(merchants)),
+            'page': leaderboard_data.get('page', page),
+            'market_stats': leaderboard_data.get('market_stats', {
+                'min_price': 0,
+                'max_price': 0,
+                'avg_price': 0,
+                'total_trades': 0,
+                'merchant_count': 0
+            })
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting P2P leaderboard: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, RefreshCw, Info } from 'lucide-react';
-import { PaymentProvider, EXCHANGE_RATE_CNY_USDT, Language, TRANSLATIONS } from '../types';
+import { PaymentProvider, Language, TRANSLATIONS } from '../types';
+import { useExchangeRate } from '../hooks/useExchangeRate';
 
 interface PaymentFormProps {
   provider: PaymentProvider;
@@ -11,6 +12,7 @@ interface PaymentFormProps {
 }
 
 export const PaymentForm: React.FC<PaymentFormProps> = ({ provider, onBack, onSubmit, lang }) => {
+  const { rate: exchangeRate } = useExchangeRate();
   const [inputValue, setInputValue] = useState<string>('');
   const [usdtAmount, setUsdtAmount] = useState<number>(0);
   const [isCalculating, setIsCalculating] = useState(false);
@@ -24,7 +26,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ provider, onBack, onSu
     const handler = setTimeout(() => {
       const val = parseFloat(inputValue);
       if (!isNaN(val) && val > 0) {
-        setUsdtAmount(val / EXCHANGE_RATE_CNY_USDT);
+        setUsdtAmount(val / exchangeRate);
       } else {
         setUsdtAmount(0);
       }
@@ -32,7 +34,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ provider, onBack, onSu
     }, 400);
 
     return () => clearTimeout(handler);
-  }, [inputValue]);
+  }, [inputValue, exchangeRate]);
 
   return (
     <motion.div 
@@ -87,7 +89,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ provider, onBack, onSu
           
           <div className="flex items-center p-3 bg-champagne-50 rounded-xl border border-champagne-200/50">
              <Info className="w-4 h-4 text-champagne-500 mr-2" />
-             <span className="text-xs text-tech-sub font-medium">{t.currentRate}: 1 USDT ≈ {EXCHANGE_RATE_CNY_USDT} CNY</span>
+             <span className="text-xs text-tech-sub font-medium">{t.currentRate}: 1 USDT ≈ {exchangeRate.toFixed(2)} CNY</span>
           </div>
         </div>
       </div>

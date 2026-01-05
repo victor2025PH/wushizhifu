@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { X, Delete, ArrowRightLeft } from 'lucide-react';
-import { Language, TRANSLATIONS, EXCHANGE_RATE_CNY_USDT } from '../types';
+import { Language, TRANSLATIONS } from '../types';
+import { useExchangeRate } from '../hooks/useExchangeRate';
 
 interface CalculatorModalProps {
   lang: Language;
@@ -10,6 +11,7 @@ interface CalculatorModalProps {
 
 export const CalculatorModal: React.FC<CalculatorModalProps> = ({ lang, onClose }) => {
   const t = TRANSLATIONS[lang];
+  const { rate: exchangeRate } = useExchangeRate();
   const [input, setInput] = useState('0');
   const [mode, setMode] = useState<'CNY_TO_USDT' | 'USDT_TO_CNY'>('CNY_TO_USDT');
 
@@ -34,9 +36,9 @@ export const CalculatorModal: React.FC<CalculatorModalProps> = ({ lang, onClose 
     if (isNaN(val)) return '0.00';
     
     if (mode === 'CNY_TO_USDT') {
-      return (val / EXCHANGE_RATE_CNY_USDT).toFixed(2);
+      return (val / exchangeRate).toFixed(2);
     } else {
-      return (val * EXCHANGE_RATE_CNY_USDT).toFixed(2);
+      return (val * exchangeRate).toFixed(2);
     }
   };
 
@@ -63,7 +65,7 @@ export const CalculatorModal: React.FC<CalculatorModalProps> = ({ lang, onClose 
           <h3 className="text-lg font-bold text-tech-text flex items-center">
             {t.calculator}
             <span className="ml-2 text-xs bg-champagne-100 text-champagne-700 px-2 py-0.5 rounded-full">
-              {t.rate}: {EXCHANGE_RATE_CNY_USDT}
+              {t.rate}: {exchangeRate.toFixed(2)}
             </span>
           </h3>
           <button onClick={onClose} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200">

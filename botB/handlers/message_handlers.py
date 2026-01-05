@@ -994,7 +994,9 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     # Check if awaiting admin ID input (must check BEFORE number check and other handlers)
-    if 'awaiting_admin_id' in context.user_data:
+    # BUT skip if text is a known button/command (like "⚙️ 管理")
+    known_buttons = ["⚙️ 管理", "⚙️ 设置", "🔙 返回主菜单", "➕ 添加管理员", "🗑️ 删除管理员", "📋 管理员列表"]
+    if 'awaiting_admin_id' in context.user_data and text not in known_buttons:
         await handle_admin_id_input(update, context, text)
         return
     
@@ -1513,6 +1515,10 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     if text in ["⚙️ 设置", "⚙️ 管理"]:
+        # Clear any pending context states when clicking management button
+        if 'awaiting_admin_id' in context.user_data:
+            del context.user_data['awaiting_admin_id']
+        
         # Show help if needed
         button_text = "⚙️ 设置" if chat.type in ['group', 'supergroup'] else "⚙️ 管理"
         if should_show_help(user_id, button_text):
@@ -1521,7 +1527,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 help_keyboard = get_button_help_keyboard(button_text)
                 await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
                 mark_help_shown(user_id, button_text, shown=True)
-        
+
         # Check admin permission - re-check to ensure consistency
         # The button is only shown to admins, so if user can see it, they should be admin
         # But we double-check here for security
@@ -2339,6 +2345,9 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Handle admin panel button
         if text in ["⚙️ 管理", "⚙️ 设置"]:
+            # Clear any pending context states when clicking management button
+            if 'awaiting_admin_id' in context.user_data:
+                del context.user_data['awaiting_admin_id']
             await handle_admin_panel(update, context)
             return
         
