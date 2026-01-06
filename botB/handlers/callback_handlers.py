@@ -60,15 +60,27 @@ async def handle_mark_paid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # In private chat, only the creator can mark as paid
         chat = query.message.chat if query.message else None
         is_group = chat and chat.type in ['group', 'supergroup']
+        transaction_group_id = transaction.get('group_id')
         
         if transaction['user_id'] != query.from_user.id:
             # In groups, still allow marking as paid (group transactions are shared)
-            if is_group and transaction.get('group_id'):
-                logger.info(f"Group transaction: allowing user {query.from_user.id} to mark transaction {transaction_id} as paid (created by {transaction['user_id']})")
-                # Allow group members to mark as paid
+            if is_group and transaction_group_id:
+                # Verify that the transaction's group_id matches the current chat
+                if transaction_group_id == chat.id:
+                    logger.info(f"Group transaction: allowing user {query.from_user.id} to mark transaction {transaction_id} as paid (created by {transaction['user_id']}, group_id={transaction_group_id})")
+                    # Allow group members to mark as paid - continue execution
+                else:
+                    logger.warning(f"Group ID mismatch: transaction group_id={transaction_group_id}, chat.id={chat.id}")
+                    await query.answer("❌ 您无权操作此交易", show_alert=True)
+                    return
+            elif transaction_group_id is None:
+                # Private chat transaction: only creator can mark as paid
+                logger.warning(f"Permission denied: user {query.from_user.id} tried to mark private transaction {transaction_id} (created by {transaction['user_id']})")
+                await query.answer("❌ 您无权操作此交易", show_alert=True)
+                return
             else:
-                # Private chat: only creator can mark as paid
-                logger.warning(f"Permission denied: user {query.from_user.id} tried to mark transaction {transaction_id} (created by {transaction['user_id']})")
+                # Transaction has group_id but current chat is not a group, or group_id doesn't match
+                logger.warning(f"Permission denied: user {query.from_user.id} tried to mark transaction {transaction_id} (created by {transaction['user_id']}, group_id={transaction_group_id})")
                 await query.answer("❌ 您无权操作此交易", show_alert=True)
                 return
         
