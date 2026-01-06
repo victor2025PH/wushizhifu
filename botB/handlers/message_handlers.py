@@ -859,6 +859,9 @@ async def handle_math_settlement(update: Update, context: ContextTypes.DEFAULT_T
                 )
                 if transaction_id:
                     transaction_ids.append(transaction_id)
+                    logger.info(f"Batch transaction created: {transaction_id}")
+                else:
+                    logger.error(f"Failed to create batch transaction for amount {settlement['cny_amount']}")
             
             # Format and send batch settlement bill
             bill_message = format_batch_settlement_bills(settlements, usdt_address)
@@ -903,6 +906,14 @@ async def handle_math_settlement(update: Update, context: ContextTypes.DEFAULT_T
             usdt_address=usdt_address or '',
             price_source=settlement_data.get('price_source')
         )
+        
+        # Check if transaction was created successfully
+        if not transaction_id:
+            logger.error(f"Failed to create transaction for user {user.id}, amount {settlement_data['cny_amount']}")
+            await send_group_message(update, "❌ 创建交易记录失败，请重试")
+            return
+        
+        logger.info(f"Transaction created successfully: {transaction_id}")
         
         # Format and send settlement bill (with status 'pending')
         bill_message = format_settlement_bill(
