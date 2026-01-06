@@ -1439,8 +1439,21 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if command in command_map:
             # Call the corresponding handler
             if command == "结算":
-                from handlers.template_handlers import handle_template_menu
-                await handle_template_menu(update, context)
+                # Set settlement mode - user must input amount next
+                context.user_data['awaiting_settlement_input'] = True
+                
+                # Simple prompt message (no template buttons)
+                message = (
+                    "💰 <b>结算</b>\n\n"
+                    "请在下方输入框中输入金额：\n\n"
+                    "<b>示例：</b>\n"
+                    "• 10000（直接输入数字）\n"
+                    "• 20000-200（算式）\n"
+                    "• 10000,20000,30000（批量结算）\n\n"
+                    "💡 输入后会自动计算并生成结算单"
+                )
+                
+                await send_group_message(update, message, parse_mode="HTML")
             elif command == "今日":
                 await handle_today_bills_button(update, context)
             elif command == "历史":
@@ -1529,15 +1542,21 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     if text == "💰 结算":
-        # Show help if needed
-        if should_show_help(user_id, "💰 结算"):
-            help_message = format_button_help_message("💰 结算")
-            if help_message:
-                help_keyboard = get_button_help_keyboard("💰 结算")
-                await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
-                mark_help_shown(user_id, "💰 结算", shown=True)
-        from handlers.template_handlers import handle_template_menu
-        await handle_template_menu(update, context)
+        # Set settlement mode - user must input amount next
+        context.user_data['awaiting_settlement_input'] = True
+        
+        # Simple prompt message (no template buttons)
+        message = (
+            "💰 <b>结算</b>\n\n"
+            "请在下方输入框中输入金额：\n\n"
+            "<b>示例：</b>\n"
+            "• 10000（直接输入数字）\n"
+            "• 20000-200（算式）\n"
+            "• 10000,20000,30000（批量结算）\n\n"
+            "💡 输入后会自动计算并生成结算单"
+        )
+        
+        await send_group_message(update, message, parse_mode="HTML")
         return
     
     if text in ["⚙️ 设置", "⚙️ 管理"]:
@@ -2798,14 +2817,22 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await send_group_message(update, "✅ 已返回主菜单", reply_markup=reply_markup)
             return
     
-    # Check if message is a number, math expression, or batch amounts (settlement calculation)
-    # BUT only if NOT awaiting admin ID input (already checked earlier)
-    if 'awaiting_admin_id' not in context.user_data:
+    # Check if user is in settlement mode (only after clicking settlement button)
+    # Only process numbers/math if user explicitly clicked settlement button
+    if 'awaiting_settlement_input' in context.user_data:
+        # User clicked settlement button, now waiting for amount input
         if is_number(text) or is_simple_math(text) or is_batch_amounts(text):
+            # Clear the settlement mode flag
+            del context.user_data['awaiting_settlement_input']
             await handle_math_settlement(update, context, text)
             return
+        else:
+            # User entered something that's not a number, cancel settlement mode
+            del context.user_data['awaiting_settlement_input']
+            await send_group_message(update, "❌ 输入格式错误，已取消结算。请重新点击「💰 结算」按钮。")
+            return
     
-    # Otherwise, ignore the message
+    # Otherwise, ignore the message (no automatic settlement)
 
 
 # ========== Group Management Handlers ==========
