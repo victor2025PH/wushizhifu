@@ -1,0 +1,50 @@
+# 直接在服务器上执行以下命令修复 MiniApp 403 错误
+
+# ============================================
+# 方案 1：如果有已构建的文件，直接复制（最快）
+# ============================================
+
+# 检查是否有已构建的文件
+ls -la /home/ubuntu/wushizhifu/frontend/dist/
+
+# 如果有 index.html，执行以下命令：
+sudo rm -rf /home/ubuntu/wushizhifu/wushizhifu-full/dist
+sudo mkdir -p /home/ubuntu/wushizhifu/wushizhifu-full/dist
+sudo cp -r /home/ubuntu/wushizhifu/frontend/dist/* /home/ubuntu/wushizhifu/wushizhifu-full/dist/
+sudo chown -R www-data:www-data /home/ubuntu/wushizhifu/wushizhifu-full/dist
+sudo chmod -R 755 /home/ubuntu/wushizhifu/wushizhifu-full/dist
+sudo systemctl reload nginx
+
+# 验证
+ls -la /home/ubuntu/wushizhifu/wushizhifu-full/dist/
+
+
+# ============================================
+# 方案 2：重新构建（如果没有已构建的文件）
+# ============================================
+
+cd /home/ubuntu/wushizhifu/wushizhifu-full
+
+# 检查 Node.js
+node -v
+npm -v
+
+# 安装依赖（如果需要）
+if [ ! -d "node_modules" ]; then
+    npm install
+fi
+
+# 清理并构建
+rm -rf dist
+npm run build
+
+# 设置权限
+sudo chown -R www-data:www-data dist
+sudo chmod -R 755 dist
+
+# 重载 Nginx
+sudo nginx -t && sudo systemctl reload nginx
+
+# 验证
+ls -la dist/
+test -f dist/index.html && echo "✅ 构建成功" || echo "❌ 构建失败"

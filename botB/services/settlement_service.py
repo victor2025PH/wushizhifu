@@ -1,6 +1,6 @@
 """
 Settlement calculation service
-Handles OTC settlement calculations with OKX C2C price (Binance P2P and CoinGecko fallback) and admin markup
+Handles OTC settlement calculations with OKX C2C price (Alipay only) and admin markup
 """
 import logging
 from typing import Tuple, Optional
@@ -82,9 +82,9 @@ def calculate_settlement(amount_text: str, group_id: Optional[int] = None) -> Tu
         # Get base price (without markup) and markup separately
         from database import db
         
-        # Get base price from OKX C2C (with Binance P2P and CoinGecko fallback)
+        # Get base price from OKX C2C (Alipay only)
         from services.price_service import get_usdt_cny_price
-        base_price, price_error, source = get_usdt_cny_price()
+        base_price, price_error = get_usdt_cny_price()
         
         if base_price is None:
             return None, f"无法获取价格: {price_error or '未知错误'}"
@@ -118,7 +118,7 @@ def calculate_settlement(amount_text: str, group_id: Optional[int] = None) -> Tu
             'final_price': final_price,    # Final USDT/CNY price (base + markup)
             'usdt_amount': usdt_amount,    # Calculated USDT amount
             'price_error': price_error,
-            'price_source': source,        # Data source: 'okx', 'binance', 'coingecko', or None
+            'price_source': 'okx',         # Data source: always 'okx' (Alipay only)
             'group_id': group_id           # Group ID if applicable
         }
         
@@ -183,14 +183,8 @@ def format_settlement_bill(settlement_data: dict, usdt_address: str = None, tran
     
     # Exchange rate display - determine source name
     price_source = settlement_data.get('price_source')
-    if price_source == 'okx':
-        source_name = "欧易 OKX"
-    elif price_source == 'binance':
-        source_name = "币安 Binance"
-    elif price_source == 'coingecko':
-        source_name = "CoinGecko"
-    else:
-        source_name = "默认价格"
+    # Always use OKX (Alipay only)
+    source_name = "欧易 OKX"
     
     message += f"📊 汇率 (USDT/CNY): {base_price:.4f} ({source_name})\n"
     
@@ -263,7 +257,7 @@ def calculate_batch_settlement(amounts_text: str, group_id: Optional[int] = None
         from database import db
         from services.price_service import get_usdt_cny_price
         
-        base_price, price_error, source = get_usdt_cny_price()
+        base_price, price_error = get_usdt_cny_price()
         
         if base_price is None:
             return None, f"无法获取价格: {price_error or '未知错误'}"
@@ -300,7 +294,7 @@ def calculate_batch_settlement(amounts_text: str, group_id: Optional[int] = None
                 'final_price': final_price,
                 'usdt_amount': usdt_amount,
                 'price_error': price_error,
-                'price_source': source,  # Data source: 'okx', 'binance', 'coingecko', or None
+                'price_source': 'okx',  # Data source: always 'okx' (Alipay only)
                 'group_id': group_id
             }
             settlements.append(settlement_data)
@@ -335,14 +329,8 @@ def format_batch_settlement_bills(settlements: List[dict], usdt_address: str = N
     price_source = settlements[0].get('price_source')
     
     # Determine source name
-    if price_source == 'okx':
-        source_name = "欧易 OKX"
-    elif price_source == 'binance':
-        source_name = "币安 Binance"
-    elif price_source == 'coingecko':
-        source_name = "CoinGecko"
-    else:
-        source_name = "默认价格"
+    # Always use OKX (Alipay only)
+    source_name = "欧易 OKX"
     
     # Calculate totals
     total_cny = sum(s['cny_amount'] for s in settlements)

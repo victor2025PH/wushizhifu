@@ -10,7 +10,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import MessageHandler, filters, ContextTypes
 from config import Config
 from database import db
-from services.price_service import get_price_with_markup
+from services.price_service import get_price_with_markup, get_okx_merchants
 from services.settlement_service import (
     calculate_settlement, format_settlement_bill,
     calculate_batch_settlement, format_batch_settlement_bills
@@ -170,39 +170,51 @@ async def handle_admin_w0(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_admin_w1(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle w1/HL: Get current price with markup"""
+    """Handle w1/HL: Get current price with markup - shows OKX merchants (Alipay only)"""
     try:
         chat = update.effective_chat
         group_id = chat.id if chat.type in ['group', 'supergroup'] else None
         
-        final_price, error_msg, base_price, markup, source = get_price_with_markup(group_id)
+        # Fetch merchants data from OKX (real-time, no cache)
+        merchants, error_msg = get_okx_merchants()
+        
+        if merchants is None or len(merchants) == 0:
+            message = f"❌ 获取汇率失败\n\n{error_msg or '未知错误'}"
+            await send_group_message(update, message, parse_mode="HTML")
+            return
+        
+        # Get price with markup
+        final_price, price_error, base_price, markup = get_price_with_markup(group_id)
         
         if final_price is None:
-            message = f"❌ 获取价格失败\n\n{error_msg or '未知错误'}"
-        else:
-            markup_source = "群组" if group_id and db.get_group_setting(group_id) else "全局"
-            
-            # Determine data source display name
-            if source == 'okx':
-                source_name = "欧易 OKX"
-            elif source == 'binance':
-                source_name = "币安 Binance"
-            elif source == 'coingecko':
-                source_name = "CoinGecko"
-            else:
-                source_name = "默认价格"
-            
-            message = (
-                f"💱 <b>USDT/CNY 价格信息</b>\n\n"
-                f"📊 {source_name} 基础价格: {base_price:.4f} CNY\n"
-                f"➕ 加价（{markup_source}）: {markup:.4f} USDT\n"
-                f"💰 最终价格: {final_price:.4f} CNY\n"
-            )
-            if error_msg:
-                message += f"\n⚠️ 注意: {error_msg}"
+            message = f"❌ 计算价格失败\n\n{price_error or '未知错误'}"
+            await send_group_message(update, message, parse_mode="HTML")
+            return
+        
+        markup_source = "群组" if group_id and db.get_group_setting(group_id) else "全局"
+        
+        # Build message with merchant information
+        message = (
+            f"💱 <b>USDT/CNY 实时汇率（欧易 OKX - 支付宝）</b>\n\n"
+            f"📊 <b>商家汇率：</b>\n"
+        )
+        
+        # Show top 10 merchants (sorted by rate, lowest first)
+        for idx, merchant in enumerate(merchants[:10], 1):
+            message += f"{idx}. <b>{merchant['name']}</b>: {merchant['rate']:.4f} CNY\n"
+        
+        if len(merchants) > 10:
+            message += f"\n... 共 {len(merchants)} 个商家\n"
+        
+        # Add average price and final price
+        message += (
+            f"\n📈 平均价格: {base_price:.4f} CNY\n"
+            f"➕ 加价（{markup_source}）: {markup:.4f} USDT\n"
+            f"💰 最终价格: {final_price:.4f} CNY\n"
+        )
         
         await send_group_message(update, message, parse_mode="HTML")
-        logger.info(f"User {update.effective_user.id} executed w1/HL")
+        logger.info(f"User {update.effective_user.id} executed w1/HL - fetched {len(merchants)} merchants")
         
     except Exception as e:
         logger.error(f"Error in handle_admin_w1: {e}", exc_info=True)
