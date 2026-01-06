@@ -32,15 +32,19 @@ async def handle_mark_paid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # Extract transaction_id from callback_data
         callback_data = query.data
+        logger.info(f"handle_mark_paid: callback_data = {callback_data}")
+        
         transaction_id = None
         if callback_data.startswith("mark_paid_"):
-            parts = callback_data.split("_", 2)
-            if len(parts) > 2:
-                transaction_id = parts[2]
+            # Remove "mark_paid_" prefix to get transaction_id
+            transaction_id = callback_data[len("mark_paid_"):]
         
-        if not transaction_id:
+        if not transaction_id or transaction_id.strip() == "":
+            logger.error(f"Invalid transaction_id from callback_data: {callback_data}")
             await query.answer("❌ 交易编号无效", show_alert=True)
             return
+        
+        logger.info(f"Extracted transaction_id: {transaction_id}")
         
         # Get transaction details
         transaction = db.get_transaction_by_id(transaction_id)
@@ -82,15 +86,19 @@ async def handle_skip_payment_hash(update: Update, context: ContextTypes.DEFAULT
     
     try:
         callback_data = query.data
+        logger.info(f"handle_skip_payment_hash: callback_data = {callback_data}")
+        
         transaction_id = None
         if callback_data.startswith("skip_payment_hash_"):
-            parts = callback_data.split("_", 3)
-            if len(parts) > 3:
-                transaction_id = parts[3]
+            # Remove "skip_payment_hash_" prefix to get transaction_id
+            transaction_id = callback_data[len("skip_payment_hash_"):]
         
-        if not transaction_id:
+        if not transaction_id or transaction_id.strip() == "":
+            logger.error(f"Invalid transaction_id from callback_data: {callback_data}")
             await query.answer("❌ 交易编号无效", show_alert=True)
             return
+        
+        logger.info(f"Extracted transaction_id: {transaction_id}")
         
         # Mark as paid without payment hash
         transaction = db.get_transaction_by_id(transaction_id)
@@ -127,15 +135,19 @@ async def handle_cancel_transaction(update: Update, context: ContextTypes.DEFAUL
     
     try:
         callback_data = query.data
+        logger.info(f"handle_cancel_transaction: callback_data = {callback_data}")
+        
         transaction_id = None
         if callback_data.startswith("cancel_tx_"):
-            parts = callback_data.split("_", 2)
-            if len(parts) > 2:
-                transaction_id = parts[2]
+            # Remove "cancel_tx_" prefix to get transaction_id
+            transaction_id = callback_data[len("cancel_tx_"):]
         
-        if not transaction_id:
+        if not transaction_id or transaction_id.strip() == "":
+            logger.error(f"Invalid transaction_id from callback_data: {callback_data}")
             await query.answer("❌ 交易编号无效", show_alert=True)
             return
+        
+        logger.info(f"Extracted transaction_id: {transaction_id}")
         
         # Get transaction details
         transaction = db.get_transaction_by_id(transaction_id)
@@ -195,15 +207,19 @@ async def handle_confirm_transaction(update: Update, context: ContextTypes.DEFAU
             return
         
         callback_data = query.data
+        logger.info(f"handle_confirm_transaction: callback_data = {callback_data}")
+        
         transaction_id = None
         if callback_data.startswith("confirm_tx_"):
-            parts = callback_data.split("_", 2)
-            if len(parts) > 2:
-                transaction_id = parts[2]
+            # Remove "confirm_tx_" prefix to get transaction_id
+            transaction_id = callback_data[len("confirm_tx_"):]
         
-        if not transaction_id:
+        if not transaction_id or transaction_id.strip() == "":
+            logger.error(f"Invalid transaction_id from callback_data: {callback_data}")
             await query.answer("❌ 交易编号无效", show_alert=True)
             return
+        
+        logger.info(f"Extracted transaction_id: {transaction_id}")
         
         # Get transaction details
         transaction = db.get_transaction_by_id(transaction_id)
