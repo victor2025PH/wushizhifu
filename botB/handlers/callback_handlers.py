@@ -49,13 +49,28 @@ async def handle_mark_paid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Get transaction details
         transaction = db.get_transaction_by_id(transaction_id)
         if not transaction:
+            logger.error(f"Transaction not found: {transaction_id}")
             await query.answer("❌ 未找到该交易", show_alert=True)
             return
         
+        logger.info(f"Transaction found: {transaction_id}, user_id={transaction['user_id']}, current_user_id={query.from_user.id}, group_id={transaction.get('group_id')}")
+        
         # Check if user owns this transaction
+        # In groups, allow any user to mark as paid (since it's a group transaction)
+        # In private chat, only the creator can mark as paid
+        chat = query.message.chat if query.message else None
+        is_group = chat and chat.type in ['group', 'supergroup']
+        
         if transaction['user_id'] != query.from_user.id:
-            await query.answer("❌ 您无权操作此交易", show_alert=True)
-            return
+            # In groups, still allow marking as paid (group transactions are shared)
+            if is_group and transaction.get('group_id'):
+                logger.info(f"Group transaction: allowing user {query.from_user.id} to mark transaction {transaction_id} as paid (created by {transaction['user_id']})")
+                # Allow group members to mark as paid
+            else:
+                # Private chat: only creator can mark as paid
+                logger.warning(f"Permission denied: user {query.from_user.id} tried to mark transaction {transaction_id} (created by {transaction['user_id']})")
+                await query.answer("❌ 您无权操作此交易", show_alert=True)
+                return
         
         # Check if already paid or confirmed
         if transaction['status'] in ['paid', 'confirmed']:
