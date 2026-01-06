@@ -146,13 +146,11 @@ def get_p2p_leaderboard(payment_method: str = "alipay", rows: int = 10, page: in
                     'credibility_icon': '🌟' if finish_count > 1000 else '⭐' if finish_count > 500 else ''
                 })
             
-            # Apply pagination (slice results)
-            start_idx = (page - 1) * rows
-            end_idx = start_idx + rows
-            paginated_merchants = merchants[start_idx:end_idx]
+            # Return first 10 merchants (no pagination)
+            merchants = merchants[:10]
             
-            if not paginated_merchants:
-                logger.warning(f"No merchants found for page {page}")
+            if not merchants:
+                logger.warning("No merchants found")
                 return None
             
             payment_label = PAYMENT_METHOD_LABELS.get(payment_method.lower(), "支付宝")
@@ -169,12 +167,12 @@ def get_p2p_leaderboard(payment_method: str = "alipay", rows: int = 10, page: in
                 total_trades = 0
             
             return {
-                'merchants': paginated_merchants,
+                'merchants': merchants,  # First 10 merchants
                 'payment_method': payment_method,
                 'payment_label': payment_label,
-                'total': len(merchants),  # Total available merchants
+                'total': len(merchants),  # 10 merchants
                 'timestamp': datetime.now(),
-                'page': page,
+                'page': 1,  # Always page 1 (no pagination)
                 'market_stats': {
                     'min_price': min_price,
                     'max_price': max_price,
@@ -207,15 +205,15 @@ def get_p2p_leaderboard(payment_method: str = "alipay", rows: int = 10, page: in
         return None
 
 
-def format_p2p_leaderboard_html(leaderboard_data: Dict, page: int = 1, per_page: int = 5, total_pages: int = 1) -> str:
+def format_p2p_leaderboard_html(leaderboard_data: Dict, page: int = 1, per_page: int = 10, total_pages: int = 1) -> str:
     """
-    Format P2P leaderboard data as HTML message.
+    Format P2P leaderboard data as HTML message (10 merchants, no pagination, no limit/order count).
     
     Args:
         leaderboard_data: Dictionary from get_p2p_leaderboard()
-        page: Current page number
-        per_page: Number of merchants per page
-        total_pages: Total number of pages
+        page: Not used (kept for compatibility)
+        per_page: Not used (kept for compatibility)
+        total_pages: Not used (kept for compatibility)
         
     Returns:
         Formatted HTML message string
@@ -248,49 +246,25 @@ def format_p2p_leaderboard_html(leaderboard_data: Dict, page: int = 1, per_page:
     
     message += f"{'─' * 35}\n\n"
     
-    # Build body (show merchants for current page)
+    # Build body (show all 10 merchants, no pagination)
     for idx, merchant in enumerate(merchants, 1):
-        actual_rank = (page - 1) * per_page + idx
         price = merchant['price']
         merchant_name = merchant['merchant_name']
-        min_amount = merchant['min_amount']
-        max_amount = merchant['max_amount']
-        trade_count = merchant['trade_count']
-        finish_rate = merchant.get('finish_rate', 0)
         credibility_icon = merchant['credibility_icon']
         
         # Get rank emoji (only for top 10)
-        if actual_rank <= len(RANK_EMOJIS):
-            rank_emoji = RANK_EMOJIS[actual_rank - 1]
+        if idx <= len(RANK_EMOJIS):
+            rank_emoji = RANK_EMOJIS[idx - 1]
         else:
-            rank_emoji = f"{actual_rank}."
+            rank_emoji = f"{idx}."
         
         # Format price with 2 decimal places
         price_str = f"<code>{price:.2f}</code>"
         
-        # Format amount range
-        if max_amount >= 1000000:
-            max_str = f"{max_amount/1000000:.1f}M"
-        elif max_amount >= 1000:
-            max_str = f"{max_amount/1000:.0f}K"
-        else:
-            max_str = f"{max_amount:.0f}"
-        
-        if min_amount >= 1000:
-            min_str = f"{min_amount/1000:.0f}K"
-        else:
-            min_str = f"{min_amount:.0f}"
-        
-        # Build row
-        message += f"{price_str} | <b>{merchant_name}</b> {credibility_icon} {rank_emoji}\n"
-        # Add finish rate if available
-        rate_info = f" | 完成率: {finish_rate*100:.0f}%" if finish_rate > 0 else ""
-        message += f"└ <i>限额: {min_str}-{max_str} CNY | 成单: {trade_count:,} 笔{rate_info}</i>\n\n"
+        # Build row (only show price and merchant name, no limit or order count)
+        message += f"{price_str} | <b>{merchant_name}</b> {credibility_icon} {rank_emoji}\n\n"
     
-    # Build footer with pagination info
+    # Build footer (no pagination info, no buttons)
     message += f"{'─' * 35}\n"
-    if total_pages > 1:
-        message += f"📄 第 {page}/{total_pages} 页 | "
-    message += f"💡 点击按钮切换渠道或翻页"
     
     return message
