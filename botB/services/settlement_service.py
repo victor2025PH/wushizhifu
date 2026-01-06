@@ -186,15 +186,15 @@ def format_settlement_bill(settlement_data: dict, usdt_address: str = None, tran
     # Always use OKX (Alipay only)
     source_name = "欧易 OKX"
     
-    message += f"📊 汇率 (USDT/CNY): {base_price:.4f} ({source_name})\n"
+    message += f"📊 汇率 (USDT/CNY): {base_price:.2f} ({source_name})\n"
     
     # Markup display (if any) - now markup is added to exchange rate
     if markup != 0:
         markup_sign = "+" if markup > 0 else ""
-        message += f"➕ 上浮: {markup_sign}{markup:.4f}\n"
-        message += f"📊 最终汇率: {final_price:.4f} (汇率 + 上浮)\n"
+        message += f"➕ 上浮: {markup_sign}{markup:.2f}\n"
+        message += f"📊 最终汇率: {final_price:.2f} (汇率 + 上浮)\n"
     else:
-        message += f"📊 最终汇率: {final_price:.4f}\n"
+        message += f"📊 最终汇率: {final_price:.2f}\n"
     
     message += "\n"
     
@@ -342,15 +342,15 @@ def format_batch_settlement_bills(settlements: List[dict], usdt_address: str = N
     message += "────────────────────────\n\n"
     
     # Rate info
-    message += f"📊 汇率 (USDT/CNY): {base_price:.4f} ({source_name})\n"
+    message += f"📊 汇率 (USDT/CNY): {base_price:.2f} ({source_name})\n"
     
     # Markup display (if any) - now markup is added to exchange rate
     if markup != 0:
         markup_sign = "+" if markup > 0 else ""
-        message += f"➕ 上浮: {markup_sign}{markup:.4f}\n"
-        message += f"📊 最终汇率: {final_price:.4f} (汇率 + 上浮)\n"
+        message += f"➕ 上浮: {markup_sign}{markup:.2f}\n"
+        message += f"📊 最终汇率: {final_price:.2f} (汇率 + 上浮)\n"
     else:
-        message += f"📊 最终汇率: {final_price:.4f}\n"
+        message += f"📊 最终汇率: {final_price:.2f}\n"
     
     message += "\n"
     
