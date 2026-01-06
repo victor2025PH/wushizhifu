@@ -345,21 +345,35 @@ def should_show_help(user_id: int, button_text: str) -> bool:
         button_text: Button text
         
     Returns:
-        True if help should be shown
+        True if help should be shown (only once per button)
     """
     # Check user preference
     help_key = f"button_help_shown_{button_text}"
-    help_shown = db.get_user_setting(user_id, help_key)
+    user_setting = db.get_user_setting(user_id)
+    
+    # If user setting doesn't exist, show help
+    if user_setting is None:
+        return True
+    
+    # Get preferences dictionary
+    preferences = user_setting.get('preferences', {})
+    
+    # Check if help was already shown for this button
+    help_shown = preferences.get(help_key)
     
     # If help was never shown, show it
     if help_shown is None:
         return True
     
-    # If user explicitly disabled help, don't show
+    # If help was already shown (value is "true"), don't show again
+    if help_shown == "true":
+        return False
+    
+    # If user explicitly disabled help (value is "false"), don't show
     if help_shown == "false":
         return False
     
-    # Otherwise, show help (user can close it)
+    # Default: show help if not set
     return True
 
 
