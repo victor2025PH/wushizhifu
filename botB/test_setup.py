@@ -113,7 +113,7 @@ def test_price_service():
         
         print(f"✓ Price service module loaded")
         
-        print(f"\n  Fetching price from CoinGecko API...")
+        print(f"\n  Fetching price from OKX C2C API (Alipay only)...")
         price, error = get_usdt_cny_price()
         
         if price is not None:
@@ -125,12 +125,12 @@ def test_price_service():
             print(f"  (This might be OK if CoinGecko API is temporarily unavailable)")
         
         print(f"\n  Testing price with markup...")
-        final_price, error_msg, base_price, markup, source = get_price_with_markup()
+        final_price, error_msg, base_price, markup = get_price_with_markup()
         
         if final_price is not None:
             print(f"  ✓ Final price calculated: {final_price:.4f} CNY")
             print(f"    Base price: {base_price:.4f} CNY")
-            print(f"    Markup: {final_price - base_price:.4f} CNY")
+            print(f"    Markup: {markup:.4f} USDT")
             if error_msg:
                 print(f"  ⚠ Note: {error_msg}")
         else:
