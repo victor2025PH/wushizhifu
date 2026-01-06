@@ -1292,6 +1292,7 @@ class Database:
         Returns:
             Transaction ID if successful, None otherwise
         """
+        conn = None
         try:
             conn = self.connect()
             cursor = conn.cursor()
@@ -1328,8 +1329,32 @@ class Database:
             logger.info(f"Transaction created: {transaction_id} (price_source: {price_source})")
             return transaction_id
             
+        except sqlite3.IntegrityError as e:
+            # Handle unique constraint violation (duplicate transaction_id)
+            logger.error(f"Integrity error creating transaction (duplicate ID?): {e}", exc_info=True)
+            # Try generating a new transaction_id with random suffix
+            import random
+            try:
+                timestamp = datetime.datetime.now()
+                transaction_id = f"T{timestamp.strftime('%Y%m%d%H%M%S')}{user_id % 10000:04d}{random.randint(100, 999)}"
+                cursor.execute("""
+                    INSERT INTO otc_transactions (
+                        transaction_id, group_id, user_id, username, first_name,
+                        cny_amount, usdt_amount, exchange_rate, markup, usdt_address, status, price_source
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+                """, (transaction_id, group_id, user_id, username or '', first_name or '',
+                      cny_amount, usdt_amount, exchange_rate, markup, usdt_address or '', price_source))
+                conn.commit()
+                logger.info(f"Transaction created with new ID after retry: {transaction_id}")
+                return transaction_id
+            except Exception as retry_error:
+                logger.error(f"Error creating transaction after retry: {retry_error}", exc_info=True)
+                return None
         except Exception as e:
             logger.error(f"Error creating transaction: {e}", exc_info=True)
+            logger.error(f"Transaction data: user_id={user_id}, group_id={group_id}, cny_amount={cny_amount}, usdt_amount={usdt_amount}")
+            if conn:
+                conn.rollback()
             return None
     
     def get_transactions_by_group(self, group_id: int, date: str = None, 
