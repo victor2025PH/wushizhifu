@@ -307,7 +307,7 @@ class Database:
             )
         """)
         
-        # Add paid_at column if it doesn't exist (migration for existing databases)
+        # Add columns if they don't exist (migration for existing databases)
         cursor.execute("PRAGMA table_info(otc_transactions)")
         columns = [col[1] for col in cursor.fetchall()]
         if 'paid_at' not in columns:
@@ -316,6 +316,9 @@ class Database:
             cursor.execute("ALTER TABLE otc_transactions ADD COLUMN cancelled_at TIMESTAMP")
         if 'cancelled_by' not in columns:
             cursor.execute("ALTER TABLE otc_transactions ADD COLUMN cancelled_by BIGINT")
+        if 'price_source' not in columns:
+            cursor.execute("ALTER TABLE otc_transactions ADD COLUMN price_source TEXT")
+            logger.info("Added price_source column to otc_transactions")
         
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_otc_transactions_group_id 
@@ -1298,13 +1301,28 @@ class Database:
             timestamp = datetime.datetime.now()
             transaction_id = f"T{timestamp.strftime('%Y%m%d%H%M%S')}{user_id % 10000:04d}"
             
-            cursor.execute("""
-                INSERT INTO otc_transactions (
-                    transaction_id, group_id, user_id, username, first_name,
-                    cny_amount, usdt_amount, exchange_rate, markup, usdt_address, status, price_source
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
-            """, (transaction_id, group_id, user_id, username or '', first_name or '',
-                  cny_amount, usdt_amount, exchange_rate, markup, usdt_address or '', price_source))
+            # Check if price_source column exists (for backward compatibility)
+            cursor.execute("PRAGMA table_info(otc_transactions)")
+            columns = [col[1] for col in cursor.fetchall()]
+            has_price_source = 'price_source' in columns
+            
+            if has_price_source:
+                cursor.execute("""
+                    INSERT INTO otc_transactions (
+                        transaction_id, group_id, user_id, username, first_name,
+                        cny_amount, usdt_amount, exchange_rate, markup, usdt_address, status, price_source
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+                """, (transaction_id, group_id, user_id, username or '', first_name or '',
+                      cny_amount, usdt_amount, exchange_rate, markup, usdt_address or '', price_source))
+            else:
+                # Fallback for old database schema without price_source
+                cursor.execute("""
+                    INSERT INTO otc_transactions (
+                        transaction_id, group_id, user_id, username, first_name,
+                        cny_amount, usdt_amount, exchange_rate, markup, usdt_address, status
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+                """, (transaction_id, group_id, user_id, username or '', first_name or '',
+                      cny_amount, usdt_amount, exchange_rate, markup, usdt_address or ''))
             
             conn.commit()
             logger.info(f"Transaction created: {transaction_id} (price_source: {price_source})")
