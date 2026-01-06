@@ -10,136 +10,59 @@ from services.p2p_leaderboard_service import get_p2p_leaderboard, format_p2p_lea
 
 logger = logging.getLogger(__name__)
 
-# Cache for P2P merchant data to avoid excessive API calls
-# Structure: {payment_method: {page_num: [merchants], 'last_update': timestamp}}
-_p2p_cache: Dict[str, Dict] = {}
-
-# Cache expiration time (seconds) - refresh cache after 5 minutes
-CACHE_EXPIRY = 300
-
-def _get_cached_merchants(payment_method: str) -> Optional[List]:
-    """
-    Get all cached merchants for a payment method.
-    
-    Args:
-        payment_method: Payment method code
-        
-    Returns:
-        List of all cached merchants or None if cache expired/empty
-    """
-    import time
-    
-    if payment_method not in _p2p_cache:
-        return None
-    
-    cache_entry = _p2p_cache[payment_method]
-    
-    # Check if cache expired
-    last_update = cache_entry.get('last_update', 0)
-    if time.time() - last_update > CACHE_EXPIRY:
-        # Cache expired, clear it
-        _p2p_cache.pop(payment_method, None)
-        return None
-    
-    # Collect all cached merchants from all pages
-    # Filter out 'last_update' key and sort only integer keys (page numbers)
-    all_merchants = []
-    page_keys = [key for key in cache_entry.keys() if isinstance(key, int)]
-    for key in sorted(page_keys):
-        merchants = cache_entry.get(key, [])
-        all_merchants.extend(merchants)
-    
-    return all_merchants if all_merchants else None
-
-
-def _cache_merchants(payment_method: str, page: int, merchants: List):
-    """
-    Cache merchants for a payment method and page.
-    
-    Args:
-        payment_method: Payment method code
-        page: Page number
-        merchants: List of merchant dictionaries
-    """
-    import time
-    
-    if payment_method not in _p2p_cache:
-        _p2p_cache[payment_method] = {}
-    
-    _p2p_cache[payment_method][page] = merchants
-    _p2p_cache[payment_method]['last_update'] = time.time()
+# No caching - always fetch real-time data when requested
+# Removed cache to ensure real-time data on every click
 
 
 def _get_all_merchants_with_pagination(payment_method: str, required_page: int, per_page: int = 5) -> tuple:
     """
-    Get all merchants with smart pagination - fetch new data only when needed.
+    Get all merchants with pagination - always fetch real-time data from OKX (no cache).
     
     Args:
-        payment_method: Payment method code
+        payment_method: Payment method code (always uses Alipay)
         required_page: The page number the user wants to see
         per_page: Number of merchants per page
         
     Returns:
-        Tuple of (all_merchants_list, total_pages)
+        Tuple of (merchants_for_page: List, total_pages: int)
     """
-    # Get cached merchants first
-    cached_merchants = _get_cached_merchants(payment_method)
+    # Always fetch fresh data from OKX - no cache
+    # OKX API doesn't support pagination, so we fetch all and slice
+    logger.info(f"Fetching real-time OKX C2C data for payment method: {payment_method} (page {required_page})")
     
-    # Calculate which API page we need based on required display page
-    # Each API call gets 10 merchants, each display page shows 5
-    # So: display page 1-2 need API page 1, display page 3-4 need API page 2, etc.
-    api_pages_needed = (required_page * per_page + 9) // 10  # Ceiling division
+    # Fetch all merchants (OKX returns all available merchants)
+    leaderboard_data = get_p2p_leaderboard(payment_method=payment_method, rows=100, page=1)
     
-    # Check if we have enough cached data
-    if cached_merchants:
-        total_cached = len(cached_merchants)
-        required_count = required_page * per_page
-        
-        # If we have enough cached data, use it
-        if total_cached >= required_count:
-            # Calculate total pages based on cached data
-            total_pages = (total_cached + per_page - 1) // per_page
-            return cached_merchants, total_pages
-        
-        # If we need more data, fetch the missing pages
-        cached_api_pages = len(_p2p_cache.get(payment_method, {}).keys()) - 1  # Exclude 'last_update'
-        
-        # Fetch missing pages
-        for api_page in range(cached_api_pages + 1, api_pages_needed + 1):
-            logger.info(f"Fetching API page {api_page} for payment method {payment_method}")
-            leaderboard_data = get_p2p_leaderboard(payment_method=payment_method, rows=10, page=api_page)
-            
-            if leaderboard_data and leaderboard_data.get('merchants'):
-                new_merchants = leaderboard_data['merchants']
-                _cache_merchants(payment_method, api_page, new_merchants)
-                cached_merchants.extend(new_merchants)
-            else:
-                # No more data available
-                break
-        
-        # Recalculate total pages
-        total_pages = (len(cached_merchants) + per_page - 1) // per_page
-        return cached_merchants, total_pages
+    if not leaderboard_data or not leaderboard_data.get('merchants'):
+        logger.warning("No merchants data from OKX C2C API")
+        return [], 1
     
-    # No cache, fetch initial pages
+    # Get all available merchants (from market_stats)
+    total_merchants = leaderboard_data.get('total', len(leaderboard_data.get('merchants', [])))
+    
+    # Fetch more pages if needed to get enough merchants for the required page
     all_merchants = []
-    for api_page in range(1, api_pages_needed + 1):
-        logger.info(f"Fetching API page {api_page} for payment method {payment_method}")
-        leaderboard_data = get_p2p_leaderboard(payment_method=payment_method, rows=10, page=api_page)
-        
-        if leaderboard_data and leaderboard_data.get('merchants'):
-            merchants = leaderboard_data['merchants']
-            _cache_merchants(payment_method, api_page, merchants)
-            all_merchants.extend(merchants)
-            
-            # If we got less than 10 merchants, we've reached the end
-            if len(merchants) < 10:
+    max_pages_to_fetch = (required_page * per_page + 9) // 10  # Calculate how many API calls we need
+    
+    for api_page in range(1, max_pages_to_fetch + 1):
+        page_data = get_p2p_leaderboard(payment_method=payment_method, rows=10, page=api_page)
+        if page_data and page_data.get('merchants'):
+            all_merchants.extend(page_data['merchants'])
+            # If we got less merchants than requested, we've reached the end
+            if len(page_data['merchants']) < 10:
                 break
         else:
             break
     
+    # Calculate total pages based on all fetched merchants
     total_pages = (len(all_merchants) + per_page - 1) // per_page if all_merchants else 1
-    return all_merchants, total_pages
+    
+    # Get merchants for the required page
+    start_idx = (required_page - 1) * per_page
+    end_idx = start_idx + per_page
+    page_merchants = all_merchants[start_idx:end_idx]
+    
+    return page_merchants, total_pages
 
 
 
@@ -194,7 +117,7 @@ async def handle_p2p_price_command(update: Update, context: ContextTypes.DEFAULT
         # Send loading message
         loading_msg = await update.message.reply_text("⏳ 正在获取实时币价行情...")
         
-        # Get all merchants with smart pagination (fetch only when needed)
+        # Get all merchants with pagination (always fetch real-time data, no cache)
         all_merchants, total_pages = _get_all_merchants_with_pagination(payment_method, page, per_page)
         
         if not all_merchants:
@@ -210,29 +133,49 @@ async def handle_p2p_price_command(update: Update, context: ContextTypes.DEFAULT
         
         payment_label = PAYMENT_METHOD_LABELS.get(payment_method.lower(), "支付宝")
         
-        # Calculate market stats from all merchants
-        if all_merchants:
-            prices = [m['price'] for m in all_merchants]
+        # Fetch all merchants to calculate market stats (for display)
+        # We need to fetch all merchants to get accurate market statistics
+        all_merchants_for_stats = []
+        for api_page in range(1, 6):  # Fetch first 5 pages (50 merchants) for stats
+            stats_data = get_p2p_leaderboard(payment_method=payment_method, rows=10, page=api_page)
+            if stats_data and stats_data.get('merchants'):
+                all_merchants_for_stats.extend(stats_data['merchants'])
+                if len(stats_data['merchants']) < 10:
+                    break
+            else:
+                break
+        
+        # Calculate market stats from all fetched merchants
+        if all_merchants_for_stats:
+            prices = [m['price'] for m in all_merchants_for_stats]
             min_price = min(prices)
             max_price = max(prices)
             avg_price = sum(prices) / len(prices)
-            total_trades = sum(m['trade_count'] for m in all_merchants)
+            total_trades = sum(m['trade_count'] for m in all_merchants_for_stats)
         else:
-            min_price = max_price = avg_price = 0
-            total_trades = 0
+            # Fallback to current page merchants
+            if all_merchants:
+                prices = [m['price'] for m in all_merchants]
+                min_price = min(prices)
+                max_price = max(prices)
+                avg_price = sum(prices) / len(prices)
+                total_trades = sum(m['trade_count'] for m in all_merchants)
+            else:
+                min_price = max_price = avg_price = 0
+                total_trades = 0
         
         leaderboard_data = {
-            'merchants': all_merchants,
+            'merchants': all_merchants,  # Merchants for current page
             'payment_method': payment_method,
             'payment_label': payment_label,
-            'total': len(all_merchants),
-            'timestamp': datetime.now(),
+            'total': len(all_merchants_for_stats) if all_merchants_for_stats else len(all_merchants),
+            'timestamp': datetime.now(),  # Always use current time for real-time display
             'market_stats': {
                 'min_price': min_price,
                 'max_price': max_price,
                 'avg_price': avg_price,
                 'total_trades': total_trades,
-                'merchant_count': len(all_merchants)
+                'merchant_count': len(all_merchants_for_stats) if all_merchants_for_stats else len(all_merchants)
             }
         }
         
@@ -311,7 +254,7 @@ async def handle_p2p_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         
         per_page = 5  # Show 5 merchants per page
         
-        # Get all merchants with smart pagination (fetch only when needed)
+        # Get all merchants with pagination (always fetch real-time data, no cache)
         all_merchants, total_pages = _get_all_merchants_with_pagination(payment_method, page, per_page)
         
         if not all_merchants:
@@ -327,29 +270,49 @@ async def handle_p2p_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         
         payment_label = PAYMENT_METHOD_LABELS.get(payment_method.lower(), "支付宝")
         
-        # Calculate market stats from all merchants
-        if all_merchants:
-            prices = [m['price'] for m in all_merchants]
+        # Fetch all merchants to calculate market stats (for display)
+        # We need to fetch all merchants to get accurate market statistics
+        all_merchants_for_stats = []
+        for api_page in range(1, 6):  # Fetch first 5 pages (50 merchants) for stats
+            stats_data = get_p2p_leaderboard(payment_method=payment_method, rows=10, page=api_page)
+            if stats_data and stats_data.get('merchants'):
+                all_merchants_for_stats.extend(stats_data['merchants'])
+                if len(stats_data['merchants']) < 10:
+                    break
+            else:
+                break
+        
+        # Calculate market stats from all fetched merchants
+        if all_merchants_for_stats:
+            prices = [m['price'] for m in all_merchants_for_stats]
             min_price = min(prices)
             max_price = max(prices)
             avg_price = sum(prices) / len(prices)
-            total_trades = sum(m['trade_count'] for m in all_merchants)
+            total_trades = sum(m['trade_count'] for m in all_merchants_for_stats)
         else:
-            min_price = max_price = avg_price = 0
-            total_trades = 0
+            # Fallback to current page merchants
+            if all_merchants:
+                prices = [m['price'] for m in all_merchants]
+                min_price = min(prices)
+                max_price = max(prices)
+                avg_price = sum(prices) / len(prices)
+                total_trades = sum(m['trade_count'] for m in all_merchants)
+            else:
+                min_price = max_price = avg_price = 0
+                total_trades = 0
         
         leaderboard_data = {
-            'merchants': all_merchants,
+            'merchants': all_merchants,  # Merchants for current page
             'payment_method': payment_method,
             'payment_label': payment_label,
-            'total': len(all_merchants),
-            'timestamp': datetime.now(),
+            'total': len(all_merchants_for_stats) if all_merchants_for_stats else len(all_merchants),
+            'timestamp': datetime.now(),  # Always use current time for real-time display
             'market_stats': {
                 'min_price': min_price,
                 'max_price': max_price,
                 'avg_price': avg_price,
                 'total_trades': total_trades,
-                'merchant_count': len(all_merchants)
+                'merchant_count': len(all_merchants_for_stats) if all_merchants_for_stats else len(all_merchants)
             }
         }
         
