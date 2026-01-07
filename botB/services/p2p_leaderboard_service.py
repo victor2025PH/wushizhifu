@@ -160,10 +160,15 @@ def get_p2p_leaderboard(payment_method: str = "alipay", rows: int = 10, page: in
                 prices = [m['price'] for m in merchants]
                 min_price = min(prices)
                 max_price = max(prices)
-                avg_price = sum(prices) / len(prices)
+                # Get third-tier price (3rd merchant, index 2)
+                if len(merchants) >= 3:
+                    third_tier_price = merchants[2]['price']
+                else:
+                    # Fallback: use last merchant's price if less than 3 merchants
+                    third_tier_price = merchants[-1]['price']
                 total_trades = sum(m['trade_count'] for m in merchants)
             else:
-                min_price = max_price = avg_price = 0
+                min_price = max_price = third_tier_price = 0
                 total_trades = 0
             
             return {
@@ -176,7 +181,7 @@ def get_p2p_leaderboard(payment_method: str = "alipay", rows: int = 10, page: in
                 'market_stats': {
                     'min_price': min_price,
                     'max_price': max_price,
-                    'avg_price': avg_price,
+                    'third_tier_price': third_tier_price,  # Changed from avg_price to third_tier_price
                     'total_trades': total_trades,
                     'merchant_count': len(merchants)
                 }
@@ -239,7 +244,9 @@ def format_p2p_leaderboard_html(leaderboard_data: Dict, page: int = 1, per_page:
         message += f"📊 市场概况: "
         message += f"最低 {market_stats['min_price']:.2f} | "
         message += f"最高 {market_stats['max_price']:.2f} | "
-        message += f"均价 {market_stats['avg_price']:.2f} CNY\n"
+        # Use third_tier_price instead of avg_price
+        third_tier_price = market_stats.get('third_tier_price', market_stats.get('avg_price', 0))
+        message += f"采用价格 {third_tier_price:.2f} CNY\n"
         if market_stats.get('total_trades', 0) > 0:
             message += f"✅ 总成单量: {market_stats['total_trades']:,} 笔 | "
             message += f"活跃商户: {market_stats['merchant_count']} 家\n"

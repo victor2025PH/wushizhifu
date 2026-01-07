@@ -145,21 +145,28 @@ def get_okx_merchants() -> Tuple[Optional[List[Dict]], Optional[str]]:
 
 def get_usdt_cny_price() -> Tuple[Optional[float], Optional[str]]:
     """
-    Get average USDT/CNY price from OKX C2C API (Alipay only).
-    Calculates average from all Alipay merchants.
+    Get third-tier USDT/CNY price from OKX C2C API (Alipay only).
+    Returns the price from the 3rd ranked merchant (index 2, sorted by rate ascending).
     This function is called on demand (no caching).
     
     Returns:
-        Tuple of (average_price: float or None, error_message: str or None)
+        Tuple of (third_tier_price: float or None, error_message: str or None)
     """
     merchants, error_msg = get_okx_merchants()
     
     if merchants and len(merchants) > 0:
-        # Calculate average price
-        total_rate = sum(m['rate'] for m in merchants)
-        average_price = total_rate / len(merchants)
-        logger.info(f"OKX C2C Alipay average price: {average_price} (from {len(merchants)} merchants)")
-        return average_price, None
+        # Get third-tier price (3rd merchant, index 2)
+        if len(merchants) >= 3:
+            third_tier_price = merchants[2]['rate']
+            third_tier_merchant = merchants[2]['name']
+            logger.info(f"OKX C2C Alipay third-tier price: {third_tier_price} (from merchant: {third_tier_merchant}, total merchants: {len(merchants)})")
+            return third_tier_price, None
+        else:
+            # Fallback: use the last merchant's price if less than 3 merchants
+            fallback_price = merchants[-1]['rate']
+            fallback_merchant = merchants[-1]['name']
+            logger.warning(f"Less than 3 merchants available ({len(merchants)}), using last merchant price: {fallback_price} (from: {fallback_merchant})")
+            return fallback_price, None
     
     return None, error_msg or "获取价格失败"
 

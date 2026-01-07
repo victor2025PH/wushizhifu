@@ -206,11 +206,18 @@ async def handle_admin_w1(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if len(merchants) > 10:
             message += f"\n... 共 {len(merchants)} 个商家\n"
         
-        # Add average price and final price
+        # Get third-tier merchant info for display
+        if len(merchants) >= 3:
+            third_tier_merchant = merchants[2]['name']
+            price_label = f"第三档价格 ({third_tier_merchant})"
+        else:
+            price_label = "采用价格"
+        
+        # Add third-tier price and final price
         message += (
-            f"\n📈 平均价格: {base_price:.4f} CNY\n"
-            f"➕ 加价（{markup_source}）: {markup:.4f} USDT\n"
-            f"💰 最终价格: {final_price:.4f} CNY\n"
+            f"\n📈 {price_label}: {base_price:.2f} CNY\n"
+            f"➕ 加价（{markup_source}）: {markup:.2f} USDT\n"
+            f"💰 最终价格: {final_price:.2f} CNY\n"
         )
         
         await send_group_message(update, message, parse_mode="HTML")
