@@ -85,10 +85,15 @@ async def handle_p2p_price_command(update: Update, context: ContextTypes.DEFAULT
             prices = [m['price'] for m in merchants]
             min_price = min(prices)
             max_price = max(prices)
-            avg_price = sum(prices) / len(prices)
+            # Get third-tier price (3rd merchant, index 2)
+            if len(merchants) >= 3:
+                third_tier_price = merchants[2]['price']
+            else:
+                # Fallback: use last merchant's price if less than 3 merchants
+                third_tier_price = merchants[-1]['price']
             total_trades = sum(m['trade_count'] for m in merchants)
         else:
-            min_price = max_price = avg_price = 0
+            min_price = max_price = third_tier_price = 0
             total_trades = 0
         
         leaderboard_data = {
@@ -100,7 +105,7 @@ async def handle_p2p_price_command(update: Update, context: ContextTypes.DEFAULT
             'market_stats': {
                 'min_price': min_price,
                 'max_price': max_price,
-                'avg_price': avg_price,
+                'third_tier_price': third_tier_price,  # Changed from avg_price to third_tier_price
                 'total_trades': total_trades,
                 'merchant_count': len(merchants)
             }
@@ -177,10 +182,15 @@ async def handle_p2p_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             prices = [m['price'] for m in merchants]
             min_price = min(prices)
             max_price = max(prices)
-            avg_price = sum(prices) / len(prices)
+            # Get third-tier price (3rd merchant, index 2)
+            if len(merchants) >= 3:
+                third_tier_price = merchants[2]['price']
+            else:
+                # Fallback: use last merchant's price if less than 3 merchants
+                third_tier_price = merchants[-1]['price']
             total_trades = sum(m['trade_count'] for m in merchants)
         else:
-            min_price = max_price = avg_price = 0
+            min_price = max_price = third_tier_price = 0
             total_trades = 0
         
         leaderboard_data = {
@@ -192,7 +202,7 @@ async def handle_p2p_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             'market_stats': {
                 'min_price': min_price,
                 'max_price': max_price,
-                'avg_price': avg_price,
+                'third_tier_price': third_tier_price,  # Changed from avg_price to third_tier_price
                 'total_trades': total_trades,
                 'merchant_count': len(merchants)
             }
