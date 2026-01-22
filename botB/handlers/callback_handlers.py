@@ -89,18 +89,28 @@ async def handle_mark_paid(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer(f"✅ 交易状态：{transaction['status']}", show_alert=True)
             return
         
-        # Ask for payment hash (optional)
-        context.user_data['awaiting_payment_hash'] = transaction_id
-        await query.message.reply_text(
-            "💰 <b>标记已支付</b>\n\n"
-            "请输入支付哈希（TXID）：\n"
-            "• 可直接输入哈希值\n"
-            "• 或点击「跳过」不填写\n\n"
-            "<i>提示：填写支付哈希有助于对账和审计</i>",
-            parse_mode="HTML",
-            reply_markup=get_payment_hash_input_keyboard(transaction_id)
-        )
-        await query.answer("💡 请输入支付哈希（可选）")
+        # 直接標記為已支付（跳過哈希值輸入步驟）
+        old_status = transaction['status']
+        
+        if db.mark_transaction_paid(transaction_id):
+            # Log operation
+            from services.audit_service import log_transaction_operation, OperationType
+            log_transaction_operation(
+                OperationType.MARK_PAID,
+                update,
+                transaction_id,
+                description=f"用户标记为已支付",
+                old_status=old_status,
+                new_status='paid'
+            )
+            
+            # Refresh transaction and update message
+            transaction = db.get_transaction_by_id(transaction_id)
+            await refresh_transaction_message(query, transaction)
+            await query.answer("✅ 已标记为已支付，等待管理员确认")
+            logger.info(f"User {query.from_user.id} marked transaction {transaction_id} as paid")
+        else:
+            await query.answer("❌ 操作失败，请重试", show_alert=True)
         
     except Exception as e:
         logger.error(f"Error in handle_mark_paid: {e}", exc_info=True)
@@ -182,6 +192,16 @@ async def handle_cancel_transaction(update: Update, context: ContextTypes.DEFAUL
             await query.answer("❌ 未找到该交易", show_alert=True)
             return
         
+        # 驗證群組：確保交易只能在其所屬群組中操作
+        chat = query.message.chat if query.message else None
+        is_group = chat and chat.type in ['group', 'supergroup']
+        transaction_group_id = transaction.get('group_id')
+        
+        if is_group and transaction_group_id and transaction_group_id != chat.id:
+            logger.warning(f"Group ID mismatch for cancel: transaction group_id={transaction_group_id}, chat.id={chat.id}")
+            await query.answer("❌ 此交易属于其他群组，无法操作", show_alert=True)
+            return
+        
         # Check permissions: user can cancel own pending transactions, admin can cancel any pending
         is_admin_user = is_admin(query.from_user.id)
         if transaction['user_id'] != query.from_user.id and not is_admin_user:
@@ -252,6 +272,16 @@ async def handle_confirm_transaction(update: Update, context: ContextTypes.DEFAU
         transaction = db.get_transaction_by_id(transaction_id)
         if not transaction:
             await query.answer("❌ 未找到该交易", show_alert=True)
+            return
+        
+        # 驗證群組：確保交易只能在其所屬群組中操作
+        chat = query.message.chat if query.message else None
+        is_group = chat and chat.type in ['group', 'supergroup']
+        transaction_group_id = transaction.get('group_id')
+        
+        if is_group and transaction_group_id and transaction_group_id != chat.id:
+            logger.warning(f"Group ID mismatch for confirm: transaction group_id={transaction_group_id}, chat.id={chat.id}")
+            await query.answer("❌ 此交易属于其他群组，无法操作", show_alert=True)
             return
         
         # Check if can be confirmed (must be paid)
