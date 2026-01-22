@@ -372,19 +372,22 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn = db.connect()
         cursor = conn.cursor()
         
+        # 獲取已刪除的群組 ID，這些群組不應該顯示
+        deleted_group_ids = db.get_deleted_group_ids()
+        
         # 獲取所有群組（優先獲取活躍的，非活躍的用於顯示但會標記）
         # 只獲取活躍的群組，避免顯示已不存在的群組
         cursor.execute("SELECT DISTINCT group_id FROM group_settings WHERE is_active = 1")
-        configured_group_ids = [row['group_id'] for row in cursor.fetchall()]
+        configured_group_ids = [row['group_id'] for row in cursor.fetchall() if row['group_id'] not in deleted_group_ids]
         
         # 如果沒有活躍群組，也檢查非活躍的（可能是臨時網絡問題）
         if not configured_group_ids:
             cursor.execute("SELECT DISTINCT group_id FROM group_settings")
-            configured_group_ids = [row['group_id'] for row in cursor.fetchall()]
+            configured_group_ids = [row['group_id'] for row in cursor.fetchall() if row['group_id'] not in deleted_group_ids]
         
         # 獲取有交易記錄的群組（補充可能遺漏的群組）
         cursor.execute("SELECT DISTINCT group_id FROM otc_transactions WHERE group_id IS NOT NULL")
-        transaction_group_ids = [row['group_id'] for row in cursor.fetchall()]
+        transaction_group_ids = [row['group_id'] for row in cursor.fetchall() if row['group_id'] not in deleted_group_ids]
         
         # 合併並去重
         all_group_ids = list(set(configured_group_ids + transaction_group_ids))

@@ -602,15 +602,25 @@ async def handle_group_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
             from keyboards.inline_keyboard import get_confirmation_keyboard
             from database import db
             
-            # Get group info for confirmation message
-            groups = db.get_all_groups()
-            group = next((g for g in groups if g['group_id'] == group_id), None)
-            
-            if not group:
-                await query.answer("❌ 群组不存在", show_alert=True)
+            # 檢查群組是否已經被刪除
+            if db.is_group_deleted(group_id):
+                await query.answer("✅ 该群组已被删除，请刷新列表", show_alert=True)
                 return
             
-            group_title = group.get('group_title', f"群组 {group_id}")
+            # Get group info for confirmation message - 直接從數據庫查詢，不使用 get_all_groups()
+            conn = db.connect()
+            cursor = conn.cursor()
+            
+            # 先從 group_settings 獲取標題
+            cursor.execute("SELECT group_title FROM group_settings WHERE group_id = ?", (group_id,))
+            row = cursor.fetchone()
+            if row and row['group_title']:
+                group_title = row['group_title']
+            else:
+                # 從 groups 表獲取
+                cursor.execute("SELECT group_title FROM groups WHERE group_id = ?", (group_id,))
+                row = cursor.fetchone()
+                group_title = row['group_title'] if row and row['group_title'] else f"群组 {group_id}"
             
             # Show confirmation dialog
             message = f"🗑️ <b>确认删除群组配置</b>\n\n"
