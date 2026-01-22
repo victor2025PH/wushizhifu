@@ -35,6 +35,11 @@ async def sync_groups_on_startup(bot) -> Dict[str, int]:
         conn = db.connect()
         cursor = conn.cursor()
         
+        # 獲取已刪除的群組 ID，這些群組不應該被同步
+        deleted_group_ids = db.get_deleted_group_ids()
+        if deleted_group_ids:
+            logger.info(f"📋 排除 {len(deleted_group_ids)} 個已刪除的群組")
+        
         # 獲取所有群組（包括非活躍的）
         cursor.execute("""
             SELECT DISTINCT group_id, group_title, is_active
@@ -51,16 +56,22 @@ async def sync_groups_on_startup(bot) -> Dict[str, int]:
         """)
         groups_from_transactions = [row[0] for row in cursor.fetchall()]
         
-        # 合併所有群組 ID（去重）
+        # 合併所有群組 ID（去重），排除已刪除的群組
         all_group_ids = set()
         group_titles = {}
         
         for row in groups_from_settings:
             group_id = row['group_id']
+            # 跳過已刪除的群組
+            if group_id in deleted_group_ids:
+                continue
             all_group_ids.add(group_id)
             group_titles[group_id] = row['group_title']
         
         for group_id in groups_from_transactions:
+            # 跳過已刪除的群組
+            if group_id in deleted_group_ids:
+                continue
             all_group_ids.add(group_id)
         
         stats['total'] = len(all_group_ids)
