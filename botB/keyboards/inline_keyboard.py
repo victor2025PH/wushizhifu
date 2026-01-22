@@ -41,20 +41,32 @@ def get_groups_list_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
-def get_groups_list_keyboard_with_edit(groups: list) -> InlineKeyboardMarkup:
+def get_groups_list_keyboard_with_edit(groups: list, page: int = 1, per_page: int = 10) -> InlineKeyboardMarkup:
     """
     Get inline keyboard for groups list with edit buttons for each group.
+    Supports pagination.
     
     Args:
-        groups: List of group dictionaries
+        groups: List of group dictionaries (all groups)
+        page: Current page number (1-based)
+        per_page: Number of groups per page
         
     Returns:
-        InlineKeyboardMarkup with edit buttons for each group and refresh button
+        InlineKeyboardMarkup with edit buttons for each group, pagination and refresh button
     """
     keyboard = []
     
-    # Add edit and delete buttons for each group (max 10 groups to avoid keyboard size limit)
-    for group in groups[:10]:
+    # Calculate pagination
+    total_groups = len(groups)
+    total_pages = max(1, (total_groups + per_page - 1) // per_page)  # Ceiling division
+    page = max(1, min(page, total_pages))  # Ensure page is within valid range
+    
+    start_idx = (page - 1) * per_page
+    end_idx = start_idx + per_page
+    page_groups = groups[start_idx:end_idx]
+    
+    # Add edit and delete buttons for each group on this page
+    for group in page_groups:
         group_id = group['group_id']
         group_title = group.get('group_title', f"群组 {group_id}")
         # Truncate title if too long
@@ -72,6 +84,29 @@ def get_groups_list_keyboard_with_edit(groups: list) -> InlineKeyboardMarkup:
                 callback_data=f"group_delete_{group_id}"
             )
         ])
+    
+    # Add pagination buttons if there are multiple pages
+    if total_pages > 1:
+        pagination_row = []
+        
+        # Previous page button
+        if page > 1:
+            pagination_row.append(
+                InlineKeyboardButton("⬅️ 上一页", callback_data=f"groups_page_{page - 1}")
+            )
+        
+        # Page indicator (not clickable)
+        pagination_row.append(
+            InlineKeyboardButton(f"第 {page}/{total_pages} 页", callback_data="page_info")
+        )
+        
+        # Next page button
+        if page < total_pages:
+            pagination_row.append(
+                InlineKeyboardButton("下一页 ➡️", callback_data=f"groups_page_{page + 1}")
+            )
+        
+        keyboard.append(pagination_row)
     
     # Add refresh button
     keyboard.append([

@@ -1030,6 +1030,33 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_group_edit(update, context)
         return
     
+    # Handle groups list pagination
+    if callback_data.startswith("groups_page_"):
+        from handlers.message_handlers import handle_admin_w7
+        
+        if not is_admin(query.from_user.id):
+            await query.answer("❌ 此功能仅限管理员使用", show_alert=True)
+            return
+        
+        # Extract page number from callback_data
+        try:
+            page = int(callback_data.split("_")[2])
+        except (IndexError, ValueError):
+            page = 1
+        
+        # Call handle_admin_w7 with page parameter
+        try:
+            await handle_admin_w7(update, context, page=page)
+        except Exception as e:
+            logger.error(f"Error calling handle_admin_w7 for page {page}: {e}", exc_info=True)
+            await query.answer(f"❌ 错误: {str(e)}", show_alert=True)
+        return
+    
+    # Handle page info button (not clickable, just for display)
+    if callback_data == "page_info":
+        await query.answer()
+        return
+    
     # Handle global groups list directly (old global_management_menu removed)
     if callback_data == "global_groups_list":
         from handlers.message_handlers import handle_admin_w7
@@ -1055,7 +1082,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await query.message.reply_text(help_message, parse_mode="HTML", reply_markup=help_keyboard)
                 mark_help_shown(query.from_user.id, "所有群组列表", shown=True)
         
-        # Call handle_admin_w7 to show groups list
+        # Call handle_admin_w7 to show groups list (page 1)
         try:
             await handle_admin_w7(update, context)
         except Exception as e:

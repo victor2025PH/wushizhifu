@@ -351,8 +351,8 @@ async def handle_admin_w4(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
-async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle w7/CKQL: View all groups where bot is present"""
+async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE, page: int = 1):
+    """Handle w7/CKQL: View all groups where bot is present (with pagination)"""
     try:
         # Use context.bot instead of message.bot to avoid attribute errors
         bot = context.bot
@@ -713,9 +713,15 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # For groups list, we'll still use inline keyboard for selecting groups to edit
         # But add reply keyboard for navigation
+        # 使用分頁顯示群組列表
+        per_page = 10
+        total_groups = len(display_groups)
+        total_pages = max(1, (total_groups + per_page - 1) // per_page)
+        page = max(1, min(page, total_pages))
+        
         if query:
             # If called from callback, edit the message
-            inline_keyboard = get_groups_list_keyboard_with_edit(display_groups)
+            inline_keyboard = get_groups_list_keyboard_with_edit(display_groups, page=page, per_page=per_page)
             try:
                 await query.edit_message_text(message, parse_mode="HTML", reply_markup=inline_keyboard)
                 await query.answer()
@@ -736,10 +742,10 @@ async def handle_admin_w7(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             # If called from message, send new message with inline keyboard only
             # Reply keyboard is not needed as inline keyboard has back button
-            inline_keyboard = get_groups_list_keyboard_with_edit(display_groups)
+            inline_keyboard = get_groups_list_keyboard_with_edit(display_groups, page=page, per_page=per_page)
             await update.message.reply_text(message, parse_mode="HTML", reply_markup=inline_keyboard)
         
-        logger.info(f"Admin {update.effective_user.id} executed w7/CKQL, showing {len(valid_groups)} groups")
+        logger.info(f"Admin {update.effective_user.id} executed w7/CKQL, showing {len(valid_groups)} groups (page {page}/{total_pages})")
             
     except Exception as e:
         logger.error(f"Error in handle_admin_w7: {e}", exc_info=True)
