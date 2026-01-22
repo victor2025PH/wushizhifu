@@ -235,17 +235,18 @@ async def handle_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
         notification_settings = db.get_group_notification_settings(group_id)
         
         # 判斷狀態變化方向
+        # 注意：python-telegram-bot 使用 OWNER 而不是 CREATOR
         is_joining = (
-            new_status in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR] and
+            new_status in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER] and
             old_status in [ChatMemberStatus.LEFT, ChatMemberStatus.KICKED, None]
         )
         is_leaving = (
             new_status == ChatMemberStatus.LEFT and
-            old_status in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR, ChatMemberStatus.RESTRICTED]
+            old_status in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER, ChatMemberStatus.RESTRICTED]
         )
         is_kicked = (
             new_status == ChatMemberStatus.KICKED and
-            old_status in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR, ChatMemberStatus.RESTRICTED]
+            old_status in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER, ChatMemberStatus.RESTRICTED]
         )
         
         # ========== 處理成員加入 ==========
