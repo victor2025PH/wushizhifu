@@ -142,16 +142,16 @@ async def handle_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # 判斷狀態變化方向
         is_joining = (
-            new_status in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER] and
+            new_status in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR] and
             old_status in [ChatMemberStatus.LEFT, ChatMemberStatus.KICKED, None]
         )
         is_leaving = (
             new_status == ChatMemberStatus.LEFT and
-            old_status in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER, ChatMemberStatus.RESTRICTED]
+            old_status in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR, ChatMemberStatus.RESTRICTED]
         )
         is_kicked = (
             new_status == ChatMemberStatus.KICKED and
-            old_status in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER, ChatMemberStatus.RESTRICTED]
+            old_status in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR, ChatMemberStatus.RESTRICTED]
         )
         
         # ========== 處理成員加入 ==========
