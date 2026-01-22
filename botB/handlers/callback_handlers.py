@@ -967,6 +967,18 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 # ========== Main Callback Handler ==========
 
+def clear_pending_states(context: ContextTypes.DEFAULT_TYPE):
+    """清除所有等待輸入的狀態，避免狀態殘留導致錯誤"""
+    states_to_clear = [
+        'awaiting_admin_id', 'adding_address', 'address_group_id', 'new_address', 'address_step',
+        'editing_address', 'editing_address_label', 'editing_address_qr',
+        'awaiting_settlement_input', 'awaiting_welcome_message', 'waiting_for'
+    ]
+    for state in states_to_clear:
+        if state in context.user_data:
+            del context.user_data[state]
+
+
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Main callback handler - routes callback queries to appropriate handlers
@@ -978,6 +990,14 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     callback_data = query.data
     logger.info(f"Callback received: {callback_data}, user_id: {query.from_user.id}")
+    
+    # 對於主要導航按鈕，清除所有等待狀態
+    navigation_callbacks = [
+        'main_menu', 'group_settings_menu', 'global_groups_list', 'address_list',
+        'customer_service_management', 'admin_commands_help', 'notification_settings'
+    ]
+    if callback_data in navigation_callbacks:
+        clear_pending_states(context)
     
     # Quick action buttons from welcome message
     if callback_data == "show_rate":

@@ -1047,7 +1047,22 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Check if awaiting admin ID input (must check BEFORE number check and other handlers)
     # BUT skip if text is a known button/command (like "⚙️ 管理")
-    known_buttons = ["⚙️ 管理", "⚙️ 设置", "⚙️ 群組設置", "⚙️ 管理後台", "🔙 返回主菜单", "➕ 添加管理员", "🗑️ 删除管理员", "📋 管理员列表"]
+    known_buttons = ["⚙️ 管理", "⚙️ 设置", "⚙️ 群組設置", "⚙️ 管理後台", "🔙 返回主菜单", "➕ 添加管理员", "🗑️ 删除管理员", "📋 管理员列表",
+                     "💱 查匯率", "💰 結算", "📜 我的賬單", "🔗 地址", "📞 聯繫客服", "💎 打開應用",
+                     "💱 汇率", "💰 结算", "📜 我的账单", "📞 客服"]
+    
+    # 如果是已知按鈕，清除所有等待狀態
+    if text in known_buttons:
+        # 清除所有可能殘留的等待狀態
+        states_to_clear = [
+            'awaiting_admin_id', 'adding_address', 'address_group_id', 'new_address', 'address_step',
+            'editing_address', 'editing_address_label', 'editing_address_qr',
+            'awaiting_settlement_input', 'awaiting_welcome_message', 'waiting_for'
+        ]
+        for state in states_to_clear:
+            if state in context.user_data:
+                del context.user_data[state]
+    
     if 'awaiting_admin_id' in context.user_data and text not in known_buttons:
         await handle_admin_id_input(update, context, text)
         return
