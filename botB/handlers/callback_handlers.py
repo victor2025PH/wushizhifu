@@ -979,6 +979,17 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     callback_data = query.data
     logger.info(f"Callback received: {callback_data}, user_id: {query.from_user.id}")
     
+    # Quick action buttons from welcome message
+    if callback_data == "show_rate":
+        from handlers.message_handlers import handle_price_button
+        await query.answer()
+        await handle_price_button(update, context)
+        return
+    
+    if callback_data == "start_settlement":
+        await query.answer("💰 請發送人民幣金額開始結算\n例如：10000", show_alert=True)
+        return
+    
     # Transaction lifecycle management
     if callback_data.startswith("mark_paid"):
         await handle_mark_paid(update, context)

@@ -83,6 +83,40 @@ class Database:
             ON group_settings(is_active)
         """)
         
+        # Migrate group_settings table: add notification columns if they don't exist
+        try:
+            cursor.execute("PRAGMA table_info(group_settings)")
+            columns = [row[1] for row in cursor.fetchall()]
+            
+            if 'welcome_enabled' not in columns:
+                cursor.execute("ALTER TABLE group_settings ADD COLUMN welcome_enabled INTEGER DEFAULT 1")
+                logger.info("Added welcome_enabled column to group_settings")
+            
+            if 'welcome_message' not in columns:
+                cursor.execute("ALTER TABLE group_settings ADD COLUMN welcome_message TEXT")
+                logger.info("Added welcome_message column to group_settings")
+            
+            if 'leave_enabled' not in columns:
+                cursor.execute("ALTER TABLE group_settings ADD COLUMN leave_enabled INTEGER DEFAULT 0")
+                logger.info("Added leave_enabled column to group_settings")
+            
+            if 'leave_message' not in columns:
+                cursor.execute("ALTER TABLE group_settings ADD COLUMN leave_message TEXT")
+                logger.info("Added leave_message column to group_settings")
+            
+            if 'kick_enabled' not in columns:
+                cursor.execute("ALTER TABLE group_settings ADD COLUMN kick_enabled INTEGER DEFAULT 1")
+                logger.info("Added kick_enabled column to group_settings")
+            
+            if 'kick_message' not in columns:
+                cursor.execute("ALTER TABLE group_settings ADD COLUMN kick_message TEXT")
+                logger.info("Added kick_message column to group_settings")
+            
+            conn.commit()
+        except Exception as e:
+            logger.error(f"Error migrating group_settings table: {e}", exc_info=True)
+            conn.rollback()
+        
         # Create user_settings table for user preferences and onboarding
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS user_settings (
@@ -1177,6 +1211,129 @@ class Database:
         except Exception as e:
             logger.error(f"Error getting deleted group IDs: {e}", exc_info=True)
             return set()
+    
+    def get_group_notification_settings(self, group_id: int) -> dict:
+        """
+        Get notification settings for a group.
+        
+        Args:
+            group_id: Telegram group ID
+            
+        Returns:
+            Dictionary with notification settings
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT welcome_enabled, welcome_message, 
+                       leave_enabled, leave_message,
+                       kick_enabled, kick_message
+                FROM group_settings 
+                WHERE group_id = ?
+            """, (group_id,))
+            
+            row = cursor.fetchone()
+            if row:
+                return {
+                    'welcome_enabled': bool(row['welcome_enabled']) if row['welcome_enabled'] is not None else True,
+                    'welcome_message': row['welcome_message'],
+                    'leave_enabled': bool(row['leave_enabled']) if row['leave_enabled'] is not None else False,
+                    'leave_message': row['leave_message'],
+                    'kick_enabled': bool(row['kick_enabled']) if row['kick_enabled'] is not None else True,
+                    'kick_message': row['kick_message']
+                }
+            
+            # Return defaults if no settings found
+            return {
+                'welcome_enabled': True,
+                'welcome_message': None,
+                'leave_enabled': False,
+                'leave_message': None,
+                'kick_enabled': True,
+                'kick_message': None
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting notification settings for group {group_id}: {e}", exc_info=True)
+            return {
+                'welcome_enabled': True,
+                'welcome_message': None,
+                'leave_enabled': False,
+                'leave_message': None,
+                'kick_enabled': True,
+                'kick_message': None
+            }
+    
+    def set_group_notification_settings(self, group_id: int, settings: dict, updated_by: int = None) -> bool:
+        """
+        Set notification settings for a group.
+        
+        Args:
+            group_id: Telegram group ID
+            settings: Dictionary with notification settings to update
+            updated_by: User ID who made the change
+            
+        Returns:
+            True if successful
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            # Ensure group exists
+            self.ensure_group_exists(group_id)
+            
+            # Build update query dynamically based on provided settings
+            update_parts = []
+            values = []
+            
+            if 'welcome_enabled' in settings:
+                update_parts.append("welcome_enabled = ?")
+                values.append(1 if settings['welcome_enabled'] else 0)
+            
+            if 'welcome_message' in settings:
+                update_parts.append("welcome_message = ?")
+                values.append(settings['welcome_message'])
+            
+            if 'leave_enabled' in settings:
+                update_parts.append("leave_enabled = ?")
+                values.append(1 if settings['leave_enabled'] else 0)
+            
+            if 'leave_message' in settings:
+                update_parts.append("leave_message = ?")
+                values.append(settings['leave_message'])
+            
+            if 'kick_enabled' in settings:
+                update_parts.append("kick_enabled = ?")
+                values.append(1 if settings['kick_enabled'] else 0)
+            
+            if 'kick_message' in settings:
+                update_parts.append("kick_message = ?")
+                values.append(settings['kick_message'])
+            
+            if updated_by:
+                update_parts.append("updated_by = ?")
+                values.append(updated_by)
+            
+            update_parts.append("updated_at = CURRENT_TIMESTAMP")
+            
+            if update_parts:
+                values.append(group_id)
+                cursor.execute(f"""
+                    UPDATE group_settings 
+                    SET {', '.join(update_parts)}
+                    WHERE group_id = ?
+                """, values)
+                conn.commit()
+                logger.info(f"Updated notification settings for group {group_id}")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error setting notification settings for group {group_id}: {e}", exc_info=True)
+            return False
     
     def get_all_groups(self) -> list:
         """

@@ -1,0 +1,13 @@
+重啟服務
+sudo systemctl restart otc-bot
+查看实时日志
+sudo journalctl -u otc-bot -f  
+
+
+伍拾支付
+ssh ubuntu@165.154.203.182
+bkGcLejxmbPYB4v9
+https://50zf.usdt2026.cc
+https://5050.usdt2026.cc
+
+客服@wushizhifu_jianglai

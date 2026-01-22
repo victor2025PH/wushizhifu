@@ -1047,7 +1047,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Check if awaiting admin ID input (must check BEFORE number check and other handlers)
     # BUT skip if text is a known button/command (like "⚙️ 管理")
-    known_buttons = ["⚙️ 管理", "⚙️ 设置", "🔙 返回主菜单", "➕ 添加管理员", "🗑️ 删除管理员", "📋 管理员列表"]
+    known_buttons = ["⚙️ 管理", "⚙️ 设置", "⚙️ 群組設置", "⚙️ 管理後台", "🔙 返回主菜单", "➕ 添加管理员", "🗑️ 删除管理员", "📋 管理员列表"]
     if 'awaiting_admin_id' in context.user_data and text not in known_buttons:
         await handle_admin_id_input(update, context, text)
         return
@@ -1533,7 +1533,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     from keyboards.inline_keyboard import get_button_help_keyboard
     
-    if text in ["💱 汇率", "💱 查看汇率", "📊 查看汇率"]:
+    if text in ["💱 汇率", "💱 查汇率", "💱 查看汇率", "📊 查看汇率", "💱 查匯率"]:
         # Show help if needed
         if should_show_help(user_id, "💱 汇率"):
             help_message = format_button_help_message("💱 汇率")
@@ -1568,7 +1568,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_history_bills(update, context, page=1)
         return
     
-    if text == "💰 结算":
+    if text in ["💰 结算", "💰 結算"]:
         # Set settlement mode - user must input amount next
         context.user_data['awaiting_settlement_input'] = True
         
@@ -1586,7 +1586,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_group_message(update, message, parse_mode="HTML")
         return
     
-    if text in ["⚙️ 设置", "⚙️ 管理"]:
+    if text in ["⚙️ 设置", "⚙️ 管理", "⚙️ 群組設置", "⚙️ 管理後台"]:
         # Clear any pending context states when clicking management button
         if 'awaiting_admin_id' in context.user_data:
             del context.user_data['awaiting_admin_id']
@@ -1970,7 +1970,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("📋 操作日志功能正在开发中，请使用指令或稍后再试")
         return
     
-    if text in ["🔗 收款地址", "🔗 地址"]:
+    if text in ["🔗 收款地址", "🔗 地址", "🔗 地址"]:
         chat = update.effective_chat
         
         # 在群组中：直接显示地址（不再显示帮助信息，因为地址消息中已包含使用说明）
@@ -2208,7 +2208,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         return
     
-    if text in ["📞 联系客服", "📞 客服"]:
+    if text in ["📞 联系客服", "📞 客服", "📞 聯繫客服"]:
         # Handle customer service assignment based on chat type
         if chat.type in ['group', 'supergroup']:
             # In group: assign customer service and directly jump to private chat
@@ -2286,7 +2286,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     # Handle "📜 我的账单" button (both group and private)
-    if text == "📜 我的账单":
+    if text in ["📜 我的账单", "📜 我的賬單"]:
         if chat.type == 'private':
             # Show help if needed
             if should_show_help(user_id, "📜 我的账单"):
@@ -2416,7 +2416,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         # Handle admin panel button
-        if text in ["⚙️ 管理", "⚙️ 设置"]:
+        if text in ["⚙️ 管理", "⚙️ 设置", "⚙️ 群組設置", "⚙️ 管理後台"]:
             # Clear any pending context states when clicking management button
             if 'awaiting_admin_id' in context.user_data:
                 del context.user_data['awaiting_admin_id']

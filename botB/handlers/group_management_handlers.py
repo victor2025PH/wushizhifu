@@ -3,15 +3,105 @@ Group management handlers (adapted from Bot A)
 Handles group verification, sensitive words filtering, and new member processing
 """
 import logging
-from telegram import Update
+from datetime import datetime
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import MessageHandler, ChatMemberHandler, filters, ContextTypes
 from telegram.constants import ChatMemberStatus
 from repositories.group_repository import GroupRepository
 from repositories.sensitive_words_repository import SensitiveWordsRepository
 from repositories.verification_repository import VerificationRepository
 from services.verification_service import VerificationService
+from database import db
 
 logger = logging.getLogger(__name__)
+
+
+def format_welcome_message(member_name: str, group_title: str, member_count: int = None, custom_message: str = None) -> str:
+    """
+    Format a beautiful welcome message card.
+    
+    Args:
+        member_name: Member's display name
+        group_title: Group title
+        member_count: Optional member count
+        custom_message: Optional custom welcome message
+        
+    Returns:
+        Formatted welcome message
+    """
+    # Replace variables in custom message if provided
+    if custom_message:
+        message = custom_message
+        message = message.replace("{member_name}", member_name)
+        message = message.replace("{group_name}", group_title or "群組")
+        message = message.replace("{date}", datetime.now().strftime("%Y-%m-%d"))
+        return message
+    
+    # Default welcome card
+    lines = [
+        f"┌─────────────────────────────┐",
+        f"│ 👋 <b>歡迎新成員加入！</b>",
+        f"├─────────────────────────────┤",
+        f"│ 👤 {member_name}",
+        f"│ 📌 {group_title or '本群組'}",
+    ]
+    
+    if member_count:
+        lines.append(f"│ 👥 群成員：{member_count} 人")
+    
+    lines.extend([
+        f"├─────────────────────────────┤",
+        f"│ 📋 <b>快速開始：</b>",
+        f"│ • 發送金額查詢匯率",
+        f"│ • 點擊「💰 結算」開始交易",
+        f"└─────────────────────────────┘",
+    ])
+    
+    return "\n".join(lines)
+
+
+def format_leave_message(member_name: str, group_title: str = None, custom_message: str = None) -> str:
+    """
+    Format a leave notification message.
+    
+    Args:
+        member_name: Member's display name
+        group_title: Group title
+        custom_message: Optional custom leave message
+        
+    Returns:
+        Formatted leave message
+    """
+    if custom_message:
+        message = custom_message
+        message = message.replace("{member_name}", member_name)
+        message = message.replace("{group_name}", group_title or "群組")
+        message = message.replace("{date}", datetime.now().strftime("%Y-%m-%d"))
+        return message
+    
+    return f"👋 {member_name} 離開了群組"
+
+
+def format_kick_message(member_name: str, group_title: str = None, custom_message: str = None) -> str:
+    """
+    Format a kick notification message.
+    
+    Args:
+        member_name: Member's display name
+        group_title: Group title
+        custom_message: Optional custom kick message
+        
+    Returns:
+        Formatted kick message
+    """
+    if custom_message:
+        message = custom_message
+        message = message.replace("{member_name}", member_name)
+        message = message.replace("{group_name}", group_title or "群組")
+        message = message.replace("{date}", datetime.now().strftime("%Y-%m-%d"))
+        return message
+    
+    return f"🚫 {member_name} 已被移出群組"
 
 
 async def handle_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -133,12 +223,16 @@ async def handle_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
         old_status = chat_member.old_chat_member.status if chat_member.old_chat_member else None
         
         group_id = chat_member.chat.id
+        group_title = chat_member.chat.title or "群組"
         member = chat_member.new_chat_member.user
         member_name = member.first_name or member.username or '成員'
         
         # 跳過機器人
         if member.is_bot:
             return
+        
+        # 獲取群組通知設置
+        notification_settings = db.get_group_notification_settings(group_id)
         
         # 判斷狀態變化方向
         is_joining = (
@@ -215,31 +309,71 @@ async def handle_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 logger.info(f"New member {member.id} joined group {group_id}, pending verification")
             else:
-                # No verification required
+                # No verification required - send welcome message if enabled
                 GroupRepository.add_member(group_id, member.id, status='verified')
                 
-                await context.bot.send_message(
-                    chat_id=group_id,
-                    text=f"👋 歡迎 {member_name} 加入群組！"
-                )
+                if notification_settings.get('welcome_enabled', True):
+                    # Try to get member count
+                    member_count = None
+                    try:
+                        member_count = await context.bot.get_chat_member_count(group_id)
+                    except Exception:
+                        pass
+                    
+                    # Format welcome message
+                    welcome_text = format_welcome_message(
+                        member_name=member_name,
+                        group_title=group_title,
+                        member_count=member_count,
+                        custom_message=notification_settings.get('welcome_message')
+                    )
+                    
+                    # Create quick action buttons
+                    keyboard = InlineKeyboardMarkup([
+                        [
+                            InlineKeyboardButton("💱 查匯率", callback_data="show_rate"),
+                            InlineKeyboardButton("💰 開始結算", callback_data="start_settlement")
+                        ]
+                    ])
+                    
+                    await context.bot.send_message(
+                        chat_id=group_id,
+                        text=welcome_text,
+                        parse_mode="HTML",
+                        reply_markup=keyboard
+                    )
         
         # ========== 處理成員離開 ==========
         elif is_leaving:
             logger.info(f"Member {member.id} ({member_name}) left group {group_id}")
-            # 可選：發送離開消息（目前不發送，避免打擾）
-            # await context.bot.send_message(
-            #     chat_id=group_id,
-            #     text=f"👋 {member_name} 離開了群組"
-            # )
+            
+            if notification_settings.get('leave_enabled', False):
+                leave_text = format_leave_message(
+                    member_name=member_name,
+                    group_title=group_title,
+                    custom_message=notification_settings.get('leave_message')
+                )
+                
+                await context.bot.send_message(
+                    chat_id=group_id,
+                    text=leave_text
+                )
         
         # ========== 處理成員被踢 ==========
         elif is_kicked:
             logger.info(f"Member {member.id} ({member_name}) was kicked from group {group_id}")
-            # 可選：發送被踢消息（目前不發送，避免打擾）
-            # await context.bot.send_message(
-            #     chat_id=group_id,
-            #     text=f"🚫 {member_name} 已被移出群組"
-            # )
+            
+            if notification_settings.get('kick_enabled', True):
+                kick_text = format_kick_message(
+                    member_name=member_name,
+                    group_title=group_title,
+                    custom_message=notification_settings.get('kick_message')
+                )
+                
+                await context.bot.send_message(
+                    chat_id=group_id,
+                    text=kick_text
+                )
     
     except Exception as e:
         logger.error(f"Error in handle_new_member: {e}", exc_info=True)

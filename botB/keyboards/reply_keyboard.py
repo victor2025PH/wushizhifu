@@ -65,17 +65,26 @@ def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = Fals
         logger.info(f"Using base URL without user params: {base_url}")
         return base_url
     
-    # Use the same layout for both group and private chat
-    # Group and private chat layout - 3 buttons per row (unified)
+    # Optimized layout - prioritize most used features
+    # Row 1: Most used - Rate query (prominent)
+    # Row 2: Transaction related
+    # Row 3: Support
+    # Row 4: Admin (if applicable)
+    
     keyboard = [
+        # Row 1: Most used feature - prominent
         [
-            KeyboardButton("💱 汇率"),
-            KeyboardButton("💰 结算"),
-            KeyboardButton("📜 我的账单")
+            KeyboardButton("💱 查匯率")
         ],
+        # Row 2: Transaction related features
         [
-            KeyboardButton("🔗 地址"),
-            KeyboardButton("📞 客服")
+            KeyboardButton("💰 結算"),
+            KeyboardButton("📜 我的賬單"),
+            KeyboardButton("🔗 地址")
+        ],
+        # Row 3: Support
+        [
+            KeyboardButton("📞 聯繫客服")
         ]
     ]
     
@@ -83,31 +92,26 @@ def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = Fals
     # IMPORTANT: WebApp buttons are NOT allowed in group chats by Telegram API
     # So we only add them in private chats, or remove them in groups
     if user_id and is_admin(user_id):
-        # Admin user - add "打开应用" button after "客服" button in second row
-        # and "管理" button in a separate row
-        admin_button_text = "⚙️ 设置" if is_group else "⚙️ 管理"
+        admin_button_text = "⚙️ 群組設置" if is_group else "⚙️ 管理後台"
         
-        # Add "打开应用" button to the second row (客服 row) if in private chat
+        # In private chat, add WebApp button
         if not is_group:
-            # Add WebApp button after "客服" in second row
-            keyboard[1].append(KeyboardButton(
-                "💎 打开应用",
+            # Add WebApp button to support row
+            keyboard[2].append(KeyboardButton(
+                "💎 打開應用",
                 web_app=WebAppInfo(url=get_webapp_url())
             ))
         
-        # Add "管理" button in a separate row
+        # Add admin button in separate row
         keyboard.append([
             KeyboardButton(admin_button_text)
         ])
     else:
-        # If not admin, handle based on chat type
-        if is_group:
-            # In groups, don't add any row for non-admin users
-            pass
-        else:
-            # In private chats, add "打开应用" button after "客服" in second row
-            keyboard[1].append(KeyboardButton(
-                "💎 打开应用",
+        # Non-admin users
+        if not is_group:
+            # In private chats, add WebApp button to support row
+            keyboard[2].append(KeyboardButton(
+                "💎 打開應用",
                 web_app=WebAppInfo(url=get_webapp_url())
             ))
     
@@ -115,6 +119,6 @@ def get_main_reply_keyboard(user_id: Optional[int] = None, is_group: bool = Fals
         keyboard=keyboard,
         resize_keyboard=True,
         one_time_keyboard=False,
-        input_field_placeholder="输入人民币金额或算式（如：20000-200）..."
+        input_field_placeholder="輸入人民幣金額開始結算（如：10000 或 20000-200）"
     )
 
