@@ -1469,20 +1469,11 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # Set settlement mode - user must input amount next
                 context.user_data['awaiting_settlement_input'] = True
                 
-                # Show quick settlement keyboard with common amounts
-                from keyboards.inline_keyboard import get_quick_settlement_keyboard
-                
-                message = (
-                    "💰 <b>快捷結算</b>\n\n"
-                    "選擇常用金額或直接輸入：\n\n"
-                    "📝 <b>自定義輸入：</b>\n"
-                    "• <code>10000</code>（直接數字）\n"
-                    "• <code>20000-200</code>（算式）\n"
-                    "• <code>10000,20000</code>（批量）"
+                # Simple prompt - wait for direct input
+                await update.message.reply_text(
+                    "💰 請輸入金額或算式：",
+                    parse_mode="HTML"
                 )
-                
-                keyboard = get_quick_settlement_keyboard()
-                await send_group_message(update, message, parse_mode="HTML", reply_markup=keyboard)
             elif command == "今日":
                 await handle_today_bills_button(update, context)
             elif command == "历史":
@@ -1574,20 +1565,11 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Set settlement mode - user must input amount next
         context.user_data['awaiting_settlement_input'] = True
         
-        # Show quick settlement keyboard with common amounts
-        from keyboards.inline_keyboard import get_quick_settlement_keyboard
-        
-        message = (
-            "💰 <b>快捷結算</b>\n\n"
-            "選擇常用金額或直接輸入：\n\n"
-            "📝 <b>自定義輸入：</b>\n"
-            "• <code>10000</code>（直接數字）\n"
-            "• <code>20000-200</code>（算式）\n"
-            "• <code>10000,20000</code>（批量）"
+        # Simple prompt - wait for direct input
+        await update.message.reply_text(
+            "💰 請輸入金額或算式：",
+            parse_mode="HTML"
         )
-        
-        keyboard = get_quick_settlement_keyboard()
-        await send_group_message(update, message, parse_mode="HTML", reply_markup=keyboard)
         return
     
     if text in ["⚙️ 设置", "⚙️ 管理", "⚙️ 群組設置", "⚙️ 管理後台"]:
