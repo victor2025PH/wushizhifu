@@ -86,15 +86,15 @@ async def sync_groups_on_startup(bot) -> Dict[str, int]:
         verified_groups = []
         failed_groups = []
         
-        # 分批處理，每批 10 個（減少並發，避免超時），避免觸發速率限制
+        # 優化：增加並發數量，減少延遲
         group_list = list(all_group_ids)
-        batch_size = 10  # 減少批次大小
+        batch_size = 30  # 增加批次大小，加快同步速度
         
         for i in range(0, len(group_list), batch_size):
             batch = group_list[i:i + batch_size]
             
             # 並發驗證這批群組（使用 return_exceptions 捕獲所有異常）
-            tasks = [verify_group(bot, group_id, group_titles.get(group_id)) for group_id in batch]
+            tasks = [verify_group_fast(bot, group_id, group_titles.get(group_id)) for group_id in batch]
             results = await asyncio.gather(*tasks, return_exceptions=True)
             
             for group_id, result in zip(batch, results):
@@ -109,9 +109,9 @@ async def sync_groups_on_startup(bot) -> Dict[str, int]:
                     failed_groups.append(group_id)
                     stats['failed'] += 1
             
-            # 批次之間添加延遲，避免觸發速率限制
+            # 批次之間短暫延遲
             if i + batch_size < len(group_list):
-                await asyncio.sleep(2)  # 增加延遲時間
+                await asyncio.sleep(0.5)  # 減少延遲時間
         
         # 更新資料庫中的群組資訊
         for group_id, group_info in verified_groups:
@@ -219,9 +219,89 @@ async def sync_groups_on_startup(bot) -> Dict[str, int]:
         return stats
 
 
+async def verify_group_fast(bot, group_id: int, known_title: str = None) -> Optional[Dict]:
+    """
+    快速驗證群組（優化版本，無重試，短超時）
+    
+    Args:
+        bot: Telegram Bot 實例
+        group_id: 群組 ID
+        known_title: 已知的群組標題（可選）
+        
+    Returns:
+        群組資訊字典，如果無法訪問則返回 None
+    """
+    try:
+        # 使用 get_chat 驗證群組，短超時
+        chat = await asyncio.wait_for(
+            bot.get_chat(group_id),
+            timeout=5.0  # 5秒超時（縮短）
+        )
+        
+        # 檢查是否是群組或超級群組
+        if chat.type not in ['group', 'supergroup']:
+            return None
+        
+        # 獲取實際的群組標題
+        actual_title = chat.title if chat.title else known_title
+        logger.info(f"📝 群組 {group_id} 驗證獲取的標題: '{actual_title}'")
+        
+        return {
+            'group_id': group_id,
+            'title': actual_title,
+            'type': chat.type,
+            'accessible': True
+        }
+        
+    except asyncio.TimeoutError:
+        # 超時，使用已知標題（如果有的話）
+        if known_title:
+            logger.debug(f"⏱️ 群組 {group_id} 驗證超時，使用已知標題: '{known_title}'")
+            return {
+                'group_id': group_id,
+                'title': known_title,
+                'type': 'supergroup',
+                'accessible': True
+            }
+        return None
+        
+    except RetryAfter as e:
+        # Telegram API 要求等待，直接跳過
+        logger.warning(f"⏳ 群組 {group_id} 觸發速率限制，跳過")
+        if known_title:
+            return {
+                'group_id': group_id,
+                'title': known_title,
+                'type': 'supergroup',
+                'accessible': True
+            }
+        return None
+        
+    except Exception as e:
+        error_msg = str(e).lower()
+        
+        # 群組不存在或機器人被踢出
+        if any(keyword in error_msg for keyword in ['not found', 'unauthorized', 'forbidden', 'kicked']):
+            logger.debug(f"🚫 群組 {group_id} 無法訪問: {e}")
+            return None
+        
+        # 其他錯誤，如果有已知標題則使用
+        if known_title:
+            logger.debug(f"⚠️ 群組 {group_id} 驗證錯誤，使用已知標題: '{known_title}'")
+            return {
+                'group_id': group_id,
+                'title': known_title,
+                'type': 'supergroup',
+                'accessible': True
+            }
+        
+        logger.debug(f"❌ 群組 {group_id} 驗證失敗: {e}")
+        return None
+
+
 async def verify_group(bot, group_id: int, known_title: str = None, max_retries: int = 2) -> Optional[Dict]:
     """
-    驗證單個群組，檢查機器人是否仍在群組中並獲取群組資訊
+    驗證單個群組，檢查機器人是否仍在群組中並獲取群組資訊（帶重試版本）
     
     Args:
         bot: Telegram Bot 實例
