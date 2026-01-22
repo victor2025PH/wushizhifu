@@ -243,41 +243,99 @@ def get_paid_transactions_keyboard(group_id: int = None, page: int = 1) -> Inlin
 
 
 
-def get_group_settings_menu() -> InlineKeyboardMarkup:
+def get_group_settings_menu(pending_count: int = 0, paid_count: int = 0) -> InlineKeyboardMarkup:
     """
-    Get inline keyboard for group settings menu.
+    Get inline keyboard for group settings menu (restructured).
+    
+    Args:
+        pending_count: Number of pending transactions
+        paid_count: Number of paid transactions waiting for confirmation
     
     Returns:
-        InlineKeyboardMarkup with group settings options
+        InlineKeyboardMarkup with organized group settings options
     """
+    # Format count badges
+    pending_badge = f" ({pending_count})" if pending_count > 0 else ""
+    paid_badge = f" ({paid_count})" if paid_count > 0 else ""
+    
     keyboard = [
+        # === 交易管理 ===
         [
-            InlineKeyboardButton("📋 查看群组设置", callback_data="group_settings_view")
+            InlineKeyboardButton(f"⏳ 待支付{pending_badge}", callback_data="pending_transactions"),
+            InlineKeyboardButton(f"✅ 待確認{paid_badge}", callback_data="paid_transactions")
         ],
+        # === 數據統計 ===
         [
-            InlineKeyboardButton("➕ 设置加价", callback_data="group_settings_markup"),
+            InlineKeyboardButton("📊 群組統計", callback_data="group_stats"),
+            InlineKeyboardButton("📥 導出報表", callback_data="export_stats")
+        ],
+        # === 基礎設置 ===
+        [
+            InlineKeyboardButton("➕ 設置加價", callback_data="group_settings_markup"),
             InlineKeyboardButton("📍 地址管理", callback_data="address_list")
         ],
+        # === 群組配置 ===
         [
-            InlineKeyboardButton("🔄 重置设置", callback_data="group_settings_reset"),
-            InlineKeyboardButton("❌ 删除配置", callback_data="group_settings_delete")
+            InlineKeyboardButton("📋 查看設置", callback_data="group_settings_view"),
+            InlineKeyboardButton("🔔 通知設置", callback_data="notification_settings")
+        ],
+        # === 高級功能 ===
+        [
+            InlineKeyboardButton("📋 操作日誌", callback_data="view_logs"),
+            InlineKeyboardButton("⚡ 指令教程", callback_data="admin_commands_help")
+        ],
+        # === 危險操作 ===
+        [
+            InlineKeyboardButton("🔄 重置設置", callback_data="group_settings_reset"),
+            InlineKeyboardButton("❌ 刪除配置", callback_data="group_settings_delete")
+        ],
+        # === 返回 ===
+        [
+            InlineKeyboardButton("🔙 返回主菜單", callback_data="main_menu")
+        ]
+    ]
+    
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+def get_notification_settings_keyboard(settings: dict) -> InlineKeyboardMarkup:
+    """
+    Get inline keyboard for notification settings.
+    
+    Args:
+        settings: Current notification settings dict
+        
+    Returns:
+        InlineKeyboardMarkup with notification toggle buttons
+    """
+    welcome_status = "✅" if settings.get('welcome_enabled', True) else "❌"
+    leave_status = "✅" if settings.get('leave_enabled', False) else "❌"
+    kick_status = "✅" if settings.get('kick_enabled', True) else "❌"
+    
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                f"{welcome_status} 歡迎消息", 
+                callback_data="toggle_welcome"
+            )
         ],
         [
-            InlineKeyboardButton("⏳ 待支付交易", callback_data="pending_transactions"),
-            InlineKeyboardButton("✅ 待确认交易", callback_data="paid_transactions")
+            InlineKeyboardButton(
+                f"{leave_status} 離開通知", 
+                callback_data="toggle_leave"
+            )
         ],
         [
-            InlineKeyboardButton("📊 群组统计", callback_data="group_stats"),
-            InlineKeyboardButton("📥 导出报表", callback_data="export_stats")
+            InlineKeyboardButton(
+                f"{kick_status} 踢出通知", 
+                callback_data="toggle_kick"
+            )
         ],
         [
-            InlineKeyboardButton("📋 操作日志", callback_data="view_logs"),
+            InlineKeyboardButton("✏️ 自定義歡迎語", callback_data="edit_welcome_message")
         ],
         [
-            InlineKeyboardButton("⚡ 管理员指令教程", callback_data="admin_commands_help")
-        ],
-        [
-            InlineKeyboardButton("🔙 返回主菜单", callback_data="main_menu")
+            InlineKeyboardButton("🔙 返回設置", callback_data="group_settings_menu")
         ]
     ]
     
@@ -433,6 +491,44 @@ def get_customer_service_strategy_keyboard(current_method: str = 'smart') -> Inl
         ],
         [
             InlineKeyboardButton("🔙 返回", callback_data="customer_service_management")
+        ]
+    ]
+    
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+def get_quick_settlement_keyboard() -> InlineKeyboardMarkup:
+    """
+    Get inline keyboard for quick settlement with common amount templates.
+    
+    Returns:
+        InlineKeyboardMarkup with quick amount buttons
+    """
+    keyboard = [
+        # Row 1: Small amounts
+        [
+            InlineKeyboardButton("1,000", callback_data="quick_amount_1000"),
+            InlineKeyboardButton("2,000", callback_data="quick_amount_2000"),
+            InlineKeyboardButton("5,000", callback_data="quick_amount_5000"),
+        ],
+        # Row 2: Medium amounts
+        [
+            InlineKeyboardButton("10,000", callback_data="quick_amount_10000"),
+            InlineKeyboardButton("20,000", callback_data="quick_amount_20000"),
+            InlineKeyboardButton("50,000", callback_data="quick_amount_50000"),
+        ],
+        # Row 3: Large amounts
+        [
+            InlineKeyboardButton("100,000", callback_data="quick_amount_100000"),
+            InlineKeyboardButton("200,000", callback_data="quick_amount_200000"),
+        ],
+        # Row 4: Custom input hint
+        [
+            InlineKeyboardButton("✏️ 自定義金額（直接輸入）", callback_data="custom_amount_hint"),
+        ],
+        # Row 5: Cancel
+        [
+            InlineKeyboardButton("❌ 取消", callback_data="cancel_settlement"),
         ]
     ]
     

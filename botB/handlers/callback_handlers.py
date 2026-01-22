@@ -990,6 +990,51 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("💰 請發送人民幣金額開始結算\n例如：10000", show_alert=True)
         return
     
+    # Quick settlement amount buttons
+    if callback_data.startswith("quick_amount_"):
+        try:
+            amount = int(callback_data.split("_")[2])
+            await query.answer(f"💰 正在計算 {amount:,} 元...")
+            
+            # Clear the settlement mode flag if set
+            if 'awaiting_settlement_input' in context.user_data:
+                del context.user_data['awaiting_settlement_input']
+            
+            # Process settlement with the selected amount
+            from handlers.message_handlers import handle_math_settlement
+            
+            # Create a mock update with the amount as text
+            # We need to call handle_math_settlement directly
+            await handle_math_settlement(update, context, str(amount))
+            
+            # Delete the quick settlement menu message
+            try:
+                await query.message.delete()
+            except Exception:
+                pass
+                
+        except Exception as e:
+            logger.error(f"Error processing quick amount: {e}", exc_info=True)
+            await query.answer(f"❌ 錯誤: {str(e)}", show_alert=True)
+        return
+    
+    # Custom amount hint
+    if callback_data == "custom_amount_hint":
+        await query.answer("📝 請直接在輸入框輸入金額，如：15000 或 20000-500", show_alert=True)
+        return
+    
+    # Cancel settlement
+    if callback_data == "cancel_settlement":
+        if 'awaiting_settlement_input' in context.user_data:
+            del context.user_data['awaiting_settlement_input']
+        
+        await query.answer("❌ 已取消結算")
+        try:
+            await query.message.delete()
+        except Exception:
+            pass
+        return
+    
     # Transaction lifecycle management
     if callback_data.startswith("mark_paid"):
         await handle_mark_paid(update, context)
@@ -1026,12 +1071,128 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Group settings menu (when returning from help)
     if callback_data == "group_settings_menu":
         chat = query.message.chat
+        group_id = chat.id if chat.type in ['group', 'supergroup'] else None
+        
+        # Get pending/paid counts for badges
+        pending_count = 0
+        paid_count = 0
+        if group_id:
+            try:
+                pending_txs = db.get_transactions_by_status('pending', group_id=group_id)
+                paid_txs = db.get_transactions_by_status('paid', group_id=group_id)
+                pending_count = len(pending_txs) if pending_txs else 0
+                paid_count = len(paid_txs) if paid_txs else 0
+            except Exception:
+                pass
+        
         from keyboards.inline_keyboard import get_group_settings_menu
-        reply_markup = get_group_settings_menu()
+        reply_markup = get_group_settings_menu(pending_count=pending_count, paid_count=paid_count)
         message = (
-            "⚙️ <b>群组设置菜单</b>\n\n"
-            "请选择要执行的操作："
+            "⚙️ <b>群組設置菜單</b>\n\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "📌 選擇要執行的操作："
         )
+        await query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
+        await query.answer()
+        return
+    
+    # Notification settings
+    if callback_data == "notification_settings":
+        chat = query.message.chat
+        group_id = chat.id if chat.type in ['group', 'supergroup'] else None
+        
+        if not group_id:
+            await query.answer("❌ 此功能僅在群組中可用", show_alert=True)
+            return
+        
+        settings = db.get_group_notification_settings(group_id)
+        from keyboards.inline_keyboard import get_notification_settings_keyboard
+        reply_markup = get_notification_settings_keyboard(settings)
+        
+        message = (
+            "🔔 <b>通知設置</b>\n\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "管理群組成員變動通知：\n\n"
+            f"👋 歡迎消息：{'✅ 開啟' if settings.get('welcome_enabled', True) else '❌ 關閉'}\n"
+            f"👋 離開通知：{'✅ 開啟' if settings.get('leave_enabled', False) else '❌ 關閉'}\n"
+            f"🚫 踢出通知：{'✅ 開啟' if settings.get('kick_enabled', True) else '❌ 關閉'}\n"
+        )
+        
+        await query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
+        await query.answer()
+        return
+    
+    # Toggle notification settings
+    if callback_data in ["toggle_welcome", "toggle_leave", "toggle_kick"]:
+        chat = query.message.chat
+        group_id = chat.id if chat.type in ['group', 'supergroup'] else None
+        
+        if not group_id:
+            await query.answer("❌ 此功能僅在群組中可用", show_alert=True)
+            return
+        
+        settings = db.get_group_notification_settings(group_id)
+        
+        # Toggle the setting
+        if callback_data == "toggle_welcome":
+            new_value = not settings.get('welcome_enabled', True)
+            db.set_group_notification_settings(group_id, {'welcome_enabled': new_value}, query.from_user.id)
+            status = "開啟" if new_value else "關閉"
+            await query.answer(f"✅ 歡迎消息已{status}")
+        elif callback_data == "toggle_leave":
+            new_value = not settings.get('leave_enabled', False)
+            db.set_group_notification_settings(group_id, {'leave_enabled': new_value}, query.from_user.id)
+            status = "開啟" if new_value else "關閉"
+            await query.answer(f"✅ 離開通知已{status}")
+        elif callback_data == "toggle_kick":
+            new_value = not settings.get('kick_enabled', True)
+            db.set_group_notification_settings(group_id, {'kick_enabled': new_value}, query.from_user.id)
+            status = "開啟" if new_value else "關閉"
+            await query.answer(f"✅ 踢出通知已{status}")
+        
+        # Refresh the settings page
+        settings = db.get_group_notification_settings(group_id)
+        from keyboards.inline_keyboard import get_notification_settings_keyboard
+        reply_markup = get_notification_settings_keyboard(settings)
+        
+        message = (
+            "🔔 <b>通知設置</b>\n\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "管理群組成員變動通知：\n\n"
+            f"👋 歡迎消息：{'✅ 開啟' if settings.get('welcome_enabled', True) else '❌ 關閉'}\n"
+            f"👋 離開通知：{'✅ 開啟' if settings.get('leave_enabled', False) else '❌ 關閉'}\n"
+            f"🚫 踢出通知：{'✅ 開啟' if settings.get('kick_enabled', True) else '❌ 關閉'}\n"
+        )
+        
+        await query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
+        return
+    
+    # Edit welcome message
+    if callback_data == "edit_welcome_message":
+        chat = query.message.chat
+        group_id = chat.id if chat.type in ['group', 'supergroup'] else None
+        
+        if not group_id:
+            await query.answer("❌ 此功能僅在群組中可用", show_alert=True)
+            return
+        
+        context.user_data['awaiting_welcome_message'] = group_id
+        
+        message = (
+            "✏️ <b>自定義歡迎語</b>\n\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "請輸入新的歡迎消息：\n\n"
+            "支持變量：\n"
+            "• <code>{member_name}</code> - 成員名稱\n"
+            "• <code>{group_name}</code> - 群組名稱\n"
+            "• <code>{date}</code> - 日期\n\n"
+            "輸入 <code>default</code> 恢復默認歡迎語"
+        )
+        
+        from keyboards.inline_keyboard import get_notification_settings_keyboard
+        settings = db.get_group_notification_settings(group_id)
+        reply_markup = get_notification_settings_keyboard(settings)
+        
         await query.edit_message_text(message, parse_mode="HTML", reply_markup=reply_markup)
         await query.answer()
         return

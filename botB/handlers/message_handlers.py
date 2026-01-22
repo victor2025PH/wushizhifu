@@ -1469,18 +1469,20 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # Set settlement mode - user must input amount next
                 context.user_data['awaiting_settlement_input'] = True
                 
-                # Simple prompt message (no template buttons)
+                # Show quick settlement keyboard with common amounts
+                from keyboards.inline_keyboard import get_quick_settlement_keyboard
+                
                 message = (
-                    "💰 <b>结算</b>\n\n"
-                    "请在下方输入框中输入金额：\n\n"
-                    "<b>示例：</b>\n"
-                    "• 10000（直接输入数字）\n"
-                    "• 20000-200（算式）\n"
-                    "• 10000,20000,30000（批量结算）\n\n"
-                    "💡 输入后会自动计算并生成结算单"
+                    "💰 <b>快捷結算</b>\n\n"
+                    "選擇常用金額或直接輸入：\n\n"
+                    "📝 <b>自定義輸入：</b>\n"
+                    "• <code>10000</code>（直接數字）\n"
+                    "• <code>20000-200</code>（算式）\n"
+                    "• <code>10000,20000</code>（批量）"
                 )
                 
-                await send_group_message(update, message, parse_mode="HTML")
+                keyboard = get_quick_settlement_keyboard()
+                await send_group_message(update, message, parse_mode="HTML", reply_markup=keyboard)
             elif command == "今日":
                 await handle_today_bills_button(update, context)
             elif command == "历史":
@@ -1572,18 +1574,20 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Set settlement mode - user must input amount next
         context.user_data['awaiting_settlement_input'] = True
         
-        # Simple prompt message (no template buttons)
+        # Show quick settlement keyboard with common amounts
+        from keyboards.inline_keyboard import get_quick_settlement_keyboard
+        
         message = (
-            "💰 <b>结算</b>\n\n"
-            "请在下方输入框中输入金额：\n\n"
-            "<b>示例：</b>\n"
-            "• 10000（直接输入数字）\n"
-            "• 20000-200（算式）\n"
-            "• 10000,20000,30000（批量结算）\n\n"
-            "💡 输入后会自动计算并生成结算单"
+            "💰 <b>快捷結算</b>\n\n"
+            "選擇常用金額或直接輸入：\n\n"
+            "📝 <b>自定義輸入：</b>\n"
+            "• <code>10000</code>（直接數字）\n"
+            "• <code>20000-200</code>（算式）\n"
+            "• <code>10000,20000</code>（批量）"
         )
         
-        await send_group_message(update, message, parse_mode="HTML")
+        keyboard = get_quick_settlement_keyboard()
+        await send_group_message(update, message, parse_mode="HTML", reply_markup=keyboard)
         return
     
     if text in ["⚙️ 设置", "⚙️ 管理", "⚙️ 群組設置", "⚙️ 管理後台"]:
@@ -2844,6 +2848,21 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await send_group_message(update, "✅ 已返回主菜单", reply_markup=reply_markup)
             return
     
+    # Check if user is awaiting welcome message input
+    if 'awaiting_welcome_message' in context.user_data:
+        group_id = context.user_data['awaiting_welcome_message']
+        del context.user_data['awaiting_welcome_message']
+        
+        if text.lower() == 'default':
+            # Reset to default
+            db.set_group_notification_settings(group_id, {'welcome_message': None}, user_id)
+            await send_group_message(update, "✅ 已恢復默認歡迎語")
+        else:
+            # Save custom welcome message
+            db.set_group_notification_settings(group_id, {'welcome_message': text}, user_id)
+            await send_group_message(update, f"✅ 歡迎語已更新為：\n\n{text}")
+        return
+    
     # Check if user is in settlement mode (only after clicking settlement button)
     # Only process numbers/math if user explicitly clicked settlement button
     if 'awaiting_settlement_input' in context.user_data:
@@ -2856,7 +2875,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             # User entered something that's not a number, cancel settlement mode
             del context.user_data['awaiting_settlement_input']
-            await send_group_message(update, "❌ 输入格式错误，已取消结算。请重新点击「💰 结算」按钮。")
+            await send_group_message(update, "❌ 輸入格式錯誤，已取消結算。請重新點擊「💰 結算」按鈕。")
             return
     
     # Otherwise, ignore the message (no automatic settlement)
