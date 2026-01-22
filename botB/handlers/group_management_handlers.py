@@ -122,82 +122,124 @@ async def handle_group_message(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 async def handle_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle new member joining group"""
+    """Handle member status changes in group (join/leave/kick)"""
     try:
         chat_member = update.chat_member
         if not chat_member:
             return
         
-        group_id = chat_member.chat.id
-        new_member = chat_member.new_chat_member.user
+        # 獲取狀態變化信息
+        new_status = chat_member.new_chat_member.status if chat_member.new_chat_member else None
+        old_status = chat_member.old_chat_member.status if chat_member.old_chat_member else None
         
-        if new_member.is_bot:
+        group_id = chat_member.chat.id
+        member = chat_member.new_chat_member.user
+        member_name = member.first_name or member.username or '成員'
+        
+        # 跳過機器人
+        if member.is_bot:
             return
         
-        # Get group settings
-        group = GroupRepository.get_group(group_id)
+        # 判斷狀態變化方向
+        is_joining = (
+            new_status in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER] and
+            old_status in [ChatMemberStatus.LEFT, ChatMemberStatus.KICKED, None]
+        )
+        is_leaving = (
+            new_status == ChatMemberStatus.LEFT and
+            old_status in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER, ChatMemberStatus.RESTRICTED]
+        )
+        is_kicked = (
+            new_status == ChatMemberStatus.KICKED and
+            old_status in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER, ChatMemberStatus.RESTRICTED]
+        )
         
-        if group and group.get('verification_enabled'):
-            # Add to pending verification
-            GroupRepository.add_member(group_id, new_member.id, status='pending')
+        # ========== 處理成員加入 ==========
+        if is_joining:
+            logger.info(f"Member {member.id} ({member_name}) joined group {group_id}")
             
-            # Get verification config
-            config = VerificationRepository.get_verification_config(group_id)
-            verification_mode = config.get('verification_mode', 'question') if config else 'question'
+            # Get group settings
+            group = GroupRepository.get_group(group_id)
             
-            if verification_mode == 'question':
-                # Start question-based verification
-                verification_result = VerificationService.start_verification(group_id, new_member.id)
+            if group and group.get('verification_enabled'):
+                # Add to pending verification
+                GroupRepository.add_member(group_id, member.id, status='pending')
                 
-                if verification_result and verification_result.get('question'):
-                    question = verification_result['question']
-                    question_message = VerificationService.format_question_message(question)
+                # Get verification config
+                config = VerificationRepository.get_verification_config(group_id)
+                verification_mode = config.get('verification_mode', 'question') if config else 'question'
+                
+                if verification_mode == 'question':
+                    # Start question-based verification
+                    verification_result = VerificationService.start_verification(group_id, member.id)
                     
-                    # Send question to user via private message
-                    try:
-                        await context.bot.send_message(
-                            chat_id=new_member.id,
-                            text=question_message,
-                            parse_mode="HTML"
-                        )
-                    except Exception as e:
-                        logger.warning(f"Could not send private message to user {new_member.id}: {e}")
-                        # Fallback: send in group
+                    if verification_result and verification_result.get('question'):
+                        question = verification_result['question']
+                        question_message = VerificationService.format_question_message(question)
+                        
+                        # Send question to user via private message
+                        try:
+                            await context.bot.send_message(
+                                chat_id=member.id,
+                                text=question_message,
+                                parse_mode="HTML"
+                            )
+                        except Exception as e:
+                            logger.warning(f"Could not send private message to user {member.id}: {e}")
+                            # Fallback: send in group
+                            await context.bot.send_message(
+                                chat_id=group_id,
+                                text=question_message,
+                                parse_mode="HTML"
+                            )
+                        
+                        logger.info(f"Sent verification question to user {member.id} in group {group_id}")
+                    else:
+                        # Fallback to manual verification
                         await context.bot.send_message(
                             chat_id=group_id,
-                            text=question_message,
-                            parse_mode="HTML"
+                            text=(
+                                f"👋 歡迎 {member_name} 加入群組！\n"
+                                f"⏳ 您的加入請求正在審核中，請等待管理員審核。"
+                            )
                         )
-                    
-                    logger.info(f"Sent verification question to user {new_member.id} in group {group_id}")
                 else:
-                    # Fallback to manual verification
+                    # Manual verification mode
                     await context.bot.send_message(
                         chat_id=group_id,
                         text=(
-                            f"👋 歡迎 {new_member.first_name or new_member.username or '新成員'} 加入群組！\n"
+                            f"👋 歡迎 {member_name} 加入群組！\n"
                             f"⏳ 您的加入請求正在審核中，請等待管理員審核。"
                         )
                     )
+                
+                logger.info(f"New member {member.id} joined group {group_id}, pending verification")
             else:
-                # Manual verification mode
+                # No verification required
+                GroupRepository.add_member(group_id, member.id, status='verified')
+                
                 await context.bot.send_message(
                     chat_id=group_id,
-                    text=(
-                        f"👋 歡迎 {new_member.first_name or new_member.username or '新成員'} 加入群組！\n"
-                        f"⏳ 您的加入請求正在審核中，請等待管理員審核。"
-                    )
+                    text=f"👋 歡迎 {member_name} 加入群組！"
                 )
-            
-            logger.info(f"New member {new_member.id} joined group {group_id}, pending verification")
-        else:
-            # No verification required
-            GroupRepository.add_member(group_id, new_member.id, status='verified')
-            
-            await context.bot.send_message(
-                chat_id=group_id,
-                text=f"👋 歡迎 {new_member.first_name or new_member.username or '新成員'} 加入群組！"
-            )
+        
+        # ========== 處理成員離開 ==========
+        elif is_leaving:
+            logger.info(f"Member {member.id} ({member_name}) left group {group_id}")
+            # 可選：發送離開消息（目前不發送，避免打擾）
+            # await context.bot.send_message(
+            #     chat_id=group_id,
+            #     text=f"👋 {member_name} 離開了群組"
+            # )
+        
+        # ========== 處理成員被踢 ==========
+        elif is_kicked:
+            logger.info(f"Member {member.id} ({member_name}) was kicked from group {group_id}")
+            # 可選：發送被踢消息（目前不發送，避免打擾）
+            # await context.bot.send_message(
+            #     chat_id=group_id,
+            #     text=f"🚫 {member_name} 已被移出群組"
+            # )
     
     except Exception as e:
         logger.error(f"Error in handle_new_member: {e}", exc_info=True)
