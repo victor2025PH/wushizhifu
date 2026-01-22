@@ -709,6 +709,23 @@ class Database:
             )
         """)
         
+        # Create deleted_groups table for tracking deleted groups
+        # Groups in this table will be filtered out from get_all_groups()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS deleted_groups (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                group_id BIGINT UNIQUE NOT NULL,
+                group_title TEXT,
+                deleted_by BIGINT,
+                deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_deleted_groups_group_id 
+            ON deleted_groups(group_id)
+        """)
+        
         conn.commit()
         logger.info("Database initialized successfully")
     
@@ -1098,16 +1115,83 @@ class Database:
             logger.error(f"Error deleting group settings: {e}", exc_info=True)
             return False
     
+    def mark_group_deleted(self, group_id: int, group_title: str = None, deleted_by: int = None) -> bool:
+        """
+        Mark a group as deleted. Groups in deleted_groups table will be filtered out from get_all_groups().
+        
+        Args:
+            group_id: Telegram group ID
+            group_title: Optional group title for reference
+            deleted_by: User ID who deleted the group
+            
+        Returns:
+            True if successful
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT OR REPLACE INTO deleted_groups (group_id, group_title, deleted_by, deleted_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            """, (group_id, group_title, deleted_by))
+            conn.commit()
+            logger.info(f"Group {group_id} marked as deleted")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error marking group as deleted: {e}", exc_info=True)
+            return False
+    
+    def is_group_deleted(self, group_id: int) -> bool:
+        """
+        Check if a group has been marked as deleted.
+        
+        Args:
+            group_id: Telegram group ID
+            
+        Returns:
+            True if group is in deleted_groups table
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1 FROM deleted_groups WHERE group_id = ?", (group_id,))
+            return cursor.fetchone() is not None
+        except Exception as e:
+            logger.error(f"Error checking if group is deleted: {e}", exc_info=True)
+            return False
+    
+    def get_deleted_group_ids(self) -> set:
+        """
+        Get all deleted group IDs.
+        
+        Returns:
+            Set of deleted group IDs
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            cursor.execute("SELECT group_id FROM deleted_groups")
+            return {row[0] for row in cursor.fetchall()}
+        except Exception as e:
+            logger.error(f"Error getting deleted group IDs: {e}", exc_info=True)
+            return set()
+    
     def get_all_groups(self) -> list:
         """
         Get all groups where bot is present.
         Combines data from groups table (all groups bot is in), group_settings, and transactions tables.
+        Filters out groups that have been marked as deleted.
         
         Returns:
             List of group dictionaries with title, settings, and stats
         """
         conn = self.connect()
         cursor = conn.cursor()
+        
+        # Get deleted group IDs to filter out
+        deleted_group_ids = self.get_deleted_group_ids()
         
         # Get all groups from groups table (all groups bot is in)
         cursor.execute("""
@@ -1265,6 +1349,10 @@ class Database:
             x.get('last_active') or '',
             x.get('group_id', 0)
         ), reverse=True)
+        
+        # Filter out deleted groups
+        if deleted_group_ids:
+            deduplicated_groups = [g for g in deduplicated_groups if g.get('group_id') not in deleted_group_ids]
         
         return deduplicated_groups
     

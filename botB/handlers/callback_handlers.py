@@ -822,19 +822,24 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
                     logger.error(f"Error getting group info: {e}", exc_info=True)
                     group_title = f"群组 {group_id}"
                 
-                # 删除群组配置和群组记录
+                # 删除群组配置和群组记录，并标记为已删除
                 try:
-                    logger.info(f"Attempting to delete group settings for group_id: {group_id}")
-                    # 先删除群组配置
+                    logger.info(f"Attempting to delete group {group_id}")
+                    
+                    # 1. 删除群组配置
                     settings_deleted = db.delete_group_settings(group_id)
                     logger.info(f"delete_group_settings result: {settings_deleted}")
                     
-                    # 再从 groups 表中删除群组记录
+                    # 2. 从 groups 表中删除群组记录
                     from repositories.group_repository import GroupRepository
                     group_deleted = GroupRepository.delete_group(group_id)
                     logger.info(f"GroupRepository.delete_group result: {group_deleted}")
                     
-                    if settings_deleted or group_deleted:
+                    # 3. 标记群组为已删除（关键：这样即使有交易记录也不会显示）
+                    marked_deleted = db.mark_group_deleted(group_id, group_title, query.from_user.id)
+                    logger.info(f"mark_group_deleted result: {marked_deleted}")
+                    
+                    if marked_deleted:
                         logger.info(f"Successfully deleted group {group_id} from database")
                         message = f"✅ <b>群组已删除</b>\n\n"
                         message += f"群组: <b>{group_title}</b>\n"
@@ -851,8 +856,8 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
                         # 记录操作日志
                         logger.info(f"Admin {query.from_user.id} deleted group {group_id} ({group_title}) from list")
                     else:
-                        logger.warning(f"Both delete operations returned False for group_id: {group_id}")
-                        await query.answer("❌ 删除失败，群组可能不存在", show_alert=True)
+                        logger.warning(f"Failed to mark group as deleted for group_id: {group_id}")
+                        await query.answer("❌ 删除失败，请重试", show_alert=True)
                 except Exception as e:
                     logger.error(f"Error deleting group {group_id}: {e}", exc_info=True)
                     await query.answer(f"❌ 删除失败: {str(e)}", show_alert=True)
